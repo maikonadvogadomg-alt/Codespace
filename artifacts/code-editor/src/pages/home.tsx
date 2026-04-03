@@ -268,21 +268,19 @@ export default function Home() {
                 <span className="hidden sm:inline">Importar do GitHub</span>
                 <span className="sm:hidden">GitHub</span>
               </Button>
-              <Button
-                variant="outline"
-                disabled={isUploading}
-                className="gap-2"
-                asChild
-              >
-                <label htmlFor="zip-file-input" className="cursor-pointer">
-                  {uploadMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Upload className="w-4 h-4" />
-                  )}
+              {uploadMutation.isPending ? (
+                <Button variant="outline" disabled className="gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   Upload ZIP
-                </label>
-              </Button>
+                </Button>
+              ) : (
+                <Button variant="outline" className="gap-2" asChild>
+                  <label htmlFor="zip-file-input" className="cursor-pointer">
+                    <Upload className="w-4 h-4" />
+                    Upload ZIP
+                  </label>
+                </Button>
+              )}
               <Button
                 onClick={() => setNewProjectDialogOpen(true)}
                 disabled={isUploading}
