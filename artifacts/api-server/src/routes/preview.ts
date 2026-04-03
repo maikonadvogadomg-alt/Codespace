@@ -54,12 +54,12 @@ router.get("/projects/:projectId/preview/status", async (req, res): Promise<void
   }
 });
 
-// GET /projects/:projectId/preview/* — serve static files
-router.get("/projects/:projectId/preview/*", async (req, res): Promise<void> => {
+// GET /projects/:projectId/preview/*path — serve static files
+router.get("/projects/:projectId/preview/*path", async (req, res): Promise<void> => {
   const project = await resolveProject(req.params.projectId);
   if (!project) { res.status(404).json({ error: "Projeto não encontrado" }); return; }
 
-  const rawPath = (req.params as any)[0] as string ?? "";
+  const rawPath = (req.params as any).path as string ?? "";
 
   // If no specific file requested, find and serve the index
   let relativePath = rawPath || "";
