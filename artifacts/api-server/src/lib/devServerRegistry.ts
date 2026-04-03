@@ -70,15 +70,34 @@ export function startDevServer(projectId: number, cwd: string, command?: string)
   const cmd = command ?? detectStartCommand(cwd);
   const [bin, ...args] = cmd.split(/\s+/);
 
+  // Build clean env without pnpm workspace bleed-through
+  const cleanEnv: Record<string, string> = {};
+  for (const [key, val] of Object.entries(process.env)) {
+    if (typeof val !== "string") continue;
+    // Skip pnpm-specific npm_config vars that cause "Unknown env config" warnings
+    if (key.toLowerCase().startsWith("npm_config_") && (
+      key.toLowerCase().includes("jsr") ||
+      key.toLowerCase().includes("catalog") ||
+      key.toLowerCase().includes("release_age") ||
+      key.toLowerCase().includes("globalconfig") ||
+      key.toLowerCase().includes("verify_deps") ||
+      key.toLowerCase().includes("recursive") ||
+      key.toLowerCase().includes("overrides")
+    )) continue;
+    cleanEnv[key] = val;
+  }
+
   const proc = spawn(bin, args, {
     cwd,
     env: {
-      ...process.env,
+      ...cleanEnv,
       BROWSER: "none",
       CI: "false",
       NO_COLOR: "1",
       FORCE_COLOR: "0",
-      PORT: "3000", // suggest a default port; many frameworks respect this
+      PORT: "3000",
+      npm_config_userconfig: "/dev/null",
+      NPM_CONFIG_UPDATE_NOTIFIER: "false",
     },
     detached: false,
     stdio: ["ignore", "pipe", "pipe"],

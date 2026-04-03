@@ -532,6 +532,11 @@ function DesktopCodePreview({
     setView("preview");
   }, []);
 
+  // Auto-switch to preview when terminal detects a running server
+  React.useEffect(() => {
+    if (terminalPort) setView("preview");
+  }, [terminalPort]);
+
   return (
     <div className="h-full flex flex-col">
       {/* Tab switcher */}

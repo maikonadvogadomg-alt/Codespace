@@ -66,12 +66,47 @@ function buildEnv() {
   ];
   const currentPath = process.env.PATH ?? "";
   const pathSet = new Set([...currentPath.split(":"), ...extraPaths]);
+
+  // Filter out pnpm workspace config vars that bleed into user project processes
+  // These cause "Unknown env config" warnings when npm runs in user projects
+  const PNPM_CONFIG_KEYS = new Set([
+    "npm_config_minimum_release_age",
+    "npm_config_npm_globalconfig",
+    "npm_config_verify_deps_before_run",
+    "npm_config_jsr_registry",
+    "npm_config__jsr_registry",
+    "npm_config_catalog",
+    "npm_config_recursive",
+    "npm_config_overrides",
+    "npm_config_auto_install_peers",
+    "npm_config_strict_peer_dependencies",
+    // Generic pnpm config pattern
+  ]);
+
+  const filteredEnv: Record<string, string> = {};
+  for (const [key, val] of Object.entries(process.env)) {
+    if (typeof val !== "string") continue;
+    // Drop pnpm lifecycle vars and pnpm-specific npm_config_* that cause warnings
+    if (PNPM_CONFIG_KEYS.has(key.toLowerCase())) continue;
+    // Also drop pnpm-specific config keys not meant for regular npm
+    if (key.toLowerCase().startsWith("npm_config_") && (
+      key.toLowerCase().includes("jsr") ||
+      key.toLowerCase().includes("catalog") ||
+      key.toLowerCase().includes("release_age") ||
+      key.toLowerCase().includes("globalconfig") ||
+      key.toLowerCase().includes("verify_deps")
+    )) continue;
+    filteredEnv[key] = val;
+  }
+
   return {
-    ...process.env,
+    ...filteredEnv,
     PATH: [...pathSet].filter(Boolean).join(":"),
     NPM_CONFIG_UPDATE_NOTIFIER: "false",
-    PYTHONUNBUFFERED: "1",
     NPM_CONFIG_PROGRESS: "true",
+    PYTHONUNBUFFERED: "1",
+    // Point npm config to /dev/null so it ignores the workspace .npmrc
+    npm_config_userconfig: "/dev/null",
   };
 }
 

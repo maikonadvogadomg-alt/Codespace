@@ -95,7 +95,9 @@ router.all("/projects/:projectId/dev-proxy/*path", async (req, res): Promise<voi
     return;
   }
 
-  const rawPath = (req.params as Record<string, string>).path ?? "";
+  // Express 5 wildcard /*path gives params.path as string[] (array of segments)
+  const rawPathParam = (req.params as Record<string, string | string[]>).path ?? "";
+  const rawPath = Array.isArray(rawPathParam) ? rawPathParam.join("/") : rawPathParam;
   const targetPath = rawPath ? `/${rawPath}` : "/";
   const search = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
   const fullPath = targetPath + search;
@@ -163,7 +165,9 @@ router.all("/projects/:projectId/port-proxy/:port/*path", async (req, res): Prom
     return;
   }
 
-  const rawPath = (req.params as Record<string, string>).path ?? "";
+  // Express 5 wildcard /*path gives params.path as string[] (array of segments)
+  const rawPathParam2 = (req.params as Record<string, string | string[]>).path ?? "";
+  const rawPath = Array.isArray(rawPathParam2) ? rawPathParam2.join("/") : rawPathParam2;
   const targetPath = rawPath ? `/${rawPath}` : "/";
   const search = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
   const fullPath = targetPath + search;

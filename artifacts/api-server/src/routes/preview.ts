@@ -59,7 +59,9 @@ router.get("/projects/:projectId/preview/*path", async (req, res): Promise<void>
   const project = await resolveProject(req.params.projectId);
   if (!project) { res.status(404).json({ error: "Projeto não encontrado" }); return; }
 
-  const rawPath = (req.params as any).path as string ?? "";
+  // Express 5 wildcard /*path gives params.path as string[] (array of segments)
+  const rawPathParam = (req.params as any).path ?? "";
+  const rawPath = Array.isArray(rawPathParam) ? rawPathParam.join("/") : (rawPathParam as string);
 
   // If no specific file requested, find and serve the index
   let relativePath = rawPath || "";
