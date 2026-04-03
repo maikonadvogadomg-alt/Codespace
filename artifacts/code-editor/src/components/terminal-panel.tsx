@@ -318,11 +318,35 @@ export function TerminalPanel({ projectId, onClose, pendingCommand, onEntriesCha
               </pre>
             )}
 
-            {/* stderr */}
+            {/* stderr — smart coloring: red only on failure, gray on success */}
             {entry.stderr && (
-              <pre className="text-[11px] text-[#f85149] whitespace-pre-wrap break-words pl-4 leading-relaxed">
-                {entry.stderr}
-              </pre>
+              entry.exitCode === 0 ? (
+                // Command succeeded — stderr is just informational (npm warnings, deprecations etc.)
+                <div className="pl-4 space-y-0.5">
+                  {entry.stderr.split("\n").map((line, i) => {
+                    const isWarn = /npm warn/i.test(line);
+                    const isErr = /npm err!/i.test(line);
+                    return line.trim() ? (
+                      <pre
+                        key={i}
+                        className={cn(
+                          "text-[11px] whitespace-pre-wrap break-words leading-relaxed",
+                          isErr ? "text-[#f85149]" :
+                          isWarn ? "text-yellow-400/80" :
+                          "text-[#6e7681]"
+                        )}
+                      >
+                        {line}
+                      </pre>
+                    ) : null;
+                  })}
+                </div>
+              ) : (
+                // Command failed — show stderr in red
+                <pre className="text-[11px] text-[#f85149] whitespace-pre-wrap break-words pl-4 leading-relaxed">
+                  {entry.stderr}
+                </pre>
+              )
             )}
 
             {/* ── Smart npm install suggestion ─────────────────────────── */}
