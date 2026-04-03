@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, projectsTable } from "@workspace/db";
 import { ExecCommandBody } from "@workspace/api-zod";
-import { exec, execSync } from "child_process";
+import { spawn, execSync } from "child_process";
 import path from "path";
 
 const router: IRouter = Router();
@@ -26,40 +26,33 @@ function detectBinPaths(): string[] {
 
 const DETECTED_BIN_PATHS = detectBinPaths();
 
-// Commands that are blocked for safety
 const BLOCKED_PATTERNS = [
-  /rm\s+-rf\s+\//, // rm -rf /
-  /mkfs/, // format disk
-  /dd\s+if=.*of=\/dev/, // write to block device
-  />\s*\/dev\/sd/, // write to disk
-  /shutdown|reboot|halt|poweroff/, // system commands
-  /curl.*\|\s*(bash|sh|zsh)/, // curl pipe to shell
+  /rm\s+-rf\s+\//,
+  /mkfs/,
+  /dd\s+if=.*of=\/dev/,
+  />\s*\/dev\/sd/,
+  /shutdown|reboot|halt|poweroff/,
+  /curl.*\|\s*(bash|sh|zsh)/,
   /wget.*\|\s*(bash|sh|zsh)/,
 ];
 
 function isCommandBlocked(cmd: string): boolean {
-  return BLOCKED_PATTERNS.some((pattern) => pattern.test(cmd));
+  return BLOCKED_PATTERNS.some((p) => p.test(cmd));
 }
 
-// Normalize common command aliases that differ across environments
 function normalizeCommand(cmd: string): string {
   return cmd
-    // pip → pip3 (preferred on most systems)
     .replace(/^pip\s+/, "pip3 ")
     .replace(/^pip\b/, "pip3")
-    // python → python3
     .replace(/^python\s+/, "python3 ")
     .replace(/^python\b/, "python3")
-    // pipenv run python → pipenv run python3
     .replace(/pipenv run python\b/, "pipenv run python3")
-    // poetry run python → poetry run python3
     .replace(/poetry run python\b/, "poetry run python3");
 }
 
-// Build a comprehensive PATH for child processes
 function buildEnv() {
   const extraPaths = [
-    ...DETECTED_BIN_PATHS, // runtime-detected binary paths (npm, node, etc.)
+    ...DETECTED_BIN_PATHS,
     "/usr/local/bin",
     "/usr/bin",
     "/bin",
@@ -71,38 +64,55 @@ function buildEnv() {
     "/home/runner/go/bin",
     "/usr/local/go/bin",
   ];
-
   const currentPath = process.env.PATH ?? "";
   const pathSet = new Set([...currentPath.split(":"), ...extraPaths]);
-
   return {
     ...process.env,
     PATH: [...pathSet].filter(Boolean).join(":"),
-    // Suppress npm update notices and verbose output
     NPM_CONFIG_UPDATE_NOTIFIER: "false",
-    // Ensure pip/python output is unbuffered
     PYTHONUNBUFFERED: "1",
+    // Force npm to show progress
+    NPM_CONFIG_PROGRESS: "true",
   };
 }
 
-router.post("/projects/:projectId/exec", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.projectId, 10);
-  if (isNaN(id)) {
-    res.status(400).json({ error: "Invalid project ID" });
-    return;
+function enrichStderr(stderr: string, exitCode: number, normalized: string): string {
+  let enriched = stderr;
+
+  const notFoundMatch = enriched.match(
+    /(?:sh|bash|zsh):\s*\d*:?\s*([^\s:]+):\s*(?:not found|command not found|No such file)/
+  );
+  const missingTool = notFoundMatch ? notFoundMatch[1] : null;
+
+  if (exitCode === 127 || missingTool) {
+    const tool = missingTool ?? normalized.split(" ")[0];
+    let hint = `\n⚠️  "${tool}" não encontrado.\n`;
+    const npmLocalTools = ["tsx", "ts-node", "vite", "react-scripts", "next", "tsc", "eslint", "prettier", "jest", "vitest", "esbuild", "rollup", "webpack"];
+    if (npmLocalTools.includes(tool)) {
+      hint += `   Este comando faz parte das dependências do projeto.\n   💡 Rode primeiro: npm install`;
+    } else if (["npm", "node", "npx"].includes(tool)) {
+      hint += `   O Node.js/npm não está disponível neste servidor.`;
+    } else if (["python", "python3", "pip3"].includes(tool)) {
+      hint += `   Python não está disponível neste ambiente.\n   Este servidor suporta apenas Node.js/npm.`;
+    } else {
+      hint += `   Verifique se está instalada ou tente: npm install -g ${tool}`;
+    }
+    enriched = (enriched ? enriched + "\n" : "") + hint;
   }
+
+  return enriched;
+}
+
+// ── Streaming exec via SSE ─────────────────────────────────────────────────────
+// This is the primary endpoint — streams output line by line in real time.
+router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.projectId, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid project ID" }); return; }
 
   const parsed = ExecCommandBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { command, timeout: timeoutMs = 30000 } = parsed.data;
-  // Allow up to 10 minutes for package installation commands
-  const isInstallCmd = /^(npm\s+install|npm\s+i\b|yarn\s+install|yarn\b|pnpm\s+install|pip3?\s+install|poetry\s+install|composer\s+install|bundle\s+install|cargo\s+build|go\s+get)/.test(command.trim());
-  const maxTimeout = isInstallCmd ? 600_000 : 120_000;
-  const clampedTimeout = Math.min(timeoutMs ?? 30000, maxTimeout);
+  const { command } = parsed.data;
 
   if (isCommandBlocked(command)) {
     res.status(400).json({ error: "Comando bloqueado por segurança." });
@@ -110,86 +120,123 @@ router.post("/projects/:projectId/exec", async (req, res): Promise<void> => {
   }
 
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, id));
-  if (!project) {
-    res.status(404).json({ error: "Projeto não encontrado" });
-    return;
-  }
+  if (!project) { res.status(404).json({ error: "Projeto não encontrado" }); return; }
+
+  const normalized = normalizeCommand(command);
+  const isInstallCmd = /^(npm\s+install|npm\s+i\b|yarn\s+install|yarn\b|pnpm\s+install|pip3?\s+install|poetry\s+install|composer\s+install|bundle\s+install|cargo\s+build|go\s+get)/.test(normalized.trim());
+  const isBuildCmd = /^(npm\s+run\s+build|vite\s+build|next\s+build|tsc\b)/.test(normalized.trim());
+  const maxTimeout = isInstallCmd ? 600_000 : isBuildCmd ? 300_000 : 120_000;
 
   const cwd = path.resolve(project.storagePath);
-  const normalized = normalizeCommand(command);
   const start = Date.now();
 
-  exec(
-    normalized,
-    {
-      cwd,
-      timeout: clampedTimeout,
-      maxBuffer: 4 * 1024 * 1024,
-      env: buildEnv(),
-    },
-    (error, stdout, stderr) => {
-      const durationMs = Date.now() - start;
+  // SSE headers
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
 
-      let exitCode = 0;
-      if (error) {
-        if (typeof error.code === "number") {
-          exitCode = error.code;
-        } else if (error.signal) {
-          // Killed by timeout or signal
-          exitCode = 1;
-        } else {
-          exitCode = 1;
-        }
-      }
+  const send = (type: string, payload: object) => {
+    try {
+      res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`);
+    } catch { /* client disconnected */ }
+  };
 
-      // Enrich stderr with a friendly hint for "command not found"
-      let enrichedStderr = stderr ?? "";
+  // Spawn process
+  const proc = spawn("sh", ["-c", normalized], {
+    cwd,
+    env: buildEnv(),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 
-      // Extract the actual missing tool from shell error messages like:
-      //   "sh: 1: tsx: not found"  or  "bash: tsx: command not found"
-      const notFoundMatch = enrichedStderr.match(
-        /(?:sh|bash|zsh):\s*\d*:?\s*([^\s:]+):\s*(?:not found|command not found|No such file)/
-      );
-      const missingTool = notFoundMatch ? notFoundMatch[1] : null;
+  let stderrBuffer = "";
+  let exitCode = 0;
 
-      if (exitCode === 127 || missingTool) {
-        const tool = missingTool ?? normalized.split(" ")[0];
-        let hint = `\n⚠️  "${tool}" não encontrado.\n`;
+  proc.stdout.on("data", (chunk: Buffer) => {
+    send("stdout", { data: chunk.toString() });
+  });
 
-        // Tools that come from npm install (local node_modules/.bin)
-        const npmLocalTools = ["tsx", "ts-node", "vite", "react-scripts", "next", "tsc", "eslint", "prettier", "jest", "vitest", "esbuild", "rollup", "webpack"];
-        if (npmLocalTools.includes(tool)) {
-          hint += `   Este comando faz parte das dependências do projeto.\n`;
-          hint += `   💡 Rode primeiro: npm install`;
-        } else if (tool === "npm" || tool === "node" || tool === "npx") {
-          hint += `   O Node.js/npm não está disponível neste servidor.\n`;
-          hint += `   💡 Tente: npx <pacote>`;
-        } else if (tool === "python" || tool === "python3" || tool === "pip3") {
-          hint += `   Python não está disponível neste ambiente.\n`;
-          hint += `   Este servidor suporta apenas Node.js/npm.`;
-        } else {
-          hint += `   Verifique se está instalada ou tente: npm install -g ${tool}`;
-        }
-        enrichedStderr = (enrichedStderr ? enrichedStderr + "\n" : "") + hint;
-      }
+  proc.stderr.on("data", (chunk: Buffer) => {
+    const text = chunk.toString();
+    stderrBuffer += text;
+    send("stderr", { data: text });
+  });
 
-      // Timeout hint
-      if (error?.signal === "SIGTERM" || (error && enrichedStderr.includes("timed out"))) {
-        enrichedStderr += `\n\n⏱️  O comando demorou mais que o limite e foi interrompido.`;
-        if (normalized.startsWith("npm install")) {
-          enrichedStderr += `\n   Para instalações grandes, tente partes: npm install <pacote1> <pacote2>`;
-        }
-      }
+  proc.on("error", (err) => {
+    send("stderr", { data: `\nErro ao iniciar processo: ${err.message}\n` });
+  });
 
-      res.json({
-        stdout: stdout ?? "",
-        stderr: enrichedStderr,
-        exitCode,
-        durationMs,
-        command: normalized !== command ? normalized : undefined,
-      });
+  proc.on("close", (code, signal) => {
+    exitCode = code ?? (signal ? 1 : 0);
+    const durationMs = Date.now() - start;
+
+    // Append enriched hints to stderr if needed
+    const enriched = enrichStderr(stderrBuffer, exitCode, normalized);
+    const extraHint = enriched.slice(stderrBuffer.length);
+    if (extraHint) send("stderr", { data: extraHint });
+
+    if (signal === "SIGTERM" && durationMs >= maxTimeout - 1000) {
+      send("stderr", { data: `\n\n⏱️  Comando interrompido após ${Math.round(durationMs / 1000)}s (limite atingido).` });
     }
-  );
+
+    send("exit", { exitCode, durationMs });
+    res.end();
+  });
+
+  // Kill on timeout
+  const timer = setTimeout(() => {
+    try { proc.kill("SIGTERM"); } catch {}
+  }, maxTimeout);
+
+  proc.on("close", () => clearTimeout(timer));
+
+  // Kill if client disconnects
+  req.on("close", () => {
+    try { proc.kill("SIGTERM"); } catch {}
+    clearTimeout(timer);
+  });
+});
+
+// ── Legacy batch exec (kept for API client compatibility) ──────────────────────
+router.post("/projects/:projectId/exec", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.projectId, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+
+  const parsed = ExecCommandBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const { command } = parsed.data;
+  if (isCommandBlocked(command)) { res.status(400).json({ error: "Comando bloqueado por segurança." }); return; }
+
+  const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, id));
+  if (!project) { res.status(404).json({ error: "Projeto não encontrado" }); return; }
+
+  const normalized = normalizeCommand(command);
+  const isInstallCmd = /^(npm\s+install|npm\s+i\b|yarn|pnpm\s+install|pip3?\s+install)/.test(normalized.trim());
+  const timeout = isInstallCmd ? 600_000 : 120_000;
+  const cwd = path.resolve(project.storagePath);
+  const start = Date.now();
+
+  const proc = spawn("sh", ["-c", normalized], { cwd, env: buildEnv(), stdio: ["ignore", "pipe", "pipe"] });
+  let stdout = "";
+  let stderr = "";
+  proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
+  proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+
+  const timer = setTimeout(() => { try { proc.kill("SIGTERM"); } catch {} }, timeout);
+
+  proc.on("close", (code) => {
+    clearTimeout(timer);
+    const exitCode = code ?? 1;
+    const enriched = enrichStderr(stderr, exitCode, normalized);
+    res.json({ stdout, stderr: enriched, exitCode, durationMs: Date.now() - start });
+  });
+
+  proc.on("error", () => {
+    clearTimeout(timer);
+    res.json({ stdout, stderr: "Erro ao iniciar o processo.", exitCode: 1, durationMs: Date.now() - start });
+  });
 });
 
 export default router;

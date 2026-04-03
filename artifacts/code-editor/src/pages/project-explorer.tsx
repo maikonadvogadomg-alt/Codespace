@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useParams, Link } from "wouter";
 import {
   useGetProject,
@@ -11,7 +11,7 @@ import { AppLayout } from "@/components/layout";
 import { FileTree } from "@/components/file-tree";
 import { useFileOps } from "@/hooks/use-file-ops";
 import { CodeViewer } from "@/components/code-viewer";
-import { AiPanel } from "@/components/ai-panel";
+import { AiPanel, type TerminalLogEntry } from "@/components/ai-panel";
 import { TerminalPanel, type TerminalEntry } from "@/components/terminal-panel";
 import { PackagesPanel } from "@/components/packages-panel";
 import { PreviewPanel } from "@/components/preview-panel";
@@ -79,6 +79,17 @@ export default function ProjectExplorer() {
   const [pendingTerminalCommand, setPendingTerminalCommand] = useState<{ cmd: string; id: number } | null>(null);
   const [externalMessage, setExternalMessage] = useState<{ text: string; id: number; contextMode?: ContextMode } | null>(null);
   const [terminalLog, setTerminalLog] = useState<TerminalEntry[]>([]);
+
+  // Convert new TerminalEntry (chunks) → old TerminalLogEntry (stdout/stderr) for AiPanel
+  const aiTerminalLog = useMemo<TerminalLogEntry[]>(() =>
+    terminalLog.filter(e => !e.running).map(e => ({
+      command: e.command,
+      stdout: e.chunks.filter(c => c.type === "stdout").map(c => c.text).join(""),
+      stderr: e.chunks.filter(c => c.type === "stderr").map(c => c.text).join(""),
+      exitCode: e.exitCode ?? 0,
+    })),
+    [terminalLog]
+  );
   const terminalPanelRef = useRef<ImperativePanelHandle>(null);
 
   const { data: project, isLoading: isProjectLoading } = useGetProject(projectId, {
@@ -268,7 +279,7 @@ export default function ProjectExplorer() {
                 fileContext={fileContextForAi}
                 externalMessage={externalMessage}
                 onRunCommand={handleRunCommand}
-                terminalLog={terminalLog}
+                terminalLog={aiTerminalLog}
               />
             </div>
 
@@ -439,7 +450,7 @@ export default function ProjectExplorer() {
                     fileContext={fileContextForAi}
                     externalMessage={externalMessage}
                     onRunCommand={handleRunCommand}
-                    terminalLog={terminalLog}
+                    terminalLog={aiTerminalLog}
                   />
                 </ResizablePanel>
 
