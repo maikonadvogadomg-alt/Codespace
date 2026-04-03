@@ -273,6 +273,7 @@ export default function SettingsPage() {
         aiModel: profile.model || undefined,
       },
     });
+    window.dispatchEvent(new Event("codelens-settings-saved"));
   };
 
   const handleSaveGithub = () => {

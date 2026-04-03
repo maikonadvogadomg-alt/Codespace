@@ -229,21 +229,20 @@ function FileChangeCard({ segment, projectId, onApplied }: FileChangeCardProps) 
             <Check className="w-3 h-3" /> Aplicado
           </span>
         )}
+        {status === "applying" && (
+          <span className="flex items-center gap-1 text-muted-foreground text-[10px] ml-auto">
+            <Loader2 className="w-3 h-3 animate-spin" /> Aplicando...
+          </span>
+        )}
         {(status === "idle" || status === "error") && (
           <Button
             size="sm"
             variant={isWrite ? "default" : "destructive"}
             className="h-6 text-[10px] px-2 ml-auto"
             onClick={handleApply}
-            disabled={status === "applying"}
+            disabled={writeMutation.isPending || deleteMutation.isPending}
           >
-            {status === "applying" ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : isWrite ? (
-              "Aplicar"
-            ) : (
-              "Deletar"
-            )}
+            {isWrite ? "Aplicar" : "Deletar"}
           </Button>
         )}
       </div>
@@ -409,7 +408,7 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
           ...prev,
           {
             role: "assistant",
-            content: `Erro: ${error.error || "Falha ao conectar com a IA. Verifique as Configurações."}`,
+            content: `Erro: ${(error as any).data?.error || error.message || "Falha ao conectar com a IA. Verifique as Configurações."}`,
           },
         ]);
       },

@@ -3,6 +3,7 @@
 ## Overview
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+All UI is in **Portuguese (pt-BR)**. User is on mobile.
 
 ## Stack
 
@@ -13,22 +14,27 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API framework**: Express 5
 - **Database**: PostgreSQL + Drizzle ORM
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
+- **API codegen**: Orval (from OpenAPI spec at `lib/api-spec/openapi.yaml`)
 - **Build**: esbuild (CJS bundle)
 - **Frontend**: React + Vite + Tailwind CSS + Shadcn/UI
-- **Routing**: Wouter (client-side)
+- **Routing**: Wouter (client-side SPA)
 - **File handling**: multer (upload), adm-zip (ZIP extraction)
 - **GitHub integration**: @octokit/rest
 
 ## Artifacts
 
 ### Code Editor (CodeLens) — `/`
-Personal code editor and analysis tool. Features:
-- Upload ZIP files to extract and browse project file trees
-- Click files to view content in a syntax-aware editor
-- AI analysis of individual files and folders (uses your own API key)
-- GitHub integration to push project as a new repository
-- Settings page to configure AI API key, base URL, model, and GitHub token
+Personal code editor like SPCK Editor. Features:
+- Upload ZIP files or import from GitHub to create projects
+- Browse file trees, view/edit files with syntax highlighting
+- AI chat with 4 configurable profiles (user provides own API keys)
+- AI can modify, create, and delete project files via action tags
+- VS Code-like terminal (SSE streaming, auto-detects server ports)
+- Live preview panel (static preview + dev server proxy)
+- GitHub push/pull (create repo, push changes)
+- Plugin/library browser in sidebar
+- Settings page for AI profiles and GitHub token
+- PWA-ready
 
 ### API Server — `/api`
 Express 5 backend serving all app routes.

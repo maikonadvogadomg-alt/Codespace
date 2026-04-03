@@ -127,7 +127,7 @@ export default function Home() {
       onError: (error) => {
         toast({
           title: "Falha no upload",
-          description: error.error || "Arquivo muito grande ou ZIP inválido",
+          description: (error as any).data?.error || error.message || "Arquivo muito grande ou ZIP inválido",
           variant: "destructive",
         });
       },
@@ -147,7 +147,7 @@ export default function Home() {
       onError: (error) => {
         toast({
           title: "Falha ao importar",
-          description: error.error || "Erro desconhecido",
+          description: (error as any).data?.error || error.message || "Erro desconhecido",
           variant: "destructive",
         });
       },

@@ -669,6 +669,9 @@ components:
         projectContext:
           type: ["boolean", "null"]
           description: If true, all project files will be loaded as context
+        terminalContext:
+          type: ["string", "null"]
+          description: Recent terminal output to inject as context for AI
       required:
         - messages
 

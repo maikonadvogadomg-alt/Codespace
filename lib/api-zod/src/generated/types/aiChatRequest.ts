@@ -29,4 +29,9 @@ export interface AiChatRequest {
    * @nullable
    */
   projectContext?: boolean | null;
+  /**
+   * Recent terminal output to inject as context for AI
+   * @nullable
+   */
+  terminalContext?: string | null;
 }

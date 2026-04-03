@@ -154,7 +154,7 @@ export function CodeViewer({
       };
     } catch {
       return {
-        highlighted: hljs.escapeHTML(file.content),
+        highlighted: file.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
         lineCount: (file.content.match(/\n/g)?.length ?? 0) + 1,
       };
     }

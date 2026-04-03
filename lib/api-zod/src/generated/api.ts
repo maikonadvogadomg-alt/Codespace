@@ -177,7 +177,7 @@ export const AiChatBody = zod.object({
   terminalContext: zod
     .string()
     .nullish()
-    .describe("Recent terminal output to inject as context"),
+    .describe("Recent terminal output to inject as context for AI"),
 });
 
 export const AiChatResponse = zod.object({
