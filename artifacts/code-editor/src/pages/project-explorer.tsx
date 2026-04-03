@@ -57,7 +57,7 @@ export default function ProjectExplorer() {
 
   const { data: fileContent, isLoading: isFileLoading } = useGetFileContent(
     projectId,
-    { params: { path: selectedFile! } },
+    { path: selectedFile! },
     {
       query: {
         enabled: !!projectId && !!selectedFile,
