@@ -187,7 +187,7 @@ interface PackagesPanelProps {
 }
 
 export function PackagesPanel({ projectId, fileTree, onRunCommand }: PackagesPanelProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [pkg, setPkg] = useState("");
   const [searchResults, setSearchResults] = useState<NpmPackage[]>([]);
   const [searching, setSearching] = useState(false);
@@ -197,9 +197,12 @@ export function PackagesPanel({ projectId, fileTree, onRunCommand }: PackagesPan
   const manager = useMemo(() => detectManager(fileTree), [fileTree]);
   const execMutation = useExecCommand();
 
+  // npm search works for npm projects OR when no manager detected (show npm as default)
+  const canSearchNpm = manager?.supportsSearch || !manager;
+
   // Debounced npm search
   useEffect(() => {
-    if (!manager?.supportsSearch) return;
+    if (!canSearchNpm) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!pkg.trim() || pkg.trim().length < 2) {
       setSearchResults([]);
@@ -258,12 +261,73 @@ export function PackagesPanel({ projectId, fileTree, onRunCommand }: PackagesPan
       {open && (
         <div className="px-3 pb-3 space-y-3">
           {!manager ? (
-            <p className="text-[11px] text-muted-foreground py-1">
-              Nenhum gerenciador detectado. Abra um projeto com{" "}
-              <code className="text-primary">package.json</code>,{" "}
-              <code className="text-primary">requirements.txt</code>,{" "}
-              <code className="text-primary">Cargo.toml</code> etc.
-            </p>
+            <div className="space-y-3">
+              <div className="text-[11px] text-muted-foreground bg-accent/20 border border-border/40 rounded px-2.5 py-2 leading-relaxed">
+                Nenhum <code className="text-primary">package.json</code> detectado.{" "}
+                <button
+                  className="text-primary underline underline-offset-2 hover:text-primary/80"
+                  onClick={() => onRunCommand("npm init -y")}
+                >
+                  Inicializar projeto npm
+                </button>{" "}
+                ou busque um pacote abaixo para começar.
+              </div>
+
+              {/* npm search even without package.json */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] text-muted-foreground">Buscar pacote npm</p>
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+                  <Input
+                    value={pkg}
+                    onChange={(e) => setPkg(e.target.value)}
+                    placeholder="Buscar pacote npm…"
+                    className="h-7 text-xs bg-background/50 border-border/60 pl-7 pr-6"
+                  />
+                  {pkg && (
+                    <button
+                      onClick={() => { setPkg(""); setSearchResults([]); }}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+                {searching && (
+                  <div className="flex items-center gap-2 py-1 text-[11px] text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Buscando no npm...
+                  </div>
+                )}
+                {searchResults.length > 0 && (
+                  <div className="space-y-1 max-h-56 overflow-y-auto">
+                    {searchResults.map((p) => (
+                      <div key={p.name} className="flex items-start gap-2 p-2 rounded border border-border/40 bg-background/40 hover:bg-accent/30 group transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] font-mono font-semibold text-foreground">{p.name}</span>
+                            <span className="text-[9px] text-muted-foreground">v{p.version}</span>
+                            {p.weeklyDownloads && (
+                              <span className="flex items-center gap-0.5 text-[9px] text-muted-foreground">
+                                <Download className="w-2.5 h-2.5" />{formatDownloads(p.weeklyDownloads)}/sem
+                              </span>
+                            )}
+                          </div>
+                          {p.description && (
+                            <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{p.description}</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => { onRunCommand(`npm install ${p.name}`); setPkg(""); setSearchResults([]); }}
+                          className="shrink-0 flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <Plus className="w-3 h-3" /> Instalar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
             <>
               {/* Detected badge */}
