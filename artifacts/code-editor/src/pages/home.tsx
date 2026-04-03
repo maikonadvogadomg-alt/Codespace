@@ -142,14 +142,15 @@ export default function Home() {
 
   return (
     <AppLayout>
-      <div className="flex-1 overflow-auto bg-background/50 p-8 pb-12">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
+      <div className="flex-1 overflow-auto bg-background/50">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8 pb-12">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
                 Workspace
               </h1>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-sm text-muted-foreground mt-0.5">
                 Selecione um projeto ou adicione um novo
               </p>
             </div>
@@ -166,15 +167,15 @@ export default function Home() {
                 variant="outline"
                 onClick={() => setGithubDialogOpen(true)}
                 disabled={isUploading}
-                className="gap-2"
+                className="gap-2 flex-1 sm:flex-none"
               >
                 <Github className="w-4 h-4" />
-                Importar do GitHub
+                <span className="sm:inline">Importar do GitHub</span>
               </Button>
               <Button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
-                className="gap-2"
+                className="gap-2 flex-1 sm:flex-none"
               >
                 {uploadMutation.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

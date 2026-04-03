@@ -24,33 +24,34 @@ import {
   ArrowLeft,
   TerminalSquare,
   Terminal,
+  Files,
+  Code2,
+  Sparkles,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 type ContextMode = "none" | "file" | "project";
+type MobileTab = "files" | "code" | "ai" | "terminal";
 
 export default function ProjectExplorer() {
   const params = useParams();
   const projectId = params.id!;
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const [selectedFile, setSelectedFile] = useState<string | undefined>(undefined);
   const [githubModalOpen, setGithubModalOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<MobileTab>("files");
   const [pendingTerminalCommand, setPendingTerminalCommand] = useState<{ cmd: string; id: number } | null>(null);
-
-  // External AI trigger
   const [externalMessage, setExternalMessage] = useState<{ text: string; id: number; contextMode?: ContextMode } | null>(null);
-
   const terminalPanelRef = useRef<ImperativePanelHandle>(null);
 
   const { data: project, isLoading: isProjectLoading } = useGetProject(projectId, {
-    query: {
-      enabled: !!projectId,
-      queryKey: getGetProjectQueryKey(projectId),
-    },
+    query: { enabled: !!projectId, queryKey: getGetProjectQueryKey(projectId) },
   });
 
   const { data: fileContent, isLoading: isFileLoading } = useGetFileContent(
@@ -69,10 +70,11 @@ export default function ProjectExplorer() {
   const triggerFileAnalysis = (path: string) => {
     const fileName = path.split("/").pop() ?? path;
     setExternalMessage({
-      text: `Analise o arquivo "${fileName}". Explique o que ele faz, suas responsabilidades principais e aponte possíveis problemas ou melhorias.`,
+      text: `Analise o arquivo "${fileName}". Explique o que ele faz, suas responsabilidades e aponte possíveis melhorias.`,
       id: Date.now(),
       contextMode: "file",
     });
+    if (isMobile) setMobileTab("ai");
   };
 
   const handleAnalyzeFileClick = (path: string) => {
@@ -94,28 +96,31 @@ export default function ProjectExplorer() {
   const handleAnalyzeFolderClick = (folderPath: string) => {
     const folderName = (folderPath.split("/").pop() ?? folderPath) || "raiz";
     setExternalMessage({
-      text: `Analise a pasta "${folderName}" do projeto. Explique qual é o papel desta pasta na arquitetura geral do projeto.`,
+      text: `Analise a pasta "${folderName}" do projeto. Explique seu papel na arquitetura geral.`,
       id: Date.now(),
     });
+    if (isMobile) setMobileTab("ai");
   };
 
-  // Called by AiPanel when user clicks "Executar no terminal"
+  const handleSelectFile = (path: string) => {
+    setSelectedFile(path);
+    if (isMobile) setMobileTab("code");
+  };
+
   const handleRunCommand = useCallback((cmd: string) => {
-    setTerminalOpen(true);
     setPendingTerminalCommand({ cmd, id: Date.now() });
-  }, []);
-
-  // Auto-send pending command to terminal
-  React.useEffect(() => {
-    if (pendingTerminalCommand && terminalOpen) {
-      // Terminal will pick it up via prop
+    if (isMobile) {
+      setMobileTab("terminal");
+    } else {
+      setTerminalOpen(true);
     }
-  }, [pendingTerminalCommand, terminalOpen]);
+  }, [isMobile]);
 
-  const toggleTerminal = () => {
-    setTerminalOpen((v) => !v);
-  };
+  const fileContextForAi = fileContent
+    ? { path: fileContent.path, content: fileContent.content, language: fileContent.language }
+    : null;
 
+  // ─── Loading ────────────────────────────────────────────────────────────────
   if (isProjectLoading) {
     return (
       <AppLayout>
@@ -136,14 +141,125 @@ export default function ProjectExplorer() {
     );
   }
 
-  const fileContextForAi = fileContent
-    ? { path: fileContent.path, content: fileContent.content, language: fileContent.language }
-    : null;
+  // ─── Mobile Layout ───────────────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <AppLayout hideBottomNav>
+        <div className="flex flex-col h-full overflow-hidden">
+          {/* Mobile header */}
+          <header className="h-12 shrink-0 border-b border-border bg-card flex items-center px-3 gap-2 z-10">
+            <Link href="/">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground shrink-0">
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+            </Link>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <TerminalSquare className="w-4 h-4 text-primary shrink-0" />
+              <span className="font-medium text-sm text-foreground truncate">{project.name}</span>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setGithubModalOpen(true)}
+              className="h-8 w-8 p-0 shrink-0 text-muted-foreground"
+            >
+              <Github className="w-4 h-4" />
+            </Button>
+          </header>
 
+          {/* Tab content */}
+          <div className="flex-1 overflow-hidden">
+            {/* Files tab */}
+            <div className={cn("h-full overflow-auto", mobileTab !== "files" && "hidden")}>
+              <div className="h-9 flex items-center px-4 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30">
+                Explorer
+              </div>
+              <div className="p-2">
+                <FileTree
+                  node={project.tree}
+                  onSelectFile={handleSelectFile}
+                  onAnalyzeFile={handleAnalyzeFileClick}
+                  onAnalyzeFolder={handleAnalyzeFolderClick}
+                  selectedPath={selectedFile}
+                />
+              </div>
+            </div>
+
+            {/* Code tab */}
+            <div className={cn("h-full flex flex-col", mobileTab !== "code" && "hidden")}>
+              {!selectedFile ? (
+                <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-6 text-center">
+                  <Files className="w-10 h-10 mb-3 opacity-30" />
+                  <p className="text-sm">Selecione um arquivo na aba Arquivos</p>
+                </div>
+              ) : (
+                <CodeViewer file={fileContent} isLoading={isFileLoading && !!selectedFile} />
+              )}
+            </div>
+
+            {/* AI tab */}
+            <div className={cn("h-full", mobileTab !== "ai" && "hidden")}>
+              <AiPanel
+                projectId={projectId}
+                fileContext={fileContextForAi}
+                externalMessage={externalMessage}
+                onRunCommand={handleRunCommand}
+              />
+            </div>
+
+            {/* Terminal tab */}
+            <div className={cn("h-full", mobileTab !== "terminal" && "hidden")}>
+              <TerminalPanel
+                projectId={projectId}
+                pendingCommand={pendingTerminalCommand}
+              />
+            </div>
+          </div>
+
+          {/* Mobile bottom tab bar */}
+          <nav className="shrink-0 h-14 border-t border-border bg-card flex items-stretch">
+            <MobileTab
+              label="Arquivos"
+              icon={<Files className="w-5 h-5" />}
+              active={mobileTab === "files"}
+              onClick={() => setMobileTab("files")}
+            />
+            <MobileTab
+              label="Código"
+              icon={<Code2 className="w-5 h-5" />}
+              active={mobileTab === "code"}
+              onClick={() => setMobileTab("code")}
+              badge={selectedFile ? selectedFile.split("/").pop() : undefined}
+            />
+            <MobileTab
+              label="IA"
+              icon={<Sparkles className="w-5 h-5" />}
+              active={mobileTab === "ai"}
+              onClick={() => setMobileTab("ai")}
+            />
+            <MobileTab
+              label="Terminal"
+              icon={<Terminal className="w-5 h-5" />}
+              active={mobileTab === "terminal"}
+              onClick={() => setMobileTab("terminal")}
+            />
+          </nav>
+        </div>
+
+        <GithubDeployModal
+          open={githubModalOpen}
+          onOpenChange={setGithubModalOpen}
+          projectId={project.id}
+          defaultName={project.name}
+        />
+      </AppLayout>
+    );
+  }
+
+  // ─── Desktop Layout ──────────────────────────────────────────────────────────
   return (
     <AppLayout>
       <div className="flex flex-col h-full overflow-hidden">
-        {/* Top Bar */}
         <header className="h-12 shrink-0 border-b border-border bg-card flex items-center px-4 justify-between z-10">
           <div className="flex items-center gap-3">
             <Link href="/">
@@ -160,7 +276,7 @@ export default function ProjectExplorer() {
             <Button
               size="sm"
               variant="ghost"
-              onClick={toggleTerminal}
+              onClick={() => setTerminalOpen((v) => !v)}
               className={cn(
                 "gap-2 h-8 px-3 border",
                 terminalOpen
@@ -183,13 +299,10 @@ export default function ProjectExplorer() {
           </div>
         </header>
 
-        {/* Main area — horizontal panels */}
         <div className="flex-1 overflow-hidden">
           <ResizablePanelGroup direction="vertical">
-            {/* Top section: File tree + Editor + AI */}
             <ResizablePanel defaultSize={terminalOpen ? 65 : 100} minSize={30}>
               <ResizablePanelGroup direction="horizontal">
-                {/* File Tree */}
                 <ResizablePanel defaultSize={20} minSize={15} maxSize={30} className="bg-sidebar flex flex-col">
                   <div className="h-9 shrink-0 flex items-center px-4 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30">
                     Explorer
@@ -204,20 +317,11 @@ export default function ProjectExplorer() {
                     />
                   </div>
                 </ResizablePanel>
-
                 <ResizableHandle className="bg-border w-[1px] hover:w-1 hover:bg-primary/50 transition-all" />
-
-                {/* Code Viewer */}
                 <ResizablePanel defaultSize={50} minSize={30}>
-                  <CodeViewer
-                    file={fileContent}
-                    isLoading={isFileLoading && !!selectedFile}
-                  />
+                  <CodeViewer file={fileContent} isLoading={isFileLoading && !!selectedFile} />
                 </ResizablePanel>
-
                 <ResizableHandle className="bg-border w-[1px] hover:w-1 hover:bg-primary/50 transition-all" />
-
-                {/* AI Chat */}
                 <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
                   <AiPanel
                     projectId={projectId}
@@ -229,7 +333,6 @@ export default function ProjectExplorer() {
               </ResizablePanelGroup>
             </ResizablePanel>
 
-            {/* Terminal Panel (bottom) */}
             {terminalOpen && (
               <>
                 <ResizableHandle className="bg-border h-[1px] hover:h-1 hover:bg-green-500/50 transition-all" />
@@ -258,5 +361,42 @@ export default function ProjectExplorer() {
         defaultName={project.name}
       />
     </AppLayout>
+  );
+}
+
+// ─── Mobile Tab Button ───────────────────────────────────────────────────────
+
+function MobileTab({
+  label,
+  icon,
+  active,
+  onClick,
+  badge,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  active: boolean;
+  onClick: () => void;
+  badge?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors relative",
+        active ? "text-primary" : "text-muted-foreground"
+      )}
+    >
+      {active && (
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-b-full" />
+      )}
+      {icon}
+      <span>{label}</span>
+      {badge && (
+        <span className="absolute top-1.5 right-3 text-[8px] bg-primary/20 text-primary px-1 rounded-full max-w-[60px] truncate">
+          {badge}
+        </span>
+      )}
+    </button>
   );
 }
