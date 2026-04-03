@@ -65,12 +65,12 @@ function detectMissingPackage(stderr: string, stdout: string): string | null {
   const text = stderr + "\n" + stdout;
 
   // Shell "tsx: not found" or "bash: tsx: command not found"
-  // Covers cases where npm run <script> calls a missing local binary
+  // These come from npm run scripts calling local binaries not yet installed.
+  // The fix is always `npm install` (not `npm install tsx` — tsx is a devDep).
   const shellNotFound = text.match(/(?:sh|bash|zsh):\s*\d*:?\s*([^\s:]+):\s*(?:not found|command not found)/);
   if (shellNotFound) {
     const bin = shellNotFound[1];
-    const pkg = CLI_TO_PACKAGE[bin];
-    if (pkg) return pkg;
+    if (CLI_TO_PACKAGE[bin]) return "__install_deps__";
   }
 
   // Node "Cannot find module 'X'" — captures scoped and unscoped packages
@@ -320,19 +320,35 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
 
             {/* ── Smart npm install suggestion ─────────────────────────── */}
             {entry.missingPackage && (
-              <div className="flex items-center gap-2 mt-1 ml-4 p-2 rounded bg-yellow-400/10 border border-yellow-400/30">
-                <Download className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
-                <span className="text-[11px] text-yellow-300 flex-1">
-                  Módulo <code className="font-bold">{entry.missingPackage}</code> não encontrado.
-                </span>
-                <button
-                  onClick={() => runCommand(`npm install ${entry.missingPackage}`)}
-                  disabled={execMutation.isPending}
-                  className="text-[10px] font-semibold px-2 py-1 rounded bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-300 border border-yellow-400/30 transition-colors shrink-0 disabled:opacity-50"
-                >
-                  npm install {entry.missingPackage}
-                </button>
-              </div>
+              entry.missingPackage === "__install_deps__" ? (
+                <div className="flex items-center gap-2 mt-1 ml-4 p-2 rounded bg-yellow-400/10 border border-yellow-400/30">
+                  <Download className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+                  <span className="text-[11px] text-yellow-300 flex-1">
+                    Dependências não instaladas. Rode o <code className="font-bold">npm install</code> primeiro.
+                  </span>
+                  <button
+                    onClick={() => runCommand("npm install")}
+                    disabled={execMutation.isPending}
+                    className="text-[10px] font-semibold px-2 py-1 rounded bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-300 border border-yellow-400/30 transition-colors shrink-0 disabled:opacity-50"
+                  >
+                    npm install
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 mt-1 ml-4 p-2 rounded bg-yellow-400/10 border border-yellow-400/30">
+                  <Download className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+                  <span className="text-[11px] text-yellow-300 flex-1">
+                    Pacote <code className="font-bold">{entry.missingPackage}</code> não encontrado.
+                  </span>
+                  <button
+                    onClick={() => runCommand(`npm install ${entry.missingPackage}`)}
+                    disabled={execMutation.isPending}
+                    className="text-[10px] font-semibold px-2 py-1 rounded bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-300 border border-yellow-400/30 transition-colors shrink-0 disabled:opacity-50"
+                  >
+                    npm install {entry.missingPackage}
+                  </button>
+                </div>
+              )
             )}
           </div>
         ))}
