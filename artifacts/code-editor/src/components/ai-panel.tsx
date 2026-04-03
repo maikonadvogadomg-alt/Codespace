@@ -76,11 +76,20 @@ interface Message {
 
 type ContextMode = "none" | "file" | "project";
 
+export interface TerminalLogEntry {
+  command: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
 interface AiPanelProps {
   projectId: string;
   fileContext?: { path: string; content: string; language: string } | null;
   externalMessage?: { text: string; id: number; contextMode?: ContextMode } | null;
   onRunCommand?: (cmd: string) => void;
+  /** Recent terminal entries - sent automatically as context with every message */
+  terminalLog?: TerminalLogEntry[];
 }
 
 // ─── File change parser ───────────────────────────────────────────────────────
@@ -347,7 +356,7 @@ const CONTEXT_ICONS: Record<ContextMode, React.ReactNode> = {
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
-export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand }: AiPanelProps) {
+export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand, terminalLog }: AiPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [contextMode, setContextMode] = useState<ContextMode>("none");
@@ -393,11 +402,27 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand 
     if (contextMode === "file" && !fileContext) setContextMode("none");
   }, [fileContext, contextMode]);
 
+  // Build terminal context string from last N entries (only if there's any output)
+  const buildTerminalContext = (): string | null => {
+    if (!terminalLog || terminalLog.length === 0) return null;
+    const last5 = terminalLog.slice(-5);
+    const hasContent = last5.some(e => e.stdout || e.stderr);
+    if (!hasContent) return null;
+    return last5.map(e => {
+      const lines: string[] = [`$ ${e.command}`];
+      if (e.stdout) lines.push(e.stdout.trim());
+      if (e.stderr) lines.push(`[stderr] ${e.stderr.trim()}`);
+      lines.push(`[exit: ${e.exitCode}]`);
+      return lines.join("\n");
+    }).join("\n\n---\n\n");
+  };
+
   const sendMessage = (text: string, mode: ContextMode = contextMode) => {
     if (!text.trim() || chatMutation.isPending) return;
     const userMsg: Message = { role: "user", content: text };
     const updated = [...messages, userMsg];
     setMessages(updated);
+    const tc = buildTerminalContext();
     chatMutation.mutate({
       data: {
         messages: updated.map((m) => ({ role: m.role, content: m.content })),
@@ -405,6 +430,7 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand 
         filePath: mode === "file" && fileContext ? fileContext.path : null,
         projectId: mode === "project" ? projectId : null,
         projectContext: mode === "project" ? true : null,
+        terminalContext: tc ?? null,
       },
     });
   };
@@ -426,6 +452,7 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand 
 
   const availableModes: ContextMode[] = ["none", ...(fileContext ? (["file"] as ContextMode[]) : []), "project"];
   const isEmpty = messages.length === 0 && !chatMutation.isPending;
+  const hasTerminalContext = (terminalLog?.length ?? 0) > 0 && terminalLog!.some(e => e.stdout || e.stderr);
 
   return (
     <div className="h-full w-full flex flex-col bg-card border-l border-border overflow-hidden">
@@ -497,6 +524,14 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand 
 
       {/* Context + Input */}
       <div className="shrink-0 border-t border-border bg-background/30 p-2 flex flex-col gap-1.5">
+        {/* Terminal context indicator */}
+        {hasTerminalContext && (
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-green-500/10 border border-green-500/20 text-[10px] text-green-400">
+            <Terminal className="w-3 h-3 shrink-0" />
+            <span>Terminal incluído automaticamente no contexto</span>
+            <span className="ml-auto text-green-400/60">{terminalLog!.length} cmd{terminalLog!.length !== 1 ? "s" : ""}</span>
+          </div>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button

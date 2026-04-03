@@ -101,7 +101,7 @@ function detectMissingPackage(stderr: string, stdout: string): string | null {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface TerminalEntry {
+export interface TerminalEntry {
   id: number;
   command: string;
   stdout: string;
@@ -115,11 +115,13 @@ interface TerminalPanelProps {
   projectId: string;
   onClose?: () => void;
   pendingCommand?: { cmd: string; id: number } | null;
+  /** Called whenever terminal entries change, so parent can use them for AI context */
+  onEntriesChange?: (entries: TerminalEntry[]) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPanelProps) {
+export function TerminalPanel({ projectId, onClose, pendingCommand, onEntriesChange }: TerminalPanelProps) {
   const [entries, setEntries] = useState<TerminalEntry[]>([]);
   const [input, setInput] = useState("");
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -139,6 +141,11 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
   useEffect(() => {
     outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight, behavior: "smooth" });
   }, [entries, execMutation.isPending]);
+
+  // Notify parent when entries change so AI can use them as context
+  useEffect(() => {
+    onEntriesChange?.(entries);
+  }, [entries, onEntriesChange]);
 
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 50);

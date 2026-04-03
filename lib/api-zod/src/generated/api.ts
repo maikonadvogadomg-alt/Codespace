@@ -174,6 +174,10 @@ export const AiChatBody = zod.object({
     .boolean()
     .nullish()
     .describe("If true, all project files will be loaded as context"),
+  terminalContext: zod
+    .string()
+    .nullish()
+    .describe("Recent terminal output to inject as context"),
 });
 
 export const AiChatResponse = zod.object({

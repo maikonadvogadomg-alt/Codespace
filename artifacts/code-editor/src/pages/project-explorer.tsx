@@ -12,7 +12,7 @@ import { FileTree } from "@/components/file-tree";
 import { useFileOps } from "@/hooks/use-file-ops";
 import { CodeViewer } from "@/components/code-viewer";
 import { AiPanel } from "@/components/ai-panel";
-import { TerminalPanel } from "@/components/terminal-panel";
+import { TerminalPanel, type TerminalEntry } from "@/components/terminal-panel";
 import { PackagesPanel } from "@/components/packages-panel";
 import { PreviewPanel } from "@/components/preview-panel";
 import { GithubDeployModal } from "@/components/github-deploy-modal";
@@ -78,6 +78,7 @@ export default function ProjectExplorer() {
   const [mobilePreviewPath, setMobilePreviewPath] = useState<string | undefined>(undefined);
   const [pendingTerminalCommand, setPendingTerminalCommand] = useState<{ cmd: string; id: number } | null>(null);
   const [externalMessage, setExternalMessage] = useState<{ text: string; id: number; contextMode?: ContextMode } | null>(null);
+  const [terminalLog, setTerminalLog] = useState<TerminalEntry[]>([]);
   const terminalPanelRef = useRef<ImperativePanelHandle>(null);
 
   const { data: project, isLoading: isProjectLoading } = useGetProject(projectId, {
@@ -265,6 +266,7 @@ export default function ProjectExplorer() {
                 fileContext={fileContextForAi}
                 externalMessage={externalMessage}
                 onRunCommand={handleRunCommand}
+                terminalLog={terminalLog}
               />
             </div>
 
@@ -282,6 +284,7 @@ export default function ProjectExplorer() {
               <TerminalPanel
                 projectId={projectId}
                 pendingCommand={pendingTerminalCommand}
+                onEntriesChange={setTerminalLog}
               />
             </div>
           </div>
@@ -432,6 +435,7 @@ export default function ProjectExplorer() {
                     fileContext={fileContextForAi}
                     externalMessage={externalMessage}
                     onRunCommand={handleRunCommand}
+                    terminalLog={terminalLog}
                   />
                 </ResizablePanel>
 
@@ -452,6 +456,7 @@ export default function ProjectExplorer() {
                     projectId={projectId}
                     onClose={() => setTerminalOpen(false)}
                     pendingCommand={pendingTerminalCommand}
+                    onEntriesChange={setTerminalLog}
                   />
                 </ResizablePanel>
               </>

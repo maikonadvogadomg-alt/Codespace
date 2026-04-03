@@ -116,7 +116,7 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
     return;
   }
 
-  const { messages, fileContext, filePath, projectId, projectContext } = parsed.data;
+  const { messages, fileContext, filePath, projectId, projectContext, terminalContext } = parsed.data;
 
   const settings = await getAiSettings();
   if (!settings?.aiApiKey) {
@@ -185,6 +185,18 @@ ${FILE_CHANGE_INSTRUCTIONS}`,
       role: "system",
       content: `Você é um assistente especialista em código e desenvolvimento de software com capacidade de propor alterações nos arquivos. Use markdown quando útil.
 ${FILE_CHANGE_INSTRUCTIONS}`,
+    });
+  }
+
+  // Inject terminal context as an extra system message if provided
+  if (terminalContext && terminalContext.trim()) {
+    systemMessages.push({
+      role: "system",
+      content: `📟 SAÍDA RECENTE DO TERMINAL DO USUÁRIO:
+\`\`\`
+${terminalContext.trim().slice(0, 8000)}
+\`\`\`
+Use esse contexto para entender erros recentes e ajudar o usuário a corrigir os problemas sem precisar que ele copie e cole os erros.`,
     });
   }
 
