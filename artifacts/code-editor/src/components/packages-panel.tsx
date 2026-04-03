@@ -6,6 +6,8 @@ import {
   ChevronRight,
   Loader2,
   Plus,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,9 +24,25 @@ interface PackageManager {
   runCmds: { label: string; cmd: string }[];
   hint: string;
   markerFile: string;
+  preInstalled?: boolean; // true if the tool comes pre-installed in this environment
 }
 
 const MANAGERS: PackageManager[] = [
+  {
+    markerFile: "package.json",
+    label: "npm (Node/React/Next)",
+    color: "text-green-400",
+    preInstalled: true,
+    installCmd: (p) => `npm install ${p}`,
+    runCmds: [
+      { label: "Instalar deps", cmd: "npm install" },
+      { label: "Dev server", cmd: "npm run dev" },
+      { label: "Build", cmd: "npm run build" },
+      { label: "Testes", cmd: "npm test" },
+      { label: "Iniciar", cmd: "npm start" },
+    ],
+    hint: "ex: axios, lodash, dayjs, zustand",
+  },
   {
     markerFile: "pyproject.toml",
     label: "Poetry (Python)",
@@ -32,7 +50,7 @@ const MANAGERS: PackageManager[] = [
     installCmd: (p) => `poetry add ${p}`,
     runCmds: [
       { label: "Instalar deps", cmd: "poetry install" },
-      { label: "Executar", cmd: "poetry run python main.py" },
+      { label: "Executar", cmd: "poetry run python3 main.py" },
       { label: "Testes", cmd: "poetry run pytest" },
     ],
     hint: "ex: requests, pandas, fastapi",
@@ -44,35 +62,21 @@ const MANAGERS: PackageManager[] = [
     installCmd: (p) => `pipenv install ${p}`,
     runCmds: [
       { label: "Instalar deps", cmd: "pipenv install" },
-      { label: "Executar", cmd: "pipenv run python main.py" },
+      { label: "Executar", cmd: "pipenv run python3 main.py" },
     ],
     hint: "ex: requests, django, flask",
   },
   {
     markerFile: "requirements.txt",
-    label: "pip (Python)",
+    label: "pip / Python",
     color: "text-yellow-400",
-    installCmd: (p) => `pip install ${p}`,
+    installCmd: (p) => `pip3 install ${p}`,
     runCmds: [
-      { label: "Instalar requirements", cmd: "pip install -r requirements.txt" },
-      { label: "Executar", cmd: "python main.py" },
-      { label: "Testes", cmd: "python -m pytest" },
+      { label: "Instalar requirements", cmd: "pip3 install -r requirements.txt" },
+      { label: "Executar", cmd: "python3 main.py" },
+      { label: "Testes", cmd: "python3 -m pytest" },
     ],
     hint: "ex: requests, pandas, flask, numpy",
-  },
-  {
-    markerFile: "package.json",
-    label: "npm (Node/React/Next)",
-    color: "text-green-400",
-    installCmd: (p) => `npm install ${p}`,
-    runCmds: [
-      { label: "Instalar deps", cmd: "npm install" },
-      { label: "Dev server", cmd: "npm run dev" },
-      { label: "Build", cmd: "npm run build" },
-      { label: "Testes", cmd: "npm test" },
-      { label: "Iniciar", cmd: "npm start" },
-    ],
-    hint: "ex: axios, lodash, dayjs, zustand",
   },
   {
     markerFile: "Cargo.toml",
@@ -194,10 +198,31 @@ export function PackagesPanel({ projectId, fileTree, onRunCommand }: PackagesPan
             </p>
           ) : (
             <>
-              {/* Detected badge */}
-              <div className={cn("text-[11px] font-medium", manager.color)}>
-                {manager.label}
+              {/* Detected badge + availability */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={cn("text-[11px] font-medium", manager.color)}>
+                  {manager.label}
+                </span>
+                {manager.preInstalled ? (
+                  <span className="flex items-center gap-1 text-[10px] text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded">
+                    <CheckCircle2 className="w-2.5 h-2.5" />
+                    disponível
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-[10px] text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded">
+                    <AlertTriangle className="w-2.5 h-2.5" />
+                    verificar instalação
+                  </span>
+                )}
               </div>
+              {!manager.preInstalled && (
+                <p className="text-[10px] text-muted-foreground bg-yellow-400/5 border border-yellow-400/20 rounded px-2 py-1.5 leading-relaxed">
+                  Este ambiente tem Node.js pré-instalado. Para usar{" "}
+                  <strong>{manager.label.split(" ")[0]}</strong>, a ferramenta precisa
+                  estar instalada no servidor. Se der erro "not found", instale via
+                  terminal do servidor.
+                </p>
+              )}
 
               {/* Install package */}
               <div className="space-y-1.5">
