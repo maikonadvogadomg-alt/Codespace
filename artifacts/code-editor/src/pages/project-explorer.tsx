@@ -75,6 +75,7 @@ export default function ProjectExplorer() {
   const [githubModalOpen, setGithubModalOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("files");
+  const [mobilePreviewPath, setMobilePreviewPath] = useState<string | undefined>(undefined);
   const [pendingTerminalCommand, setPendingTerminalCommand] = useState<{ cmd: string; id: number } | null>(null);
   const [externalMessage, setExternalMessage] = useState<{ text: string; id: number; contextMode?: ContextMode } | null>(null);
   const terminalPanelRef = useRef<ImperativePanelHandle>(null);
@@ -250,6 +251,7 @@ export default function ProjectExplorer() {
                   canGoForward={canGoForward}
                   onBack={navigateBack}
                   onForward={navigateForward}
+                  onPreview={(path) => { setMobilePreviewPath(path); setMobileTab("preview"); }}
                 />
               )}
             </div>
@@ -269,6 +271,7 @@ export default function ProjectExplorer() {
               <PreviewPanel
                 projectId={projectId}
                 onRunBuild={(cmd) => { handleRunCommand(cmd); setMobileTab("terminal"); }}
+                previewPath={mobilePreviewPath}
               />
             </div>
 
@@ -481,6 +484,12 @@ function DesktopCodePreview({
   onRunBuild: (cmd: string) => void;
 }) {
   const [view, setView] = React.useState<"code" | "preview">("code");
+  const [previewPath, setPreviewPath] = React.useState<string | undefined>(undefined);
+
+  const handlePreview = React.useCallback((filePath: string) => {
+    setPreviewPath(filePath);
+    setView("preview");
+  }, []);
 
   return (
     <div className="h-full flex flex-col">
@@ -522,9 +531,14 @@ function DesktopCodePreview({
             canGoForward={canGoForward}
             onBack={onBack}
             onForward={onForward}
+            onPreview={handlePreview}
           />
         ) : (
-          <PreviewPanel projectId={projectId} onRunBuild={onRunBuild} />
+          <PreviewPanel
+            projectId={projectId}
+            onRunBuild={onRunBuild}
+            previewPath={previewPath}
+          />
         )}
       </div>
     </div>

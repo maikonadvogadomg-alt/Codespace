@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Loader2, FileX, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, FileX, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import type { FileContent } from "@workspace/api-client-react";
 import hljs from "highlight.js";
 import "highlight.js/styles/github-dark.css";
@@ -11,7 +11,11 @@ interface CodeViewerProps {
   canGoForward?: boolean;
   onBack?: () => void;
   onForward?: () => void;
+  /** Called when user clicks "Visualizar" on an HTML file */
+  onPreview?: (filePath: string) => void;
 }
+
+const PREVIEWABLE_EXTS = new Set(["html", "htm", "svg"]);
 
 // Map our language names to highlight.js aliases
 const LANG_MAP: Record<string, string> = {
@@ -54,7 +58,10 @@ export function CodeViewer({
   canGoForward,
   onBack,
   onForward,
+  onPreview,
 }: CodeViewerProps) {
+  const ext = file?.path?.split(".").pop()?.toLowerCase() ?? "";
+  const isPreviewable = PREVIEWABLE_EXTS.has(ext);
   const { highlighted, lineCount } = useMemo(() => {
     if (!file?.content) return { highlighted: "", lineCount: 0 };
     const lang = file.language ? LANG_MAP[file.language.toLowerCase()] : undefined;
@@ -141,6 +148,18 @@ export function CodeViewer({
         </span>
 
         <div className="w-px h-5 bg-[#30363d] mx-1 shrink-0" />
+
+        {/* Visualizar button for HTML/SVG files */}
+        {isPreviewable && onPreview && (
+          <button
+            onClick={() => onPreview(file.path)}
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 border border-blue-500/30 transition-colors shrink-0"
+            title="Visualizar este arquivo no painel de Preview"
+          >
+            <Eye className="w-3 h-3" />
+            Visualizar
+          </button>
+        )}
 
         {file.language && (
           <span className="text-[10px] uppercase tracking-wider font-semibold text-[#8b949e] shrink-0">
