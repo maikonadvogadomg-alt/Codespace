@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import {
   useGetProject,
@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { FileTree } from "@/components/file-tree";
+import { useFileOps } from "@/hooks/use-file-ops";
 import { CodeViewer } from "@/components/code-viewer";
 import { AiPanel } from "@/components/ai-panel";
 import { TerminalPanel } from "@/components/terminal-panel";
@@ -28,6 +29,8 @@ import {
   Files,
   Code2,
   Sparkles,
+  FilePlus,
+  FolderPlus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -87,6 +90,15 @@ export default function ProjectExplorer() {
       },
     }
   );
+
+  // File operations (create, rename, delete, copy, cut/paste)
+  const fileOps = useFileOps(projectId);
+  useEffect(() => {
+    if (fileOps.error) {
+      toast({ title: "Erro na operação", description: fileOps.error, variant: "destructive" });
+      fileOps.clearError();
+    }
+  }, [fileOps.error]);
 
   const [pendingAnalysisPath, setPendingAnalysisPath] = useState<string | null>(null);
 
@@ -194,8 +206,14 @@ export default function ProjectExplorer() {
           <div className="flex-1 overflow-hidden">
             {/* Files tab */}
             <div className={cn("h-full overflow-auto flex flex-col", mobileTab !== "files" && "hidden")}>
-              <div className="h-9 shrink-0 flex items-center px-4 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30">
-                Explorer
+              <div className="h-9 shrink-0 flex items-center px-3 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30 gap-2">
+                <span className="flex-1 tracking-wider">Explorer</span>
+                <button title="Novo arquivo" onClick={() => fileOps.createFile(`novo-arquivo.txt`, "")} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                  <FilePlus className="w-3.5 h-3.5" />
+                </button>
+                <button title="Nova pasta" onClick={() => fileOps.createFolder(`nova-pasta`)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                  <FolderPlus className="w-3.5 h-3.5" />
+                </button>
               </div>
               <div className="flex-1 overflow-auto p-2">
                 <FileTree
@@ -204,6 +222,7 @@ export default function ProjectExplorer() {
                   onAnalyzeFile={handleAnalyzeFileClick}
                   onAnalyzeFolder={handleAnalyzeFolderClick}
                   selectedPath={selectedFile}
+                  ops={fileOps}
                 />
               </div>
               <PackagesPanel
@@ -339,8 +358,14 @@ export default function ProjectExplorer() {
             <ResizablePanel defaultSize={terminalOpen ? 65 : 100} minSize={30}>
               <ResizablePanelGroup direction="horizontal">
                 <ResizablePanel defaultSize={20} minSize={15} maxSize={35} className="bg-sidebar flex flex-col">
-                  <div className="h-9 shrink-0 flex items-center px-4 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30">
-                    Explorer
+                  <div className="h-9 shrink-0 flex items-center px-3 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30 gap-2">
+                    <span className="flex-1 tracking-wider">Explorer</span>
+                    <button title="Novo arquivo" onClick={() => fileOps.createFile(`novo-arquivo.txt`, "")} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                      <FilePlus className="w-3.5 h-3.5" />
+                    </button>
+                    <button title="Nova pasta" onClick={() => fileOps.createFolder(`nova-pasta`)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                      <FolderPlus className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                   <div className="flex-1 overflow-auto p-2">
                     <FileTree
@@ -349,6 +374,7 @@ export default function ProjectExplorer() {
                       onAnalyzeFile={handleAnalyzeFileClick}
                       onAnalyzeFolder={handleAnalyzeFolderClick}
                       selectedPath={selectedFile}
+                      ops={fileOps}
                     />
                   </div>
                   <PackagesPanel
