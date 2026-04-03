@@ -1,29 +1,58 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Sparkles, Loader2, Send, Bot, User, Paperclip, X, RefreshCw } from "lucide-react";
+import {
+  Sparkles,
+  Loader2,
+  Send,
+  Bot,
+  User,
+  RefreshCw,
+  File,
+  FolderOpen,
+  Minus,
+  ChevronDown,
+} from "lucide-react";
 import { useAiChat } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
+type ContextMode = "none" | "file" | "project";
+
 interface AiPanelProps {
+  projectId: string;
   fileContext?: { path: string; content: string; language: string } | null;
-  onAnalyzeFile?: () => void;
-  onAnalyzeFolder?: () => void;
-  externalMessage?: { text: string; id: number } | null;
+  externalMessage?: { text: string; id: number; contextMode?: ContextMode } | null;
 }
 
-export function AiPanel({ fileContext, onAnalyzeFile, onAnalyzeFolder, externalMessage }: AiPanelProps) {
+const CONTEXT_LABELS: Record<ContextMode, string> = {
+  none: "Sem contexto",
+  file: "Arquivo aberto",
+  project: "Projeto completo",
+};
+
+const CONTEXT_ICONS: Record<ContextMode, React.ReactNode> = {
+  none: <Minus className="w-3 h-3" />,
+  file: <File className="w-3 h-3" />,
+  project: <FolderOpen className="w-3 h-3" />,
+};
+
+export function AiPanel({ projectId, fileContext, externalMessage }: AiPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [contextAttached, setContextAttached] = useState(false);
+  const [contextMode, setContextMode] = useState<ContextMode>("none");
   const [lastExternalId, setLastExternalId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const chatMutation = useAiChat({
     mutation: {
@@ -53,29 +82,32 @@ export function AiPanel({ fileContext, onAnalyzeFile, onAnalyzeFolder, externalM
   useEffect(() => {
     if (externalMessage && externalMessage.id !== lastExternalId) {
       setLastExternalId(externalMessage.id);
-      sendMessage(externalMessage.text, true);
+      const mode = externalMessage.contextMode ?? contextMode;
+      sendMessage(externalMessage.text, mode);
     }
   }, [externalMessage]);
 
-  // Auto-detach context if file changes
+  // If file context disappears, fall back to none
   useEffect(() => {
-    setContextAttached(false);
-  }, [fileContext?.path]);
+    if (contextMode === "file" && !fileContext) {
+      setContextMode("none");
+    }
+  }, [fileContext, contextMode]);
 
-  const sendMessage = (text: string, withContext = false) => {
+  const sendMessage = (text: string, mode: ContextMode = contextMode) => {
     if (!text.trim() || chatMutation.isPending) return;
 
     const userMsg: Message = { role: "user", content: text };
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
 
-    const shouldIncludeContext = (withContext || contextAttached) && fileContext;
-
     chatMutation.mutate({
       data: {
         messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
-        fileContext: shouldIncludeContext ? fileContext.content.slice(0, 12000) : null,
-        filePath: shouldIncludeContext ? fileContext.path : null,
+        fileContext: mode === "file" && fileContext ? fileContext.content.slice(0, 12000) : null,
+        filePath: mode === "file" && fileContext ? fileContext.path : null,
+        projectId: mode === "project" ? projectId : null,
+        projectContext: mode === "project" ? true : null,
       },
     });
   };
@@ -85,7 +117,7 @@ export function AiPanel({ fileContext, onAnalyzeFile, onAnalyzeFolder, externalM
     const text = input.trim();
     if (!text) return;
     setInput("");
-    sendMessage(text, contextAttached);
+    sendMessage(text, contextMode);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -95,11 +127,11 @@ export function AiPanel({ fileContext, onAnalyzeFile, onAnalyzeFolder, externalM
     }
   };
 
-  const clearChat = () => {
-    setMessages([]);
-  };
+  const clearChat = () => setMessages([]);
 
   const isEmpty = messages.length === 0 && !chatMutation.isPending;
+
+  const availableModes: ContextMode[] = ["none", ...(fileContext ? (["file"] as ContextMode[]) : []), "project"];
 
   return (
     <div className="h-full w-full flex flex-col bg-card border-l border-border overflow-hidden">
@@ -129,21 +161,22 @@ export function AiPanel({ fileContext, onAnalyzeFile, onAnalyzeFolder, externalM
             </div>
             <p className="text-sm font-medium text-foreground mb-1">Chat com sua IA</p>
             <p className="text-xs leading-relaxed max-w-[200px]">
-              Faça perguntas sobre o código, peça explicações ou sugestões. Use o clipe para incluir o arquivo aberto como contexto.
+              Faça perguntas sobre o código, peça explicações ou sugestões. Escolha o contexto abaixo.
             </p>
-            {fileContext && (
-              <div className="mt-4 flex flex-col gap-2 w-full max-w-[200px]">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-xs gap-1.5 h-7"
-                  onClick={onAnalyzeFile}
-                >
-                  <Sparkles className="w-3 h-3" />
-                  Analisar arquivo
-                </Button>
+            <div className="mt-4 flex flex-col gap-1.5 w-full max-w-[200px] text-xs text-left">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Minus className="w-3.5 h-3.5 shrink-0" />
+                <span>Sem contexto — perguntas gerais</span>
               </div>
-            )}
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <File className="w-3.5 h-3.5 shrink-0" />
+                <span>Arquivo aberto como contexto</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+                <span>Projeto completo como contexto</span>
+              </div>
+            </div>
           </div>
         ) : (
           <>
@@ -192,41 +225,57 @@ export function AiPanel({ fileContext, onAnalyzeFile, onAnalyzeFolder, externalM
         )}
       </div>
 
-      {/* Context pill */}
-      {fileContext && (
-        <div className="px-3 pb-1 shrink-0">
-          <button
-            type="button"
-            onClick={() => setContextAttached((v) => !v)}
-            className={cn(
-              "flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border transition-colors w-full max-w-full truncate",
-              contextAttached
-                ? "bg-primary/10 border-primary/30 text-primary"
-                : "bg-muted/50 border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
-            )}
-            title={contextAttached ? "Remover contexto do arquivo" : "Incluir arquivo como contexto"}
-          >
-            {contextAttached ? (
-              <>
-                <Paperclip className="w-3 h-3 shrink-0" />
-                <span className="truncate">{fileContext.path.split("/").pop()}</span>
-                <X className="w-3 h-3 ml-auto shrink-0" />
-              </>
-            ) : (
-              <>
-                <Paperclip className="w-3 h-3 shrink-0" />
-                <span className="truncate">Incluir: {fileContext.path.split("/").pop()}</span>
-              </>
-            )}
-          </button>
-        </div>
-      )}
+      {/* Context Selector + Input */}
+      <div className="shrink-0 border-t border-border bg-background/30 p-2 flex flex-col gap-1.5">
+        {/* Context selector */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors w-full",
+                contextMode === "none"
+                  ? "bg-muted/50 border-border text-muted-foreground hover:border-primary/30"
+                  : contextMode === "file"
+                  ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
+                  : "bg-primary/10 border-primary/30 text-primary"
+              )}
+            >
+              {CONTEXT_ICONS[contextMode]}
+              <span className="flex-1 text-left truncate">
+                Contexto: {CONTEXT_LABELS[contextMode]}
+                {contextMode === "file" && fileContext && ` — ${fileContext.path.split("/").pop()}`}
+              </span>
+              <ChevronDown className="w-3 h-3 ml-auto shrink-0 opacity-50" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            {availableModes.map((mode) => (
+              <DropdownMenuItem
+                key={mode}
+                onClick={() => setContextMode(mode)}
+                className={cn(
+                  "gap-2 text-xs",
+                  contextMode === mode && "bg-accent"
+                )}
+              >
+                {CONTEXT_ICONS[mode]}
+                <div className="flex flex-col">
+                  <span className="font-medium">{CONTEXT_LABELS[mode]}</span>
+                  <span className="text-muted-foreground text-[10px]">
+                    {mode === "none" && "Conversa livre, sem código"}
+                    {mode === "file" && "Arquivo atual enviado como contexto"}
+                    {mode === "project" && "Todos os arquivos do projeto enviados"}
+                  </span>
+                </div>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="p-2 shrink-0 border-t border-border bg-background/30">
-        <div className="flex gap-1.5 items-end">
+        {/* Input */}
+        <form onSubmit={handleSubmit} className="flex gap-1.5 items-end">
           <Textarea
-            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -246,8 +295,8 @@ export function AiPanel({ fileContext, onAnalyzeFile, onAnalyzeFolder, externalM
               <Send className="w-4 h-4" />
             )}
           </Button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

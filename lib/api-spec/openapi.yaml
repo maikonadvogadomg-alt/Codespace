@@ -526,6 +526,12 @@ components:
         filePath:
           type: ["string", "null"]
           description: Optional file path for context label
+        projectId:
+          type: ["string", "null"]
+          description: Project ID to load full project context on the server
+        projectContext:
+          type: ["boolean", "null"]
+          description: If true, all project files will be loaded as context
       required:
         - messages
 

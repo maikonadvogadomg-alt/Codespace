@@ -2,9 +2,59 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, projectsTable, settingsTable } from "@workspace/db";
 import { AnalyzeFileBody, AnalyzeFolderBody, AiChatBody } from "@workspace/api-zod";
-import { isBinaryFile, detectLanguage } from "../lib/storage.js";
+import { isBinaryFile, detectLanguage, getProjectDir } from "../lib/storage.js";
 import path from "path";
 import fs from "fs/promises";
+
+async function buildProjectContext(projectId: string): Promise<{ text: string; fileCount: number; truncated: boolean }> {
+  const rows = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
+  const project = rows[0];
+  if (!project) throw new Error("Projeto não encontrado");
+
+  const projectDir = getProjectDir(project.slug);
+  const parts: string[] = [];
+  let fileCount = 0;
+  let totalChars = 0;
+  const MAX_CHARS = 200_000;
+  let truncated = false;
+
+  async function walk(dir: string, relBase: string) {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const sorted = entries
+      .filter(e => !e.name.startsWith("."))
+      .sort((a, b) => {
+        if (a.isDirectory() && !b.isDirectory()) return -1;
+        if (!a.isDirectory() && b.isDirectory()) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+    for (const entry of sorted) {
+      const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(fullPath, relPath);
+      } else if (!isBinaryFile(relPath)) {
+        if (totalChars >= MAX_CHARS) {
+          truncated = true;
+          continue;
+        }
+        try {
+          const content = await fs.readFile(fullPath, "utf-8");
+          const lang = detectLanguage(relPath);
+          const block = `// ═══ FILE: ${relPath} ═══\n\`\`\`${lang}\n${content}\n\`\`\`\n`;
+          parts.push(block);
+          totalChars += block.length;
+          fileCount++;
+        } catch {
+          // skip unreadable files
+        }
+      }
+    }
+  }
+
+  await walk(projectDir, "");
+  return { text: parts.join("\n"), fileCount, truncated };
+}
 
 const router: IRouter = Router();
 
@@ -64,7 +114,7 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
     return;
   }
 
-  const { messages, fileContext, filePath } = parsed.data;
+  const { messages, fileContext, filePath, projectId, projectContext } = parsed.data;
 
   const settings = await getAiSettings();
   if (!settings?.aiApiKey) {
@@ -74,7 +124,26 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
 
   const systemMessages: Array<{ role: string; content: string }> = [];
 
-  if (fileContext && filePath) {
+  if (projectContext && projectId) {
+    try {
+      const { text, fileCount, truncated } = await buildProjectContext(projectId);
+      systemMessages.push({
+        role: "system",
+        content: `Você é um assistente especialista em código com acesso ao projeto completo.
+${truncated ? `\n⚠️ O projeto é grande — foram incluídos os primeiros ${fileCount} arquivos (limite de 200k caracteres).` : `\nO projeto contém ${fileCount} arquivo(s) de código.`}
+
+Abaixo está o conteúdo completo do projeto:
+
+${text}
+
+Responda de forma direta e clara, em português. Use markdown quando útil. Ao referenciar código, cite o arquivo pelo caminho.`,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erro ao carregar projeto";
+      res.status(400).json({ error: message });
+      return;
+    }
+  } else if (fileContext && filePath) {
     const language = detectLanguage(filePath);
     systemMessages.push({
       role: "system",

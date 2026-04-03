@@ -114,6 +114,14 @@ export const AiChatBody = zod.object({
     .string()
     .nullish()
     .describe("Optional file path for context label"),
+  projectId: zod
+    .string()
+    .nullish()
+    .describe("Project ID to load full project context on the server"),
+  projectContext: zod
+    .boolean()
+    .nullish()
+    .describe("If true, all project files will be loaded as context"),
 });
 
 export const AiChatResponse = zod.object({

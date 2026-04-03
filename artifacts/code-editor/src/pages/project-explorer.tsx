@@ -171,9 +171,8 @@ export default function ProjectExplorer() {
             {/* Right Panel: AI Chat */}
             <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
               <AiPanel
+                projectId={projectId}
                 fileContext={fileContextForAi}
-                onAnalyzeFile={selectedFile ? () => handleAnalyzeFileClick(selectedFile) : undefined}
-                onAnalyzeFolder={undefined}
                 externalMessage={externalMessage}
               />
             </ResizablePanel>

@@ -19,4 +19,14 @@ export interface AiChatRequest {
    * @nullable
    */
   filePath?: string | null;
+  /**
+   * Project ID to load full project context on the server
+   * @nullable
+   */
+  projectId?: string | null;
+  /**
+   * If true, all project files will be loaded as context
+   * @nullable
+   */
+  projectContext?: boolean | null;
 }
