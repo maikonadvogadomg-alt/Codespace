@@ -101,6 +101,16 @@ export interface UpdateSettingsRequest {
   githubToken?: string | null;
 }
 
+export interface ImportGithubRequest {
+  /** GitHub repository URL (e.g. https://github.com/owner/repo) */
+  repoUrl: string;
+  /**
+   * Branch to import (defaults to default branch)
+   * @nullable
+   */
+  branch?: string | null;
+}
+
 export type UploadProjectBody = {
   file: Blob;
   name?: string;

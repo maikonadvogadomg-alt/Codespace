@@ -16,6 +16,19 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * @summary Import a project directly from a GitHub repository URL
+ */
+export const ImportFromGithubBody = zod.object({
+  repoUrl: zod
+    .string()
+    .describe("GitHub repository URL (e.g. https:\/\/github.com\/owner\/repo)"),
+  branch: zod
+    .string()
+    .nullish()
+    .describe("Branch to import (defaults to default branch)"),
+});
+
+/**
  * @summary List all uploaded projects
  */
 export const ListProjectsResponseItem = zod.object({

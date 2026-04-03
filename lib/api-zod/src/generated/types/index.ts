@@ -17,6 +17,7 @@ export * from "./fileNode";
 export * from "./fileNodeType";
 export * from "./getFileContentParams";
 export * from "./healthStatus";
+export * from "./importGithubRequest";
 export * from "./project";
 export * from "./projectDetail";
 export * from "./settings";

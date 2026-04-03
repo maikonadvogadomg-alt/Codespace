@@ -26,6 +26,7 @@ import type {
   FileContent,
   GetFileContentParams,
   HealthStatus,
+  ImportGithubRequest,
   Project,
   ProjectDetail,
   Settings,
@@ -117,6 +118,92 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Import a project directly from a GitHub repository URL
+ */
+export const getImportFromGithubUrl = () => {
+  return `/api/projects/import-github`;
+};
+
+export const importFromGithub = async (
+  importGithubRequest: ImportGithubRequest,
+  options?: RequestInit,
+): Promise<Project> => {
+  return customFetch<Project>(getImportFromGithubUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(importGithubRequest),
+  });
+};
+
+export const getImportFromGithubMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importFromGithub>>,
+    TError,
+    { data: BodyType<ImportGithubRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof importFromGithub>>,
+  TError,
+  { data: BodyType<ImportGithubRequest> },
+  TContext
+> => {
+  const mutationKey = ["importFromGithub"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof importFromGithub>>,
+    { data: BodyType<ImportGithubRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return importFromGithub(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ImportFromGithubMutationResult = NonNullable<
+  Awaited<ReturnType<typeof importFromGithub>>
+>;
+export type ImportFromGithubMutationBody = BodyType<ImportGithubRequest>;
+export type ImportFromGithubMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Import a project directly from a GitHub repository URL
+ */
+export const useImportFromGithub = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importFromGithub>>,
+    TError,
+    { data: BodyType<ImportGithubRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof importFromGithub>>,
+  TError,
+  { data: BodyType<ImportGithubRequest> },
+  TContext
+> => {
+  return useMutation(getImportFromGithubMutationOptions(options));
+};
 
 /**
  * @summary List all uploaded projects

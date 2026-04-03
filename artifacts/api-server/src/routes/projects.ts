@@ -69,30 +69,32 @@ router.post(
       const zip = new AdmZip(file.buffer);
       const entries = zip.getEntries();
 
-      let extractedFiles = 0;
+      // Detect if all entries share a single root folder (e.g. GitHub ZIPs: repo-main/)
+      const entryNames = entries.map((e) => e.entryName);
+      const firstPart = entryNames[0]?.split("/")[0] ?? "";
+      const allHaveSameRoot =
+        firstPart.length > 0 &&
+        entryNames.every((n) => n.startsWith(firstPart + "/") || n === firstPart);
+      const rootPrefix = allHaveSameRoot ? firstPart + "/" : "";
 
       for (const entry of entries) {
         if (entry.isDirectory) continue;
 
         let entryName = entry.entryName;
-        const parts = entryName.split("/");
-        if (parts.length > 1 && entries.every((e) => e.entryName.startsWith(parts[0] + "/"))) {
-          entryName = parts.slice(1).join("/");
+        if (rootPrefix && entryName.startsWith(rootPrefix)) {
+          entryName = entryName.slice(rootPrefix.length);
         }
 
         if (!entryName) continue;
 
         const targetPath = path.join(projectDir, entryName);
+        const resolvedTarget = path.resolve(targetPath);
+        const resolvedBase = path.resolve(projectDir);
+        if (!resolvedTarget.startsWith(resolvedBase)) continue;
+
         const targetDir = path.dirname(targetPath);
         await fs.mkdir(targetDir, { recursive: true });
-
-        const content = entry.getData();
-        await fs.writeFile(targetPath, content);
-        extractedFiles++;
-      }
-
-      if (extractedFiles === 0) {
-        zip.extractAllTo(projectDir, true);
+        await fs.writeFile(targetPath, entry.getData());
       }
 
       const { count, sizeBytes } = await countFiles(projectDir);
