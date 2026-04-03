@@ -97,10 +97,17 @@ export async function dbSaveDirectoryTree(projectId: number, rootDir: string): P
         await walk(fullPath, relPath);
       } else {
         try {
-          const content = await fs.readFile(fullPath, "utf-8");
-          files.push({ path: relPath, content });
+          const buffer = await fs.readFile(fullPath);
+          // Skip binary files (detect by null bytes or high percentage of non-text bytes)
+          if (buffer.includes(0)) {
+            continue;
+          }
+          const content = buffer.toString("utf-8");
+          // Remove any remaining invalid UTF-8 sequences
+          const cleaned = content.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+          files.push({ path: relPath, content: cleaned });
         } catch {
-          // Skip binary files or unreadable files
+          // Skip files that can't be read
         }
       }
     }
