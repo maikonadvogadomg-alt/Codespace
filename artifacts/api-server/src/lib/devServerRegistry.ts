@@ -46,16 +46,36 @@ export function detectStartCommand(cwd: string): string {
     if (fs.existsSync(pkgPath)) {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as {
         scripts?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+        dependencies?: Record<string, string>;
       };
       const scripts = pkg.scripts ?? {};
-      if (scripts.dev) return "npm run dev";
+      const hasTsx = !!(pkg.devDependencies?.tsx || pkg.dependencies?.tsx);
+
+      if (scripts.dev) {
+        const devCmd = scripts.dev.trim();
+        if (devCmd === "vite" || devCmd.startsWith("vite ")) {
+          const serverEntry = ["server/index.ts", "server/index.js", "server.ts", "src/server.ts"].find(
+            (f) => fs.existsSync(path.join(cwd, f))
+          );
+          if (serverEntry) {
+            if (hasTsx) return `npx tsx ${serverEntry}`;
+            if (serverEntry.endsWith(".js")) return `node ${serverEntry}`;
+          }
+        }
+        return "npm run dev";
+      }
       if (scripts.start) return "npm start";
       if (scripts.serve) return "npm run serve";
     }
   } catch { /* ignore */ }
 
-  // Fallback: look for common entry files
-  const candidates = ["index.js", "server.js", "app.js", "main.js", "src/index.js", "src/server.js"];
+  const tsEntries = ["server/index.ts", "server.ts", "src/server.ts"];
+  for (const c of tsEntries) {
+    if (fs.existsSync(path.join(cwd, c))) return `npx tsx ${c}`;
+  }
+
+  const candidates = ["index.js", "server.js", "app.js", "main.js", "server/index.js", "src/index.js", "src/server.js"];
   for (const c of candidates) {
     if (fs.existsSync(path.join(cwd, c))) return `node ${c}`;
   }
@@ -80,6 +100,7 @@ const ALLOWED_START_COMMANDS = new Set([
 function isAllowedCommand(cmd: string): boolean {
   if (ALLOWED_START_COMMANDS.has(cmd)) return true;
   if (/^node\s+[\w./-]+\.m?js$/.test(cmd)) return true;
+  if (/^npx\s+tsx\s+[\w./-]+\.ts$/.test(cmd)) return true;
   if (/^python3?\s+[\w./-]+\.py$/.test(cmd)) return true;
   return false;
 }
