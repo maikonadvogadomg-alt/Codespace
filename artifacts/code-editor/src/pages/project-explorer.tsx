@@ -43,7 +43,29 @@ export default function ProjectExplorer() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
-  const [selectedFile, setSelectedFile] = useState<string | undefined>(undefined);
+  // File navigation history (like browser back/forward)
+  const [fileHistory, setFileHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  const selectedFile = historyIndex >= 0 ? fileHistory[historyIndex] : undefined;
+  const canGoBack = historyIndex > 0;
+  const canGoForward = historyIndex < fileHistory.length - 1;
+
+  const openFile = useCallback((path: string) => {
+    if (fileHistory[historyIndex] === path) return;
+    const newHistory = [...fileHistory.slice(0, historyIndex + 1), path];
+    setFileHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  }, [fileHistory, historyIndex]);
+
+  const navigateBack = useCallback(() => {
+    setHistoryIndex((i) => Math.max(0, i - 1));
+  }, []);
+
+  const navigateForward = useCallback(() => {
+    setHistoryIndex((i) => Math.min(fileHistory.length - 1, i + 1));
+  }, [fileHistory.length]);
+
   const [githubModalOpen, setGithubModalOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("files");
@@ -82,7 +104,7 @@ export default function ProjectExplorer() {
     if (selectedFile === path && fileContent) {
       triggerFileAnalysis(path);
     } else {
-      setSelectedFile(path);
+      openFile(path);
       setPendingAnalysisPath(path);
     }
   };
@@ -104,7 +126,7 @@ export default function ProjectExplorer() {
   };
 
   const handleSelectFile = (path: string) => {
-    setSelectedFile(path);
+    openFile(path);
     if (isMobile) setMobileTab("code");
   };
 
