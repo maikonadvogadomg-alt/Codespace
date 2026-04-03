@@ -11,6 +11,7 @@ import { FileTree } from "@/components/file-tree";
 import { CodeViewer } from "@/components/code-viewer";
 import { AiPanel } from "@/components/ai-panel";
 import { TerminalPanel } from "@/components/terminal-panel";
+import { PackagesPanel } from "@/components/packages-panel";
 import { GithubDeployModal } from "@/components/github-deploy-modal";
 import {
   ResizableHandle,
@@ -170,11 +171,11 @@ export default function ProjectExplorer() {
           {/* Tab content */}
           <div className="flex-1 overflow-hidden">
             {/* Files tab */}
-            <div className={cn("h-full overflow-auto", mobileTab !== "files" && "hidden")}>
-              <div className="h-9 flex items-center px-4 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30">
+            <div className={cn("h-full overflow-auto flex flex-col", mobileTab !== "files" && "hidden")}>
+              <div className="h-9 shrink-0 flex items-center px-4 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30">
                 Explorer
               </div>
-              <div className="p-2">
+              <div className="flex-1 overflow-auto p-2">
                 <FileTree
                   node={project.tree}
                   onSelectFile={handleSelectFile}
@@ -183,6 +184,11 @@ export default function ProjectExplorer() {
                   selectedPath={selectedFile}
                 />
               </div>
+              <PackagesPanel
+                projectId={projectId}
+                fileTree={project.tree}
+                onRunCommand={(cmd) => { handleRunCommand(cmd); setMobileTab("terminal"); }}
+              />
             </div>
 
             {/* Code tab */}
@@ -303,7 +309,7 @@ export default function ProjectExplorer() {
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel defaultSize={terminalOpen ? 65 : 100} minSize={30}>
               <ResizablePanelGroup direction="horizontal">
-                <ResizablePanel defaultSize={20} minSize={15} maxSize={30} className="bg-sidebar flex flex-col">
+                <ResizablePanel defaultSize={20} minSize={15} maxSize={35} className="bg-sidebar flex flex-col">
                   <div className="h-9 shrink-0 flex items-center px-4 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30">
                     Explorer
                   </div>
@@ -316,6 +322,14 @@ export default function ProjectExplorer() {
                       selectedPath={selectedFile}
                     />
                   </div>
+                  <PackagesPanel
+                    projectId={projectId}
+                    fileTree={project.tree}
+                    onRunCommand={(cmd) => {
+                      handleRunCommand(cmd);
+                      setTerminalOpen(true);
+                    }}
+                  />
                 </ResizablePanel>
                 <ResizableHandle className="bg-border w-[1px] hover:w-1 hover:bg-primary/50 transition-all" />
                 <ResizablePanel defaultSize={50} minSize={30}>
