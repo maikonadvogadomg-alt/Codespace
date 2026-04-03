@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { format } from "date-fns";
 import {
@@ -103,7 +103,6 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
@@ -178,10 +177,11 @@ export default function Home() {
         description: "Por favor, envie um arquivo .zip",
         variant: "destructive",
       });
+      e.target.value = "";
       return;
     }
     uploadMutation.mutate({ data: { file, name: file.name.replace(".zip", "") } });
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    e.target.value = "";
   };
 
   const handleDelete = (e: React.MouseEvent, id: string, name: string) => {
@@ -251,11 +251,12 @@ export default function Home() {
 
             <div className="flex items-center gap-2 flex-wrap">
               <input
+                id="zip-file-input"
                 type="file"
-                ref={fileInputRef}
                 accept=".zip"
-                className="hidden"
+                className="sr-only"
                 onChange={handleFileSelect}
+                disabled={isUploading}
               />
               <Button
                 variant="outline"
@@ -269,16 +270,18 @@ export default function Home() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
                 className="gap-2"
+                asChild
               >
-                {uploadMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Upload className="w-4 h-4" />
-                )}
-                Upload ZIP
+                <label htmlFor="zip-file-input" className="cursor-pointer">
+                  {uploadMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  Upload ZIP
+                </label>
               </Button>
               <Button
                 onClick={() => setNewProjectDialogOpen(true)}
@@ -371,9 +374,11 @@ export default function Home() {
                   <Github className="w-4 h-4" />
                   GitHub
                 </Button>
-                <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="gap-2">
-                  <Upload className="w-4 h-4" />
-                  Upload ZIP
+                <Button variant="outline" className="gap-2" asChild>
+                  <label htmlFor="zip-file-input" className="cursor-pointer">
+                    <Upload className="w-4 h-4" />
+                    Upload ZIP
+                  </label>
                 </Button>
               </div>
             </div>
