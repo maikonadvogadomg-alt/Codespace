@@ -408,7 +408,7 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
           ...prev,
           {
             role: "assistant",
-            content: `Erro: ${(error as any).data?.error || error.message || "Falha ao conectar com a IA. Verifique as Configurações."}`,
+            content: `Erro: ${error.message || "Falha ao conectar com a IA. Verifique as Configurações."}`,
           },
         ]);
       },

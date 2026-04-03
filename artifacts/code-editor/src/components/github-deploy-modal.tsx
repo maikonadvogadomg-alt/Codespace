@@ -154,7 +154,7 @@ export function GithubDeployModal({
       },
       onError: (error) => {
         stopSendingAnimation();
-        const msg = (error as any).data?.error || error.message || "Erro desconhecido";
+        const msg = error.message || "Erro desconhecido";
         const isDuplicate =
           msg.toLowerCase().includes("already exist") ||
           msg.toLowerCase().includes("422") ||
