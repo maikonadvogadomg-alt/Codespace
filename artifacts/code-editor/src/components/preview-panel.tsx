@@ -48,9 +48,11 @@ interface PreviewPanelProps {
   projectId: string;
   onRunBuild?: (cmd: string) => void;
   previewPath?: string;
+  /** Port detected from terminal output — automatically connects preview without clicking "Iniciar" */
+  terminalPort?: number | null;
 }
 
-export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPanelProps) {
+export function PreviewPanel({ projectId, onRunBuild, previewPath, terminalPort }: PreviewPanelProps) {
   const [staticStatus, setStaticStatus] = useState<PreviewStatus | null>(null);
   const [devStatus, setDevStatus] = useState<DevServerStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,6 +112,14 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
 
   useEffect(() => { setIframeKey((k) => k + 1); }, [previewPath]);
 
+  // Auto-switch to live mode and refresh when terminal detects a server
+  useEffect(() => {
+    if (terminalPort) {
+      setMode("live");
+      setIframeKey((k) => k + 1);
+    }
+  }, [terminalPort]);
+
   // ── Actions ──────────────────────────────────────────────────────────────
   const startServer = async () => {
     setStartingServer(true);
@@ -145,21 +155,27 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
   // ── Compute iframe URL ───────────────────────────────────────────────────
   const isFilePreview = !!previewPath;
 
+  // Active live port: prefer terminal-detected port, fall back to devServerRegistry port
+  const activeLivePort = terminalPort ?? devStatus?.port ?? null;
+
   let iframeUrl = "";
-  if (mode === "live" && devStatus?.port) {
+  if (mode === "live" && activeLivePort) {
     const livePath = isFilePreview ? previewPath.replace(/^\//, "") : "";
-    iframeUrl = `${base}/api/projects/${projectId}/dev-proxy/${livePath}`;
+    if (terminalPort) {
+      // Use simple port proxy (no process management needed)
+      iframeUrl = `${base}/api/projects/${projectId}/port-proxy/${terminalPort}/${livePath}`;
+    } else {
+      iframeUrl = `${base}/api/projects/${projectId}/dev-proxy/${livePath}`;
+    }
   } else {
-    const staticPath = isFilePreview
-      ? previewPath.replace(/^\//, "")
-      : "";
+    const staticPath = isFilePreview ? previewPath.replace(/^\//, "") : "";
     iframeUrl = `${base}/api/projects/${projectId}/preview/${staticPath}`;
   }
 
-  const isServerRunning = devStatus?.status === "running" && devStatus?.port;
+  const isServerRunning = !!activeLivePort && (terminalPort ? true : devStatus?.status === "running");
   const isServerStarting = startingServer || devStatus?.status === "starting";
   const canShowIframe = mode === "live"
-    ? (isServerRunning !== null && isServerRunning !== undefined && isServerRunning !== false)
+    ? isServerRunning
     : (isFilePreview || staticStatus?.ready);
 
   return (
@@ -234,7 +250,10 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
               isServerRunning ? "text-green-400" : isServerStarting ? "text-yellow-400" : "text-[#8b949e]"
             )}>
               {isServerRunning ? <Wifi className="w-3 h-3" /> : isServerStarting ? <Loader2 className="w-3 h-3 animate-spin" /> : <WifiOff className="w-3 h-3" />}
-              {isServerRunning ? `porta ${devStatus!.port}` : isServerStarting ? "aguardando…" : "parado"}
+              {isServerRunning
+                ? `porta ${activeLivePort}${terminalPort ? " (terminal)" : ""}`
+                : isServerStarting ? "aguardando…" : "parado"
+              }
             </span>
 
             {devStatus?.log && (

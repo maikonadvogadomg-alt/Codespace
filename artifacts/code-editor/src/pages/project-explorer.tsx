@@ -79,6 +79,13 @@ export default function ProjectExplorer() {
   const [pendingTerminalCommand, setPendingTerminalCommand] = useState<{ cmd: string; id: number } | null>(null);
   const [externalMessage, setExternalMessage] = useState<{ text: string; id: number; contextMode?: ContextMode } | null>(null);
   const [terminalLog, setTerminalLog] = useState<TerminalEntry[]>([]);
+  const [terminalPort, setTerminalPort] = useState<number | null>(null);
+
+  const handleServerDetected = useCallback((port: number) => {
+    setTerminalPort(port);
+    // Auto-switch to preview tab on mobile so user can see the result immediately
+    setMobileTab("preview");
+  }, []);
 
   // Convert new TerminalEntry (chunks) → old TerminalLogEntry (stdout/stderr) for AiPanel
   const aiTerminalLog = useMemo<TerminalLogEntry[]>(() =>
@@ -289,6 +296,7 @@ export default function ProjectExplorer() {
                 projectId={projectId}
                 onRunBuild={(cmd) => { handleRunCommand(cmd); setMobileTab("terminal"); }}
                 previewPath={mobilePreviewPath}
+                terminalPort={terminalPort}
               />
             </div>
 
@@ -298,6 +306,7 @@ export default function ProjectExplorer() {
                 projectId={projectId}
                 pendingCommand={pendingTerminalCommand}
                 onEntriesChange={setTerminalLog}
+                onServerDetected={handleServerDetected}
               />
             </div>
           </div>
@@ -438,6 +447,7 @@ export default function ProjectExplorer() {
                     onBack={navigateBack}
                     onForward={navigateForward}
                     onRunBuild={(cmd) => { handleRunCommand(cmd); setTerminalOpen(true); }}
+                    terminalPort={terminalPort}
                   />
                 </ResizablePanel>
 
@@ -472,6 +482,7 @@ export default function ProjectExplorer() {
                     onClose={() => setTerminalOpen(false)}
                     pendingCommand={pendingTerminalCommand}
                     onEntriesChange={setTerminalLog}
+                    onServerDetected={handleServerDetected}
                   />
                 </ResizablePanel>
               </>
@@ -501,6 +512,7 @@ function DesktopCodePreview({
   onBack,
   onForward,
   onRunBuild,
+  terminalPort,
 }: {
   projectId: string;
   fileContent: FileContent | undefined;
@@ -510,6 +522,7 @@ function DesktopCodePreview({
   onBack: () => void;
   onForward: () => void;
   onRunBuild: (cmd: string) => void;
+  terminalPort?: number | null;
 }) {
   const [view, setView] = React.useState<"code" | "preview">("code");
   const [previewPath, setPreviewPath] = React.useState<string | undefined>(undefined);
@@ -567,6 +580,7 @@ function DesktopCodePreview({
             projectId={projectId}
             onRunBuild={onRunBuild}
             previewPath={previewPath}
+            terminalPort={terminalPort}
           />
         )}
       </div>

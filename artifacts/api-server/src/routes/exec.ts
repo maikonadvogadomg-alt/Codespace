@@ -4,10 +4,10 @@ import { db, projectsTable } from "@workspace/db";
 import { ExecCommandBody } from "@workspace/api-zod";
 import { spawn, execSync } from "child_process";
 import path from "path";
+import { registerTerminalProcess } from "../lib/devServerRegistry.js";
 
 const router: IRouter = Router();
 
-// Detect runtime binary paths at startup so they work in all environments
 function detectBinPaths(): string[] {
   const extra: string[] = [];
   const tryResolve = (cmd: string) => {
@@ -71,19 +71,40 @@ function buildEnv() {
     PATH: [...pathSet].filter(Boolean).join(":"),
     NPM_CONFIG_UPDATE_NOTIFIER: "false",
     PYTHONUNBUFFERED: "1",
-    // Force npm to show progress
     NPM_CONFIG_PROGRESS: "true",
   };
 }
 
+// Port detection from server output — same patterns as devServerRegistry
+const PORT_PATTERNS = [
+  /localhost:(\d{4,5})/i,
+  /127\.0\.0\.1:(\d{4,5})/i,
+  /0\.0\.0\.0:(\d{4,5})/i,
+  /\bport[:\s]+(\d{4,5})/i,
+  /listening.*?:(\d{4,5})/i,
+  /started.*?:(\d{4,5})/i,
+  /running.*?:(\d{4,5})/i,
+  /server.*?:(\d{4,5})/i,
+  /:(\d{4,5})\b/,
+];
+
+function detectPort(text: string): number | null {
+  for (const pattern of PORT_PATTERNS) {
+    const match = text.match(pattern);
+    if (match) {
+      const port = parseInt(match[1], 10);
+      if (port >= 1024 && port <= 65535) return port;
+    }
+  }
+  return null;
+}
+
 function enrichStderr(stderr: string, exitCode: number, normalized: string): string {
   let enriched = stderr;
-
   const notFoundMatch = enriched.match(
     /(?:sh|bash|zsh):\s*\d*:?\s*([^\s:]+):\s*(?:not found|command not found|No such file)/
   );
   const missingTool = notFoundMatch ? notFoundMatch[1] : null;
-
   if (exitCode === 127 || missingTool) {
     const tool = missingTool ?? normalized.split(" ")[0];
     let hint = `\n⚠️  "${tool}" não encontrado.\n`;
@@ -99,12 +120,13 @@ function enrichStderr(stderr: string, exitCode: number, normalized: string): str
     }
     enriched = (enriched ? enriched + "\n" : "") + hint;
   }
-
   return enriched;
 }
 
 // ── Streaming exec via SSE ─────────────────────────────────────────────────────
-// This is the primary endpoint — streams output line by line in real time.
+// Streams output line by line. Also detects if the command starts a server:
+// when a port number appears in output, we hand off the process to devServerRegistry
+// so it stays alive even after the browser disconnects from the SSE stream.
 router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> => {
   const id = parseInt(req.params.projectId, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid project ID" }); return; }
@@ -113,11 +135,7 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const { command } = parsed.data;
-
-  if (isCommandBlocked(command)) {
-    res.status(400).json({ error: "Comando bloqueado por segurança." });
-    return;
-  }
+  if (isCommandBlocked(command)) { res.status(400).json({ error: "Comando bloqueado por segurança." }); return; }
 
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, id));
   if (!project) { res.status(404).json({ error: "Projeto não encontrado" }); return; }
@@ -138,12 +156,9 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
   res.flushHeaders();
 
   const send = (type: string, payload: object) => {
-    try {
-      res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`);
-    } catch { /* client disconnected */ }
+    try { res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`); } catch { /* client disconnected */ }
   };
 
-  // Spawn process
   const proc = spawn("sh", ["-c", normalized], {
     cwd,
     env: buildEnv(),
@@ -151,54 +166,79 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
   });
 
   let stderrBuffer = "";
-  let exitCode = 0;
+  let detectedPort: number | null = null;
+  let logBuffer: string[] = [];
+  let clientDisconnected = false;
 
-  proc.stdout.on("data", (chunk: Buffer) => {
-    send("stdout", { data: chunk.toString() });
-  });
-
-  proc.stderr.on("data", (chunk: Buffer) => {
+  const handleChunk = (chunk: Buffer, streamType: "stdout" | "stderr") => {
     const text = chunk.toString();
-    stderrBuffer += text;
-    send("stderr", { data: text });
-  });
+    logBuffer.push(text);
+    send(streamType, { data: text });
+
+    // Detect server port from output
+    if (detectedPort === null) {
+      const port = detectPort(text);
+      if (port !== null) {
+        detectedPort = port;
+        // Hand off process to devServerRegistry — it will keep running after SSE closes
+        registerTerminalProcess(id, proc, port, normalized, [...logBuffer]);
+        // Tell the client a server was detected on this port
+        send("server_detected", { port });
+      }
+    }
+
+    if (streamType === "stderr") stderrBuffer += text;
+  };
+
+  proc.stdout.on("data", (chunk: Buffer) => handleChunk(chunk, "stdout"));
+  proc.stderr.on("data", (chunk: Buffer) => handleChunk(chunk, "stderr"));
 
   proc.on("error", (err) => {
     send("stderr", { data: `\nErro ao iniciar processo: ${err.message}\n` });
   });
 
   proc.on("close", (code, signal) => {
-    exitCode = code ?? (signal ? 1 : 0);
+    const exitCode = code ?? (signal ? 1 : 0);
     const durationMs = Date.now() - start;
 
-    // Append enriched hints to stderr if needed
-    const enriched = enrichStderr(stderrBuffer, exitCode, normalized);
-    const extraHint = enriched.slice(stderrBuffer.length);
-    if (extraHint) send("stderr", { data: extraHint });
-
-    if (signal === "SIGTERM" && durationMs >= maxTimeout - 1000) {
-      send("stderr", { data: `\n\n⏱️  Comando interrompido após ${Math.round(durationMs / 1000)}s (limite atingido).` });
+    // Only send enriched stderr / exit if not handed off (server processes run forever)
+    if (detectedPort === null) {
+      const enriched = enrichStderr(stderrBuffer, exitCode, normalized);
+      const extraHint = enriched.slice(stderrBuffer.length);
+      if (extraHint) send("stderr", { data: extraHint });
+      if (signal === "SIGTERM" && durationMs >= maxTimeout - 1000) {
+        send("stderr", { data: `\n\n⏱️  Comando interrompido após ${Math.round(durationMs / 1000)}s (limite atingido).` });
+      }
+      send("exit", { exitCode, durationMs });
+    } else {
+      // Server was killed externally (Ctrl+C or stopDevServer)
+      send("server_stopped", { exitCode, durationMs });
     }
-
-    send("exit", { exitCode, durationMs });
-    res.end();
+    if (!clientDisconnected) res.end();
   });
 
-  // Kill on timeout
   const timer = setTimeout(() => {
-    try { proc.kill("SIGTERM"); } catch {}
+    if (detectedPort === null) {
+      try { proc.kill("SIGTERM"); } catch {}
+    }
   }, maxTimeout);
 
   proc.on("close", () => clearTimeout(timer));
 
-  // Kill if client disconnects
+  // When client disconnects from SSE:
+  // - If server was detected (process handed off to registry) → DON'T kill the process
+  // - Otherwise → kill the process
   req.on("close", () => {
-    try { proc.kill("SIGTERM"); } catch {}
-    clearTimeout(timer);
+    clientDisconnected = true;
+    if (detectedPort === null) {
+      try { proc.kill("SIGTERM"); } catch {}
+      clearTimeout(timer);
+    }
+    // If detectedPort is set, process lives on in devServerRegistry
   });
 });
 
-// ── Legacy batch exec (kept for API client compatibility) ──────────────────────
+// ── Legacy batch exec ──────────────────────────────────────────────────────────
 router.post("/projects/:projectId/exec", async (req, res): Promise<void> => {
   const id = parseInt(req.params.projectId, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid project ID" }); return; }

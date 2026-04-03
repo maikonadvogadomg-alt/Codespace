@@ -151,6 +151,44 @@ export function getDevServer(projectId: number): DevServer | null {
   return registry.get(projectId) ?? null;
 }
 
+// Register a process that was started externally (e.g. from terminal exec-stream)
+// This keeps the process alive even after the SSE connection closes.
+export function registerTerminalProcess(
+  projectId: number,
+  proc: ChildProcess,
+  port: number,
+  command: string,
+  existingLog: string[]
+): DevServer {
+  // Kill any existing server for this project first
+  stopDevServer(projectId);
+
+  const server: DevServer = {
+    process: proc,
+    port,
+    status: "running",
+    log: existingLog,
+    command,
+    startedAt: new Date(),
+  };
+
+  registry.set(projectId, server);
+
+  // Continue collecting log
+  const handleOutput = (data: Buffer) => {
+    server.log = [...server.log.slice(-199), data.toString()];
+  };
+  proc.stdout?.on("data", handleOutput);
+  proc.stderr?.on("data", handleOutput);
+
+  proc.on("close", (code) => {
+    server.status = code === 0 ? "stopped" : "error";
+    registry.delete(projectId);
+  });
+
+  return server;
+}
+
 export function listDevServers(): Array<{ projectId: number; port: number | null; status: DevServerStatus; command: string }> {
   return Array.from(registry.entries()).map(([projectId, s]) => ({
     projectId,

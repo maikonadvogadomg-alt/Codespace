@@ -153,4 +153,63 @@ router.all("/projects/:projectId/dev-proxy/*path", async (req, res): Promise<voi
   }
 });
 
+// ALL /projects/:projectId/port-proxy/:port/*path
+// Simple proxy to any localhost port — no process management.
+// Used when the user runs a server manually in the terminal.
+router.all("/projects/:projectId/port-proxy/:port/*path", async (req, res): Promise<void> => {
+  const portNum = parseInt(req.params.port, 10);
+  if (isNaN(portNum) || portNum < 1024 || portNum > 65535) {
+    res.status(400).send("Invalid port");
+    return;
+  }
+
+  const rawPath = (req.params as Record<string, string>).path ?? "";
+  const targetPath = rawPath ? `/${rawPath}` : "/";
+  const search = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  const fullPath = targetPath + search;
+
+  const proxyHeaders: Record<string, string> = {};
+  for (const [key, val] of Object.entries(req.headers)) {
+    if (typeof val === "string") proxyHeaders[key] = val;
+  }
+  proxyHeaders["host"] = `localhost:${portNum}`;
+  delete proxyHeaders["content-length"];
+
+  const proxyReq = http.request(
+    { hostname: "localhost", port: portNum, path: fullPath, method: req.method, headers: proxyHeaders },
+    (proxyRes) => {
+      const headers: Record<string, string | string[]> = {};
+      for (const [key, val] of Object.entries(proxyRes.headers)) {
+        if (val !== undefined) headers[key] = val as string | string[];
+      }
+      delete headers["x-frame-options"];
+      delete headers["content-security-policy"];
+      res.writeHead(proxyRes.statusCode ?? 200, headers);
+      proxyRes.pipe(res, { end: true });
+    }
+  );
+
+  proxyReq.on("error", () => {
+    if (!res.headersSent) {
+      res.status(502).send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><title>Servidor não encontrado</title>
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1117;color:#e6edf3;flex-direction:column;gap:8px}</style>
+</head>
+<body>
+  <p style="font-size:18px;font-weight:700;color:#f85149;margin:0">Porta ${portNum} não está respondendo</p>
+  <p style="font-size:13px;color:#8b949e;margin:0">O servidor pode ter encerrado. Verifique o terminal.</p>
+</body>
+</html>`);
+    }
+  });
+
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    req.pipe(proxyReq, { end: true });
+  } else {
+    proxyReq.end();
+  }
+});
+
 export default router;
+

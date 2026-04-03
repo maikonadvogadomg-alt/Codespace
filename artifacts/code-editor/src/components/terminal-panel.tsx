@@ -87,6 +87,8 @@ interface TerminalPanelProps {
   onClose?: () => void;
   pendingCommand?: { cmd: string; id: number } | null;
   onEntriesChange?: (entries: TerminalEntry[]) => void;
+  /** Called when a running command opens a server on a port — connect preview to it */
+  onServerDetected?: (port: number) => void;
 }
 
 // ─── Base URL helper ───────────────────────────────────────────────────────────
@@ -209,7 +211,7 @@ function EntryView({ entry, onInstall, onCopy, copiedId }: {
 }
 
 // ─── Main component ────────────────────────────────────────────────────────────
-export function TerminalPanel({ projectId, onClose, pendingCommand, onEntriesChange }: TerminalPanelProps) {
+export function TerminalPanel({ projectId, onClose, pendingCommand, onEntriesChange, onServerDetected }: TerminalPanelProps) {
   const [entries, setEntries] = useState<TerminalEntry[]>([]);
   const [input, setInput] = useState("");
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -326,13 +328,33 @@ export function TerminalPanel({ projectId, onClose, pendingCommand, onEntriesCha
                     : e
                 )
               );
+            } else if (event.type === "server_detected") {
+              const port: number = event.port;
+              // Add a notice in the terminal output
+              setEntries((prev) =>
+                prev.map((e) =>
+                  e.id === id
+                    ? { ...e, chunks: [...e.chunks, { type: "stdout", text: `\n🌐 Servidor detectado na porta ${port} — preview conectado!\n` }] }
+                    : e
+                )
+              );
+              onServerDetected?.(port);
+            } else if (event.type === "server_stopped") {
+              const exitCode: number = event.exitCode ?? 0;
+              const durationMs: number = event.durationMs ?? 0;
+              setEntries((prev) =>
+                prev.map((e) =>
+                  e.id === id
+                    ? { ...e, running: false, exitCode, durationMs, chunks: [...e.chunks, { type: "stderr", text: "\n[servidor encerrado]\n" }] }
+                    : e
+                )
+              );
             } else if (event.type === "exit") {
               const exitCode: number = event.exitCode ?? 1;
               const durationMs: number = event.durationMs ?? 0;
               setEntries((prev) =>
                 prev.map((e) => {
                   if (e.id !== id) return e;
-                  const allStderr = e.chunks.filter(c => c.type === "stderr").map(c => c.text).join("");
                   const allText = e.chunks.map(c => c.text).join("");
                   const missingPackage = exitCode !== 0 ? detectMissingPackage(allText) : null;
                   return { ...e, running: false, exitCode, durationMs, missingPackage };
