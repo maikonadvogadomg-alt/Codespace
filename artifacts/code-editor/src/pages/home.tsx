@@ -171,6 +171,7 @@ export default function Home() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
     if (!file.name.endsWith(".zip")) {
       toast({
         title: "Tipo de arquivo inválido",
@@ -180,6 +181,19 @@ export default function Home() {
       e.target.value = "";
       return;
     }
+
+    const maxSize = 250 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        title: "Arquivo muito grande",
+        description: `ZIP não pode exceder 250MB (seu arquivo tem ${(file.size / 1024 / 1024).toFixed(1)}MB)`,
+        variant: "destructive",
+      });
+      e.target.value = "";
+      return;
+    }
+
+    console.log(`[Upload] Iniciando upload de ${file.name} (${(file.size / 1024).toFixed(1)}KB)`);
     uploadMutation.mutate({ data: { file, name: file.name.replace(".zip", "") } });
     e.target.value = "";
   };
