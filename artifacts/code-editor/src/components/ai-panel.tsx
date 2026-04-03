@@ -15,6 +15,8 @@ import {
   FilePlus,
   FilePen,
   AlertCircle,
+  Terminal,
+  Play,
 } from "lucide-react";
 import {
   useAiChat,
@@ -46,6 +48,7 @@ interface AiPanelProps {
   projectId: string;
   fileContext?: { path: string; content: string; language: string } | null;
   externalMessage?: { text: string; id: number; contextMode?: ContextMode } | null;
+  onRunCommand?: (cmd: string) => void;
 }
 
 // ─── File change parser ───────────────────────────────────────────────────────
@@ -53,12 +56,13 @@ interface AiPanelProps {
 type Segment =
   | { type: "text"; content: string }
   | { type: "write"; path: string; content: string }
-  | { type: "delete"; path: string };
+  | { type: "delete"; path: string }
+  | { type: "exec"; command: string };
 
 function parseAiMessage(text: string): Segment[] {
   const segments: Segment[] = [];
-  // Match both write and delete blocks
-  const pattern = /<codelens-write\s+path="([^"]+)">([\s\S]*?)<\/codelens-write>|<codelens-delete\s+path="([^"]+)"\s*\/>/g;
+  const pattern =
+    /<codelens-write\s+path="([^"]+)">([\s\S]*?)<\/codelens-write>|<codelens-delete\s+path="([^"]+)"\s*\/>|<codelens-exec>([\s\S]*?)<\/codelens-exec>/g;
   let last = 0;
   let match: RegExpExecArray | null;
 
@@ -68,11 +72,11 @@ function parseAiMessage(text: string): Segment[] {
       if (textBefore) segments.push({ type: "text", content: textBefore });
     }
     if (match[1] !== undefined) {
-      // write block
       segments.push({ type: "write", path: match[1], content: match[2].trim() });
     } else if (match[3] !== undefined) {
-      // delete block
       segments.push({ type: "delete", path: match[3] });
+    } else if (match[4] !== undefined) {
+      segments.push({ type: "exec", command: match[4].trim() });
     }
     last = match.index + match[0].length;
   }
@@ -206,14 +210,49 @@ function FileChangeCard({ segment, projectId, onApplied }: FileChangeCardProps) 
   );
 }
 
+// ─── Exec Command Card ────────────────────────────────────────────────────────
+
+function ExecCommandCard({
+  command,
+  onRun,
+}: {
+  command: string;
+  onRun?: (cmd: string) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-green-500/30 bg-green-500/5 overflow-hidden my-1">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-green-500/20 bg-green-500/10">
+        <Terminal className="w-3.5 h-3.5 text-green-400 shrink-0" />
+        <span className="font-mono text-[11px] text-green-300 truncate flex-1">{command}</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-300 shrink-0">
+          terminal
+        </span>
+      </div>
+      <div className="px-3 py-2 flex justify-end">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 text-[10px] px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10"
+          onClick={() => onRun?.(command)}
+        >
+          <Play className="w-3 h-3 mr-1" />
+          Executar no terminal
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Message Renderer ─────────────────────────────────────────────────────────
 
 function AssistantMessage({
   content,
   projectId,
+  onRunCommand,
 }: {
   content: string;
   projectId: string;
+  onRunCommand?: (cmd: string) => void;
 }) {
   const segments = parseAiMessage(content);
 
@@ -241,6 +280,15 @@ function AssistantMessage({
                 segment={seg}
                 projectId={projectId}
                 onApplied={() => {}}
+              />
+            );
+          }
+          if (seg.type === "exec") {
+            return (
+              <ExecCommandCard
+                key={i}
+                command={seg.command}
+                onRun={onRunCommand}
               />
             );
           }
@@ -391,7 +439,7 @@ export function AiPanel({ projectId, fileContext, externalMessage }: AiPanelProp
                   </div>
                 </div>
               ) : (
-                <AssistantMessage key={i} content={msg.content} projectId={projectId} />
+                <AssistantMessage key={i} content={msg.content} projectId={projectId} onRunCommand={onRunCommand} />
               )
             )}
             {chatMutation.isPending && (

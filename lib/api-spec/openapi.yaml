@@ -234,6 +234,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /projects/{projectId}/exec:
+    post:
+      operationId: execCommand
+      tags: [projects]
+      summary: Execute a shell command in the project directory
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExecCommandRequest"
+      responses:
+        "200":
+          description: Command output
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecCommandResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /ai/chat:
     post:
       operationId: aiChat
@@ -553,6 +584,35 @@ components:
           type: ["string", "null"]
         githubToken:
           type: ["string", "null"]
+
+    ExecCommandRequest:
+      type: object
+      properties:
+        command:
+          type: string
+          description: Shell command to execute
+        timeout:
+          type: ["integer", "null"]
+          description: Timeout in milliseconds (default 30000, max 120000)
+      required:
+        - command
+
+    ExecCommandResponse:
+      type: object
+      properties:
+        stdout:
+          type: string
+        stderr:
+          type: string
+        exitCode:
+          type: integer
+        durationMs:
+          type: integer
+      required:
+        - stdout
+        - stderr
+        - exitCode
+        - durationMs
 
     WriteFileRequest:
       type: object

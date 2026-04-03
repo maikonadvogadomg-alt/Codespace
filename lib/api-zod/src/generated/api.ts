@@ -127,6 +127,28 @@ export const DeleteFileQueryParams = zod.object({
 });
 
 /**
+ * @summary Execute a shell command in the project directory
+ */
+export const ExecCommandParams = zod.object({
+  projectId: zod.coerce.string(),
+});
+
+export const ExecCommandBody = zod.object({
+  command: zod.string().describe("Shell command to execute"),
+  timeout: zod
+    .number()
+    .nullish()
+    .describe("Timeout in milliseconds (default 30000, max 120000)"),
+});
+
+export const ExecCommandResponse = zod.object({
+  stdout: zod.string(),
+  stderr: zod.string(),
+  exitCode: zod.number(),
+  durationMs: zod.number(),
+});
+
+/**
  * @summary Send a free-form message to the AI with optional file context
  */
 export const AiChatBody = zod.object({

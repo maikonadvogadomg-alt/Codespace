@@ -26,6 +26,8 @@ import type {
   CreateGithubRepoResult,
   DeleteFileParams,
   ErrorResponse,
+  ExecCommandRequest,
+  ExecCommandResponse,
   FileContent,
   GetFileContentParams,
   HealthStatus,
@@ -848,6 +850,93 @@ export const useDeleteFile = <
   TContext
 > => {
   return useMutation(getDeleteFileMutationOptions(options));
+};
+
+/**
+ * @summary Execute a shell command in the project directory
+ */
+export const getExecCommandUrl = (projectId: string) => {
+  return `/api/projects/${projectId}/exec`;
+};
+
+export const execCommand = async (
+  projectId: string,
+  execCommandRequest: ExecCommandRequest,
+  options?: RequestInit,
+): Promise<ExecCommandResponse> => {
+  return customFetch<ExecCommandResponse>(getExecCommandUrl(projectId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(execCommandRequest),
+  });
+};
+
+export const getExecCommandMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof execCommand>>,
+    TError,
+    { projectId: string; data: BodyType<ExecCommandRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof execCommand>>,
+  TError,
+  { projectId: string; data: BodyType<ExecCommandRequest> },
+  TContext
+> => {
+  const mutationKey = ["execCommand"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof execCommand>>,
+    { projectId: string; data: BodyType<ExecCommandRequest> }
+  > = (props) => {
+    const { projectId, data } = props ?? {};
+
+    return execCommand(projectId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ExecCommandMutationResult = NonNullable<
+  Awaited<ReturnType<typeof execCommand>>
+>;
+export type ExecCommandMutationBody = BodyType<ExecCommandRequest>;
+export type ExecCommandMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Execute a shell command in the project directory
+ */
+export const useExecCommand = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof execCommand>>,
+    TError,
+    { projectId: string; data: BodyType<ExecCommandRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof execCommand>>,
+  TError,
+  { projectId: string; data: BodyType<ExecCommandRequest> },
+  TContext
+> => {
+  return useMutation(getExecCommandMutationOptions(options));
 };
 
 /**

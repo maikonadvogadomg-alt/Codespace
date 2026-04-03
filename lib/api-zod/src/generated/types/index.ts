@@ -17,6 +17,8 @@ export * from "./createGithubRepoRequest";
 export * from "./createGithubRepoResult";
 export * from "./deleteFileParams";
 export * from "./errorResponse";
+export * from "./execCommandRequest";
+export * from "./execCommandResponse";
 export * from "./fileContent";
 export * from "./fileNode";
 export * from "./fileNodeType";

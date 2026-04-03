@@ -125,22 +125,24 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
   const systemMessages: Array<{ role: string; content: string }> = [];
 
   const FILE_CHANGE_INSTRUCTIONS = `
-Quando o usuário pedir para criar, editar ou modificar arquivos, use OBRIGATORIAMENTE o seguinte formato especial para propor as alterações. O sistema irá renderizar botões "Aplicar" para cada bloco.
+Você tem TRÊS capacidades especiais — use os formatos abaixo quando apropriado. O sistema renderizará botões de ação para cada bloco.
 
-Para criar ou editar um arquivo:
+1. CRIAR OU EDITAR arquivo:
 <codelens-write path="caminho/do/arquivo.ts">
 conteúdo completo do arquivo aqui
 </codelens-write>
 
-Para deletar um arquivo:
+2. DELETAR arquivo:
 <codelens-delete path="caminho/do/arquivo.ts"/>
 
-Regras importantes:
-- Use caminhos relativos à raiz do projeto (sem / inicial)
-- Inclua o conteúdo COMPLETO do arquivo no bloco write, não apenas partes
-- Pode propor múltiplas alterações em uma única resposta
-- Fora dos blocos, explique o que está fazendo e por quê
-- Responda sempre em português`;
+3. SUGERIR COMANDO para o terminal (npm, pip, git, etc.):
+<codelens-exec>npm install axios</codelens-exec>
+
+Regras:
+- Caminhos relativos à raiz, sem / inicial
+- Conteúdo COMPLETO no bloco write, nunca parcial
+- Pode combinar múltiplos blocos em uma resposta
+- Fora dos blocos, explique em português o que está fazendo`;
 
   if (projectContext && projectId) {
     try {

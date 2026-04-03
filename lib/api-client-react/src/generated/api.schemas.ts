@@ -101,6 +101,23 @@ export interface UpdateSettingsRequest {
   githubToken?: string | null;
 }
 
+export interface ExecCommandRequest {
+  /** Shell command to execute */
+  command: string;
+  /**
+   * Timeout in milliseconds (default 30000, max 120000)
+   * @nullable
+   */
+  timeout?: number | null;
+}
+
+export interface ExecCommandResponse {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  durationMs: number;
+}
+
 export interface WriteFileRequest {
   /** Relative path of the file to write (will create parent dirs) */
   path: string;
