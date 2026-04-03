@@ -63,28 +63,35 @@ const TEMPLATES: Template[] = [
   {
     id: "html",
     label: "HTML + CSS + JS",
-    description: "Site simples pronto para usar. Preview funciona na hora, sem instalar nada.",
+    description: "Site estático pronto. Preview funciona na hora, sem instalar nada.",
     icon: <Globe className="w-5 h-5" />,
     color: "text-orange-400 bg-orange-400/10 border-orange-400/30",
   },
   {
-    id: "react",
-    label: "React + Vite",
-    description: "App moderno com React. Requer npm install antes de visualizar.",
-    icon: <Atom className="w-5 h-5" />,
-    color: "text-blue-400 bg-blue-400/10 border-blue-400/30",
-  },
-  {
     id: "node",
-    label: "Node.js",
-    description: "Servidor/script Node.js básico. Sem preview visual.",
+    label: "Node.js (servidor)",
+    description: "Servidor HTTP sem dependências. Clique em Iniciar no Preview para rodar.",
     icon: <Box className="w-5 h-5" />,
     color: "text-green-400 bg-green-400/10 border-green-400/30",
   },
   {
+    id: "express",
+    label: "Express + API",
+    description: "Servidor Express com rota de API. Requer npm install, depois Iniciar.",
+    icon: <Box className="w-5 h-5" />,
+    color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30",
+  },
+  {
+    id: "react",
+    label: "React + Vite",
+    description: "App com React. Requer npm install e npm run dev para ver ao vivo.",
+    icon: <Atom className="w-5 h-5" />,
+    color: "text-blue-400 bg-blue-400/10 border-blue-400/30",
+  },
+  {
     id: "blank",
     label: "Projeto em Branco",
-    description: "Só um README.md. Para começar do zero.",
+    description: "Só um README.md. Para começar do zero ou importar código.",
     icon: <FileText className="w-5 h-5" />,
     color: "text-gray-400 bg-gray-400/10 border-gray-400/30",
   },
@@ -426,14 +433,24 @@ export default function Home() {
                               👁 PREVIEW IMEDIATO
                             </span>
                           )}
-                          {(t.id === "node" || t.id === "blank") && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/20 whitespace-nowrap">
-                              sem preview
+                          {t.id === "node" && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30 whitespace-nowrap">
+                              🟢 AO VIVO (1 clique)
+                            </span>
+                          )}
+                          {t.id === "express" && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/20 whitespace-nowrap">
+                              npm install primeiro
                             </span>
                           )}
                           {t.id === "react" && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/20 whitespace-nowrap">
-                              requer instalação
+                              npm install primeiro
+                            </span>
+                          )}
+                          {t.id === "blank" && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/20 whitespace-nowrap">
+                              sem preview
                             </span>
                           )}
                         </div>

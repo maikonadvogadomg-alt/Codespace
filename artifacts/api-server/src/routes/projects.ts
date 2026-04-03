@@ -171,20 +171,126 @@ console.log('Projeto iniciado!');
   ],
   node: [
     {
-      file: "index.js",
-      content: `// Ponto de entrada do projeto Node.js
-console.log('Servidor iniciado!');
+      file: "server.js",
+      content: `const http = require('http');
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(\`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meu Servidor Node.js</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 2rem; background: #0d1117; color: #e6edf3; max-width: 600px; margin: 0 auto; }
+    h1 { color: #58a6ff; margin-bottom: 0.5rem; }
+    p { color: #8b949e; line-height: 1.6; }
+    code { background: #161b22; padding: 0.2em 0.5em; border-radius: 4px; color: #79c0ff; font-size: 0.9em; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h1>✅ Servidor Node.js rodando!</h1>
+  <p>Servidor HTTP puro — sem dependências externas.</p>
+  <div class="card">
+    <p>URL acessada: <code>\${req.url}</code></p>
+    <p>Hora: <code>\${new Date().toLocaleString('pt-BR')}</code></p>
+  </div>
+  <p style="margin-top:1.5rem">Edite <code>server.js</code> para personalizar o servidor.</p>
+</body>
+</html>\`);
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(\`Servidor rodando em http://localhost:\${PORT}\`);
+});
 `,
     },
     {
       file: "package.json",
       content: JSON.stringify(
-        { name: "meu-projeto", version: "1.0.0", main: "index.js", scripts: { start: "node index.js" } },
+        { name: "meu-servidor", version: "1.0.0", main: "server.js", scripts: { start: "node server.js", dev: "node server.js" } },
         null,
         2
       ) + "\n",
     },
-    { file: "README.md", content: "# Meu Projeto Node.js\n\n```bash\nnpm install\nnpm start\n```\n" },
+    { file: "README.md", content: "# Servidor Node.js\n\nServidor HTTP sem dependências externas.\n\n```bash\nnode server.js\n```\n\nOu pelo preview: clique em **Iniciar Servidor**.\n" },
+  ],
+  express: [
+    {
+      file: "server.js",
+      content: `const express = require('express');
+const app = express();
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Página inicial
+app.get('/', (req, res) => {
+  res.send(\`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Express App</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 2rem; background: #0d1117; color: #e6edf3; max-width: 700px; margin: 0 auto; }
+    h1 { color: #58a6ff; }
+    p { color: #8b949e; line-height: 1.6; }
+    .btn { display: inline-block; background: #238636; color: #fff; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; margin-top: 1rem; cursor: pointer; border: none; font-size: 1rem; }
+    .btn:hover { background: #2ea043; }
+    .output { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; margin-top: 1rem; color: #79c0ff; min-height: 2rem; }
+    code { background: #161b22; padding: 0.15em 0.4em; border-radius: 4px; color: #79c0ff; }
+  </style>
+</head>
+<body>
+  <h1>🚀 Express funcionando!</h1>
+  <p>Servidor Express rodando. Edite <code>server.js</code> para adicionar rotas.</p>
+  <button class="btn" onclick="testar()">Testar API</button>
+  <div class="output" id="out">Clique no botão para testar a API...</div>
+  <script>
+    async function testar() {
+      const r = await fetch('/api/hello');
+      const d = await r.json();
+      document.getElementById('out').textContent = JSON.stringify(d, null, 2);
+    }
+  </script>
+</body>
+</html>\`);
+});
+
+// API de exemplo
+app.get('/api/hello', (req, res) => {
+  res.json({
+    mensagem: 'Olá do servidor Express!',
+    hora: new Date().toLocaleString('pt-BR'),
+    status: 'ok'
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(\`Express rodando em http://localhost:\${PORT}\`);
+});
+`,
+    },
+    {
+      file: "package.json",
+      content: JSON.stringify(
+        {
+          name: "express-app",
+          version: "1.0.0",
+          main: "server.js",
+          scripts: { start: "node server.js", dev: "node server.js" },
+          dependencies: { express: "^4.18.2" },
+        },
+        null,
+        2
+      ) + "\n",
+    },
+    { file: "README.md", content: "# Express App\n\n```bash\nnpm install\nnode server.js\n```\n\nOu pelo preview: **npm install** no terminal, depois clique em **Iniciar Servidor**.\n" },
   ],
   react: [
     {
