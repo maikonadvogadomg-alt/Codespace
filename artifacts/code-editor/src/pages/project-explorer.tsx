@@ -221,7 +221,14 @@ export default function ProjectExplorer() {
                   <p className="text-sm">Selecione um arquivo na aba Arquivos</p>
                 </div>
               ) : (
-                <CodeViewer file={fileContent} isLoading={isFileLoading && !!selectedFile} />
+                <CodeViewer
+                  file={fileContent}
+                  isLoading={isFileLoading && !!selectedFile}
+                  canGoBack={canGoBack}
+                  canGoForward={canGoForward}
+                  onBack={navigateBack}
+                  onForward={navigateForward}
+                />
               )}
             </div>
 
@@ -338,7 +345,7 @@ export default function ProjectExplorer() {
                   <div className="flex-1 overflow-auto p-2">
                     <FileTree
                       node={project.tree}
-                      onSelectFile={setSelectedFile}
+                      onSelectFile={openFile}
                       onAnalyzeFile={handleAnalyzeFileClick}
                       onAnalyzeFolder={handleAnalyzeFolderClick}
                       selectedPath={selectedFile}
@@ -355,7 +362,14 @@ export default function ProjectExplorer() {
                 </ResizablePanel>
                 <ResizableHandle className="bg-border w-[1px] hover:w-1 hover:bg-primary/50 transition-all" />
                 <ResizablePanel defaultSize={50} minSize={30}>
-                  <CodeViewer file={fileContent} isLoading={isFileLoading && !!selectedFile} />
+                  <CodeViewer
+                    file={fileContent}
+                    isLoading={isFileLoading && !!selectedFile}
+                    canGoBack={canGoBack}
+                    canGoForward={canGoForward}
+                    onBack={navigateBack}
+                    onForward={navigateForward}
+                  />
                 </ResizablePanel>
                 <ResizableHandle className="bg-border w-[1px] hover:w-1 hover:bg-primary/50 transition-all" />
                 <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
