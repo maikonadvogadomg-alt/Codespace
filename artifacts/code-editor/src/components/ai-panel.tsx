@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Sparkles,
   Loader2,
@@ -17,6 +17,8 @@ import {
   AlertCircle,
   Terminal,
   Play,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import {
   useAiChat,
@@ -34,6 +36,36 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+// ─── Voice hook (shared pattern) ─────────────────────────────────────────────
+function useVoice(onResult: (text: string) => void) {
+  const [listening, setListening] = useState(false);
+  const recRef = useRef<any>(null);
+
+  const toggle = useCallback(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    if (listening) {
+      recRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const rec = new SR();
+    rec.lang = "pt-BR";
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.onresult = (e: any) => {
+      onResult(e.results[0][0].transcript);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    rec.start();
+    recRef.current = rec;
+    setListening(true);
+  }, [listening, onResult]);
+
+  return { listening, toggle };
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -315,12 +347,18 @@ const CONTEXT_ICONS: Record<ContextMode, React.ReactNode> = {
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
-export function AiPanel({ projectId, fileContext, externalMessage }: AiPanelProps) {
+export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand }: AiPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [contextMode, setContextMode] = useState<ContextMode>("none");
   const [lastExternalId, setLastExternalId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const { listening, toggle: toggleVoice } = useVoice((text) => {
+    setInput((prev) => (prev ? prev + " " + text : text));
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  });
 
   const chatMutation = useAiChat({
     mutation: {
@@ -503,25 +541,43 @@ export function AiPanel({ projectId, fileContext, externalMessage }: AiPanelProp
 
         <form onSubmit={handleSubmit} className="flex gap-1.5 items-end">
           <Textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder='Ex: "Adiciona tratamento de erro no fetch" (Enter envia)'
+            placeholder={listening ? "Ouvindo… fale agora" : 'Ex: "Adiciona tratamento de erro no fetch" (Enter envia)'}
             className="flex-1 min-h-[60px] max-h-[120px] text-xs resize-none bg-background border-border focus-visible:ring-1 focus-visible:ring-primary"
             disabled={chatMutation.isPending}
           />
-          <Button
-            type="submit"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            disabled={!input.trim() || chatMutation.isPending}
-          >
-            {chatMutation.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
-          </Button>
+          <div className="flex flex-col gap-1.5 shrink-0">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className={cn(
+                "h-8 w-8",
+                listening
+                  ? "text-red-400 bg-red-400/10 hover:bg-red-400/20 animate-pulse"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              onClick={toggleVoice}
+              title={listening ? "Parar gravação" : "Falar mensagem (pt-BR)"}
+            >
+              {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </Button>
+            <Button
+              type="submit"
+              size="icon"
+              className="h-8 w-8"
+              disabled={!input.trim() || chatMutation.isPending}
+            >
+              {chatMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
         </form>
       </div>
     </div>

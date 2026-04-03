@@ -1,8 +1,39 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Terminal, Loader2, X, ChevronRight, Trash2, Copy, Check } from "lucide-react";
+import { Terminal, Loader2, X, ChevronRight, Trash2, Copy, Check, Mic, MicOff } from "lucide-react";
 import { useExecCommand } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+// ─── Voice hook ───────────────────────────────────────────────────────────────
+function useVoice(onResult: (text: string) => void) {
+  const [listening, setListening] = useState(false);
+  const recRef = useRef<any>(null);
+
+  const toggle = useCallback(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    if (listening) {
+      recRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const rec = new SR();
+    rec.lang = "pt-BR";
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      onResult(transcript);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    rec.start();
+    recRef.current = rec;
+    setListening(true);
+  }, [listening, onResult]);
+
+  return { listening, toggle };
+}
 
 interface TerminalEntry {
   id: number;
@@ -28,6 +59,11 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
   const inputRef = useRef<HTMLInputElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const entryCounter = useRef(0);
+
+  const { listening, toggle: toggleVoice } = useVoice((text) => {
+    setInput((prev) => (prev ? prev + " " + text : text));
+    setTimeout(() => inputRef.current?.focus(), 50);
+  });
 
   const execMutation = useExecCommand();
 
@@ -146,10 +182,10 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
       </div>
 
       {/* Output */}
-      <div ref={outputRef} className="flex-1 overflow-auto p-3 space-y-3">
+      <div ref={outputRef} className="flex-1 overflow-auto p-3 space-y-3 select-none">
         {entries.length === 0 && !execMutation.isPending && (
           <p className="text-[#8b949e] text-[11px]">
-            Terminal pronto. Digite um comando abaixo.
+            Terminal pronto. Digite ou fale um comando abaixo.
             <br />
             <span className="text-[10px] opacity-60">Use ↑ ↓ para navegar no histórico.</span>
           </p>
@@ -208,20 +244,36 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
       </div>
 
       {/* Input */}
-      <div className="shrink-0 border-t border-[#30363d] bg-[#0d1117] flex items-center px-3 py-2 gap-2">
+      <div className="shrink-0 border-t border-[#30363d] bg-[#0d1117] flex items-center px-3 py-3 gap-2">
         <ChevronRight className="w-3.5 h-3.5 text-green-400 shrink-0" />
         <input
           ref={inputRef}
           type="text"
+          inputMode="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="npm install, pip install, git status…"
-          className="flex-1 bg-transparent outline-none text-[11px] text-[#e6edf3] placeholder:text-[#8b949e] font-mono"
+          className="flex-1 bg-transparent outline-none text-sm text-[#e6edf3] placeholder:text-[#8b949e] font-mono"
           disabled={execMutation.isPending}
           autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
           spellCheck={false}
         />
+        <button
+          type="button"
+          onClick={toggleVoice}
+          className={cn(
+            "shrink-0 p-1.5 rounded transition-colors",
+            listening
+              ? "text-red-400 bg-red-400/20 animate-pulse"
+              : "text-[#8b949e] hover:text-[#e6edf3]"
+          )}
+          title={listening ? "Parar gravação" : "Falar comando"}
+        >
+          {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+        </button>
       </div>
     </div>
   );
