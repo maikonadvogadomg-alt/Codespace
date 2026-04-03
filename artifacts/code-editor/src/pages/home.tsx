@@ -61,32 +61,32 @@ interface Template {
 
 const TEMPLATES: Template[] = [
   {
-    id: "blank",
-    label: "Projeto em Branco",
-    description: "Apenas um README.md para começar do zero",
-    icon: <FileText className="w-5 h-5" />,
-    color: "text-gray-400 bg-gray-400/10 border-gray-400/30",
-  },
-  {
     id: "html",
     label: "HTML + CSS + JS",
-    description: "index.html, style.css e script.js prontos",
+    description: "Site simples pronto para usar. Preview funciona na hora, sem instalar nada.",
     icon: <Globe className="w-5 h-5" />,
     color: "text-orange-400 bg-orange-400/10 border-orange-400/30",
   },
   {
+    id: "react",
+    label: "React + Vite",
+    description: "App moderno com React. Requer npm install antes de visualizar.",
+    icon: <Atom className="w-5 h-5" />,
+    color: "text-blue-400 bg-blue-400/10 border-blue-400/30",
+  },
+  {
     id: "node",
     label: "Node.js",
-    description: "index.js + package.json básico",
+    description: "Servidor/script Node.js básico. Sem preview visual.",
     icon: <Box className="w-5 h-5" />,
     color: "text-green-400 bg-green-400/10 border-green-400/30",
   },
   {
-    id: "react",
-    label: "React + Vite",
-    description: "Estrutura Vite com App.jsx pronto (requer npm install)",
-    icon: <Atom className="w-5 h-5" />,
-    color: "text-blue-400 bg-blue-400/10 border-blue-400/30",
+    id: "blank",
+    label: "Projeto em Branco",
+    description: "Só um README.md. Para começar do zero.",
+    icon: <FileText className="w-5 h-5" />,
+    color: "text-gray-400 bg-gray-400/10 border-gray-400/30",
   },
 ];
 
@@ -103,7 +103,7 @@ export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
   const [branch, setBranch] = useState("");
   const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectTemplate, setNewProjectTemplate] = useState("blank");
+  const [newProjectTemplate, setNewProjectTemplate] = useState("html");
   const [isCreatingBlank, setIsCreatingBlank] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
@@ -383,7 +383,7 @@ export default function Home() {
               Novo Projeto
             </DialogTitle>
             <DialogDescription>
-              Escolha um template e nomeie seu projeto.
+              O template <strong>HTML + CSS + JS</strong> abre o preview na hora — ideal para começar.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateBlank}>
@@ -418,8 +418,25 @@ export default function Home() {
                       <div className={cn("p-1.5 rounded shrink-0 mt-0.5", t.color)}>
                         {t.icon}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{t.label}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium text-foreground">{t.label}</p>
+                          {t.id === "html" && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30 whitespace-nowrap">
+                              👁 PREVIEW IMEDIATO
+                            </span>
+                          )}
+                          {(t.id === "node" || t.id === "blank") && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/20 whitespace-nowrap">
+                              sem preview
+                            </span>
+                          )}
+                          {t.id === "react" && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/20 whitespace-nowrap">
+                              requer instalação
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5">{t.description}</p>
                       </div>
                     </button>
