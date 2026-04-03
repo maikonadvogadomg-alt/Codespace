@@ -193,7 +193,6 @@ export default function Home() {
       return;
     }
 
-    console.log(`[Upload] Iniciando upload de ${file.name} (${(file.size / 1024).toFixed(1)}KB)`);
     uploadMutation.mutate({ data: { file, name: file.name.replace(".zip", "") } });
     e.target.value = "";
   };
