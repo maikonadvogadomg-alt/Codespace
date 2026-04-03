@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, projectsTable } from "@workspace/db";
 import { GetFileContentQueryParams, WriteFileBody, DeleteFileQueryParams } from "@workspace/api-zod";
 import { detectLanguage, isBinaryFile } from "../lib/storage.js";
+import { dbSaveFile, dbDeleteFile, ensureProjectOnDisk } from "../lib/persistFiles.js";
 import path from "path";
 import fs from "fs/promises";
 import { z } from "zod";
@@ -14,17 +15,19 @@ const router: IRouter = Router();
 async function resolveProjectPath(
   projectId: string,
   filePath: string
-): Promise<{ storagePath: string; fullPath: string } | null> {
+): Promise<{ projectDbId: number; storagePath: string; fullPath: string } | null> {
   const id = parseInt(projectId, 10);
   if (isNaN(id)) return null;
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, id));
   if (!project) return null;
+  // Restore from DB if /tmp directory was wiped
+  await ensureProjectOnDisk(project.id, project.storagePath);
   const normalized = filePath.replace(/^\/+/, "");
   const fullPath = path.join(project.storagePath, normalized);
   const resolved = path.resolve(fullPath);
   const base = path.resolve(project.storagePath);
   if (!resolved.startsWith(base)) return null;
-  return { storagePath: project.storagePath, fullPath };
+  return { projectDbId: project.id, storagePath: project.storagePath, fullPath };
 }
 
 async function copyRecursive(src: string, dest: string): Promise<void> {
@@ -90,6 +93,8 @@ router.put("/projects/:projectId/files", async (req, res): Promise<void> => {
 
   await fs.mkdir(path.dirname(resolved.fullPath), { recursive: true });
   await fs.writeFile(resolved.fullPath, content, "utf-8");
+  // Persist to DB so file survives server restarts
+  await dbSaveFile(resolved.projectDbId, filePath, content);
   res.json({ path: filePath, message: "Arquivo salvo com sucesso" });
 });
 
@@ -109,6 +114,8 @@ router.delete("/projects/:projectId/files", async (req, res): Promise<void> => {
     } else {
       await fs.unlink(resolved.fullPath);
     }
+    // Remove from DB too
+    await dbDeleteFile(resolved.projectDbId, queryParsed.data.path);
     res.status(204).send();
   } catch { res.status(404).json({ error: "Arquivo ou pasta não encontrado" }); }
 });

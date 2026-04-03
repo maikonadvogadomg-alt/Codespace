@@ -13,6 +13,7 @@ import {
   buildFileTree,
   countFiles,
 } from "../lib/storage.js";
+import { dbSaveDirectoryTree, ensureProjectOnDisk, dbDeleteAllFiles } from "../lib/persistFiles.js";
 import multer from "multer";
 import AdmZip from "adm-zip";
 import { randomUUID } from "crypto";
@@ -109,6 +110,9 @@ router.post(
           sizeBytes,
         })
         .returning();
+
+      // Persist files to DB for survival across restarts
+      await dbSaveDirectoryTree(inserted.id, projectDir);
 
       res.status(201).json({
         id: String(inserted.id),
@@ -273,6 +277,9 @@ router.post("/projects/blank", async (req, res): Promise<void> => {
     .values({ slug, name: projectName, storagePath: projectDir, fileCount: count, sizeBytes })
     .returning();
 
+  // Persist template files to DB for survival across restarts
+  await dbSaveDirectoryTree(inserted.id, projectDir);
+
   res.status(201).json({
     id: String(inserted.id),
     name: inserted.name,
@@ -305,6 +312,9 @@ router.get("/projects/:projectId", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Project not found" });
     return;
   }
+
+  // Restore from DB if /tmp was wiped (after server restart/redeploy)
+  await ensureProjectOnDisk(project.id, project.storagePath);
 
   const tree = await buildFileTree(project.storagePath);
 

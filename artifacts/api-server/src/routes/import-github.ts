@@ -6,6 +6,7 @@ import {
   deleteProjectDir,
   countFiles,
 } from "../lib/storage.js";
+import { dbSaveDirectoryTree } from "../lib/persistFiles.js";
 import AdmZip from "adm-zip";
 import { randomUUID } from "crypto";
 import path from "path";
@@ -145,6 +146,9 @@ router.post("/projects/import-github", async (req, res): Promise<void> => {
         sizeBytes,
       })
       .returning();
+
+    // Persist files to DB for survival across restarts/redeploys
+    await dbSaveDirectoryTree(inserted.id, projectDir);
 
     res.status(201).json({
       id: String(inserted.id),
