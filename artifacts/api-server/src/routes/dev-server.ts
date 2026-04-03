@@ -33,7 +33,7 @@ router.post("/projects/:projectId/dev-server/start", async (req, res): Promise<v
   const { command } = (req.body ?? {}) as { command?: string };
   const id = project.id;
   const willInstall = needsInstall(project.storagePath);
-  startDevServer(id, project.storagePath, command);
+  await startDevServer(id, project.storagePath, command);
 
   const server = getDevServer(id)!;
   const start = Date.now();
@@ -76,6 +76,62 @@ router.get("/projects/:projectId/dev-server/status", async (req, res): Promise<v
     command: server.command,
     log: server.log.slice(-20).join(""),
   });
+});
+
+// ALL /projects/:projectId/dev-proxy — root path handler
+router.all("/projects/:projectId/dev-proxy", async (req, res): Promise<void> => {
+  const project = await resolveProject(req.params.projectId);
+  if (!project) { res.status(404).json({ error: "Projeto não encontrado" }); return; }
+  const server = getDevServer(project.id);
+  if (!server || !server.port) { res.redirect(req.originalUrl + "/"); return; }
+  const search = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  const proxyHeaders: Record<string, string> = {};
+  for (const [key, val] of Object.entries(req.headers)) {
+    if (typeof val === "string") proxyHeaders[key] = val;
+  }
+  proxyHeaders["host"] = `localhost:${server.port}`;
+  delete proxyHeaders["content-length"];
+  const proxyReq = http.request(
+    { hostname: "localhost", port: server.port, path: "/" + search, method: req.method, headers: proxyHeaders },
+    (proxyRes) => {
+      const headers: Record<string, string | string[]> = {};
+      for (const [key, val] of Object.entries(proxyRes.headers)) { if (val !== undefined) headers[key] = val as string | string[]; }
+      delete headers["x-frame-options"];
+      delete headers["content-security-policy"];
+      res.writeHead(proxyRes.statusCode ?? 200, headers);
+      proxyRes.pipe(res, { end: true });
+    }
+  );
+  proxyReq.on("error", () => { if (!res.headersSent) res.status(502).send("Erro ao conectar"); });
+  if (req.method !== "GET" && req.method !== "HEAD") { req.pipe(proxyReq, { end: true }); } else { proxyReq.end(); }
+});
+
+// ALL /projects/:projectId/dev-proxy/ — root path with trailing slash
+router.all("/projects/:projectId/dev-proxy/", async (req, res): Promise<void> => {
+  const project = await resolveProject(req.params.projectId);
+  if (!project) { res.status(404).json({ error: "Projeto não encontrado" }); return; }
+  const server = getDevServer(project.id);
+  if (!server || !server.port) { res.status(503).send("Servidor não iniciado"); return; }
+  const search = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  const proxyHeaders: Record<string, string> = {};
+  for (const [key, val] of Object.entries(req.headers)) {
+    if (typeof val === "string") proxyHeaders[key] = val;
+  }
+  proxyHeaders["host"] = `localhost:${server.port}`;
+  delete proxyHeaders["content-length"];
+  const proxyReq = http.request(
+    { hostname: "localhost", port: server.port, path: "/" + search, method: req.method, headers: proxyHeaders },
+    (proxyRes) => {
+      const headers: Record<string, string | string[]> = {};
+      for (const [key, val] of Object.entries(proxyRes.headers)) { if (val !== undefined) headers[key] = val as string | string[]; }
+      delete headers["x-frame-options"];
+      delete headers["content-security-policy"];
+      res.writeHead(proxyRes.statusCode ?? 200, headers);
+      proxyRes.pipe(res, { end: true });
+    }
+  );
+  proxyReq.on("error", () => { if (!res.headersSent) res.status(502).send("Erro ao conectar"); });
+  if (req.method !== "GET" && req.method !== "HEAD") { req.pipe(proxyReq, { end: true }); } else { proxyReq.end(); }
 });
 
 // ALL /projects/:projectId/dev-proxy/*path — proxy to the running dev server

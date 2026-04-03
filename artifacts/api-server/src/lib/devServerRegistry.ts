@@ -1,6 +1,7 @@
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, execSync } from "child_process";
 import path from "path";
 import fs from "fs";
+import net from "net";
 
 export type DevServerStatus = "starting" | "running" | "error" | "stopped";
 
@@ -125,17 +126,47 @@ function buildCleanEnv(): Record<string, string> {
 
 function spawnInProject(cmd: string, cwd: string, env: Record<string, string>): ChildProcess {
   const [bin, ...args] = cmd.split(/\s+/);
-  return spawn(bin, args, {
+  const proc = spawn(bin, args, {
     cwd,
     env,
-    detached: false,
+    detached: true,
     stdio: ["ignore", "pipe", "pipe"],
     shell: false,
   });
+  proc.unref();
+  return proc;
 }
 
-export function startDevServer(projectId: number, cwd: string, command?: string): DevServer {
-  stopDevServer(projectId);
+function killProcessGroup(proc: ChildProcess): void {
+  const pid = proc.pid;
+  if (!pid) return;
+  try { process.kill(-pid, "SIGTERM"); } catch {}
+  setTimeout(() => {
+    try { process.kill(-pid, "SIGKILL"); } catch {}
+  }, 2000);
+}
+
+function isPortFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const tester = net.createServer()
+      .once("error", () => resolve(false))
+      .once("listening", () => tester.close(() => resolve(true)))
+      .listen(port, "0.0.0.0");
+  });
+}
+
+async function waitForPortFree(port: number, timeoutMs = 5000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await isPortFree(port)) return;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  try { execSync(`fuser -k ${port}/tcp 2>/dev/null`, { timeout: 2000 }); } catch {}
+  await new Promise((r) => setTimeout(r, 500));
+}
+
+export async function startDevServer(projectId: number, cwd: string, command?: string): Promise<DevServer> {
+  await stopDevServer(projectId);
 
   const startCmd = command && isAllowedCommand(command) ? command : detectStartCommand(cwd);
   const autoInstall = needsInstall(cwd);
@@ -185,14 +216,23 @@ export function startDevServer(projectId: number, cwd: string, command?: string)
     });
   };
 
-  const launchServer = () => {
+  const targetPort = parseInt(projectEnv.PORT, 10) || 3000;
+
+  const launchServer = async () => {
+    await waitForPortFree(targetPort);
     const proc = spawnInProject(startCmd, cwd, projectEnv);
     server.process = proc;
     attachListeners(proc, true);
 
     proc.on("close", (code) => {
       server.status = code === 0 ? "stopped" : "error";
-      registry.delete(projectId);
+      server.process = null;
+      setTimeout(() => {
+        const current = registry.get(projectId);
+        if (current === server && (current.status === "stopped" || current.status === "error")) {
+          registry.delete(projectId);
+        }
+      }, 30_000);
     });
 
     const timer = setTimeout(() => {
@@ -226,16 +266,14 @@ export function startDevServer(projectId: number, cwd: string, command?: string)
   return server;
 }
 
-export function stopDevServer(projectId: number): boolean {
+export async function stopDevServer(projectId: number): Promise<boolean> {
   const server = registry.get(projectId);
   if (!server) return false;
-  try {
-    server.process?.kill("SIGTERM");
-    setTimeout(() => {
-      try { server.process?.kill("SIGKILL"); } catch { /* already dead */ }
-    }, 3000);
-  } catch { /* process already exited */ }
+  const proc = server.process;
   registry.delete(projectId);
+  if (!proc || proc.exitCode !== null) return true;
+  killProcessGroup(proc);
+  await new Promise((r) => setTimeout(r, 1000));
   return true;
 }
 
