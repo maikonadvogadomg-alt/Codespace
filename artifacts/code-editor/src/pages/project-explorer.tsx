@@ -211,7 +211,7 @@ export default function ProjectExplorer() {
           <div className="flex-1 overflow-hidden">
 
             {/* Files tab */}
-            <div className={cn("h-full overflow-auto flex flex-col", mobileTab !== "files" && "hidden")}>
+            <div className={cn("h-full overflow-hidden flex flex-col", mobileTab !== "files" && "hidden")}>
               <div className="h-9 shrink-0 flex items-center px-3 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30 gap-2">
                 <span className="flex-1 tracking-wider">Explorer</span>
                 <button title="Novo arquivo" onClick={() => fileOps.createFile("novo-arquivo.txt", "")} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
@@ -221,7 +221,7 @@ export default function ProjectExplorer() {
                   <FolderPlus className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="flex-1 overflow-auto p-2">
+              <div className="min-h-0 flex-1 overflow-auto p-2">
                 <FileTree
                   node={project.tree}
                   onSelectFile={handleSelectFile}
@@ -231,11 +231,13 @@ export default function ProjectExplorer() {
                   ops={fileOps}
                 />
               </div>
-              <PackagesPanel
-                projectId={projectId}
-                fileTree={project.tree}
-                onRunCommand={(cmd) => { handleRunCommand(cmd); setMobileTab("terminal"); }}
-              />
+              <div className="shrink-0 overflow-auto max-h-[50%]">
+                <PackagesPanel
+                  projectId={projectId}
+                  fileTree={project.tree}
+                  onRunCommand={(cmd) => { handleRunCommand(cmd); setMobileTab("terminal"); }}
+                />
+              </div>
             </div>
 
             {/* Code tab */}
@@ -389,7 +391,7 @@ export default function ProjectExplorer() {
                         <FolderPlus className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <div className="flex-1 overflow-auto p-2">
+                    <div className="min-h-0 flex-1 overflow-auto p-2">
                       <FileTree
                         node={project.tree}
                         onSelectFile={handleSelectFile}
@@ -399,14 +401,16 @@ export default function ProjectExplorer() {
                         ops={fileOps}
                       />
                     </div>
-                    <PackagesPanel
-                      projectId={projectId}
-                      fileTree={project.tree}
-                      onRunCommand={(cmd) => {
-                        handleRunCommand(cmd);
-                        setTerminalOpen(true);
-                      }}
-                    />
+                    <div className="shrink-0 overflow-auto max-h-[50%]">
+                      <PackagesPanel
+                        projectId={projectId}
+                        fileTree={project.tree}
+                        onRunCommand={(cmd) => {
+                          handleRunCommand(cmd);
+                          setTerminalOpen(true);
+                        }}
+                      />
+                    </div>
                   </div>
                 </ResizablePanel>
 
