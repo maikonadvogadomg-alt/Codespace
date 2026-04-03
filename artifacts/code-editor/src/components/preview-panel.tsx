@@ -96,17 +96,18 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath, terminalPort 
     init();
   }, [fetchStaticStatus, fetchDevStatus]);
 
-  // Poll dev server status while starting
   useEffect(() => {
     if (!startingServer) return;
     const interval = setInterval(async () => {
       const s = await fetchDevStatus();
-      if (s && (s.status === "running" || s.status === "error" || !s.running)) {
+      if (!s) return;
+      if (s.status === "running" || s.status === "error" || (s.status === "stopped" && !s.running)) {
         setStartingServer(false);
+        setAutoInstalling(false);
         if (s.status === "running") setIframeKey((k) => k + 1);
         clearInterval(interval);
       }
-    }, 1500);
+    }, 2000);
     return () => clearInterval(interval);
   }, [startingServer, fetchDevStatus]);
 
@@ -121,22 +122,28 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath, terminalPort 
   }, [terminalPort]);
 
   // ── Actions ──────────────────────────────────────────────────────────────
+  const [autoInstalling, setAutoInstalling] = useState(false);
+
   const startServer = async () => {
     setStartingServer(true);
+    setAutoInstalling(false);
     try {
       const res = await fetch(`${base}/api/projects/${projectId}/dev-server/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      const data: DevServerStatus & { port?: number } = await res.json();
-      setDevStatus({ running: true, port: data.port ?? null, status: data.status ?? "starting" });
+      const data: DevServerStatus & { port?: number; autoInstall?: boolean } = await res.json();
+      if (data.autoInstall) setAutoInstalling(true);
+      setDevStatus({ running: data.running ?? false, port: data.port ?? null, status: data.status ?? "starting" });
       if (data.status === "running" && data.port) {
         setStartingServer(false);
+        setAutoInstalling(false);
         setIframeKey((k) => k + 1);
       }
     } catch {
       setStartingServer(false);
+      setAutoInstalling(false);
     }
   };
 
@@ -355,6 +362,7 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath, terminalPort 
           ) : (
             <LiveEmptyState
               isStarting={isServerStarting}
+              isInstalling={autoInstalling}
               status={devStatus}
               onStart={startServer}
             />
@@ -414,10 +422,12 @@ function IframeView({
 // ─── Live empty state ─────────────────────────────────────────────────────────
 function LiveEmptyState({
   isStarting,
+  isInstalling,
   status,
   onStart,
 }: {
   isStarting: boolean;
+  isInstalling: boolean;
   status: DevServerStatus | null;
   onStart: () => void;
 }) {
@@ -437,9 +447,13 @@ function LiveEmptyState({
       {isStarting ? (
         <>
           <div>
-            <p className="text-sm font-semibold text-yellow-400 mb-1">Iniciando servidor…</p>
+            <p className="text-sm font-semibold text-yellow-400 mb-1">
+              {isInstalling ? "Instalando dependências…" : "Iniciando servidor…"}
+            </p>
             <p className="text-xs text-[#8b949e]">
-              Aguardando o servidor responder. Pode levar alguns segundos.
+              {isInstalling
+                ? "npm install em andamento. Depois, o servidor será iniciado automaticamente."
+                : "Aguardando o servidor responder. Pode levar alguns segundos."}
             </p>
           </div>
         </>
@@ -499,14 +513,12 @@ function StaticEmptyState({
   onRunBuild?: (cmd: string) => void;
   onReload: () => void;
 }) {
-  const [buildStep, setBuildStep] = useState<"idle" | "installing" | "building" | "done">("idle");
+  const [buildStep, setBuildStep] = useState<"idle" | "running" | "done">("idle");
 
   const runInstallAndBuild = () => {
     if (!onRunBuild) return;
-    setBuildStep("installing");
+    setBuildStep("running");
     onRunBuild("npm install && npm run build");
-    setTimeout(() => setBuildStep("building"), 10_000);
-    setTimeout(() => { setBuildStep("done"); onReload(); }, 60_000);
   };
 
   return (
@@ -537,29 +549,17 @@ function StaticEmptyState({
                   npm install + npm run build
                 </button>
               )}
-              {buildStep === "installing" && (
+              {buildStep === "running" && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded bg-yellow-500/10 border border-yellow-500/20 text-[11px] text-yellow-400">
                   <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                  Instalando pacotes… pode demorar
-                </div>
-              )}
-              {buildStep === "building" && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-400">
-                  <Hammer className="w-3.5 h-3.5 animate-bounce shrink-0" />
-                  Fazendo build…
-                </div>
-              )}
-              {buildStep === "done" && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded bg-green-500/10 border border-green-500/20 text-[11px] text-green-400">
-                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                  Concluído!
+                  Executando no terminal… acompanhe o progresso lá
                 </div>
               )}
               <div className="flex gap-1.5">
-                <button onClick={() => onRunBuild("npm install")} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#30363d] hover:bg-[#3a4048] text-[10px] text-[#8b949e] hover:text-[#e6edf3] transition-colors border border-[#444c56]">
+                <button onClick={() => { onRunBuild("npm install"); setBuildStep("running"); }} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#30363d] hover:bg-[#3a4048] text-[10px] text-[#8b949e] hover:text-[#e6edf3] transition-colors border border-[#444c56]">
                   <Package className="w-3 h-3" /> npm install
                 </button>
-                <button onClick={() => onRunBuild("npm run build")} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#30363d] hover:bg-[#3a4048] text-[10px] text-[#8b949e] hover:text-[#e6edf3] transition-colors border border-[#444c56]">
+                <button onClick={() => { onRunBuild("npm run build"); setBuildStep("running"); }} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#30363d] hover:bg-[#3a4048] text-[10px] text-[#8b949e] hover:text-[#e6edf3] transition-colors border border-[#444c56]">
                   <Hammer className="w-3 h-3" /> npm run build
                 </button>
               </div>

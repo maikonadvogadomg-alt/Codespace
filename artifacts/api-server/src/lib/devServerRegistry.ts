@@ -63,18 +63,31 @@ export function detectStartCommand(cwd: string): string {
   return "npm start";
 }
 
-export function startDevServer(projectId: number, cwd: string, command?: string): DevServer {
-  // Kill any existing server for this project
-  stopDevServer(projectId);
+export function needsInstall(cwd: string): boolean {
+  const pkgPath = path.join(cwd, "package.json");
+  const nodeModulesPath = path.join(cwd, "node_modules");
+  return fs.existsSync(pkgPath) && !fs.existsSync(nodeModulesPath);
+}
 
-  const cmd = command ?? detectStartCommand(cwd);
-  const [bin, ...args] = cmd.split(/\s+/);
+const ALLOWED_START_COMMANDS = new Set([
+  "npm run dev", "npm start", "npm run serve", "npm run build",
+  "npm test", "npm install",
+  "yarn dev", "yarn start", "yarn build",
+  "pnpm dev", "pnpm start", "pnpm run dev", "pnpm run start",
+  "python3 -m http.server", "python -m http.server",
+]);
 
-  // Build clean env without pnpm workspace bleed-through
+function isAllowedCommand(cmd: string): boolean {
+  if (ALLOWED_START_COMMANDS.has(cmd)) return true;
+  if (/^node\s+[\w./-]+\.m?js$/.test(cmd)) return true;
+  if (/^python3?\s+[\w./-]+\.py$/.test(cmd)) return true;
+  return false;
+}
+
+function buildCleanEnv(): Record<string, string> {
   const cleanEnv: Record<string, string> = {};
   for (const [key, val] of Object.entries(process.env)) {
     if (typeof val !== "string") continue;
-    // Skip pnpm-specific npm_config vars that cause "Unknown env config" warnings
     if (key.toLowerCase().startsWith("npm_config_") && (
       key.toLowerCase().includes("jsr") ||
       key.toLowerCase().includes("catalog") ||
@@ -86,69 +99,108 @@ export function startDevServer(projectId: number, cwd: string, command?: string)
     )) continue;
     cleanEnv[key] = val;
   }
+  return cleanEnv;
+}
 
-  const proc = spawn(bin, args, {
+function spawnInProject(cmd: string, cwd: string, env: Record<string, string>): ChildProcess {
+  const [bin, ...args] = cmd.split(/\s+/);
+  return spawn(bin, args, {
     cwd,
-    env: {
-      ...cleanEnv,
-      BROWSER: "none",
-      CI: "false",
-      NO_COLOR: "1",
-      FORCE_COLOR: "0",
-      PORT: "3000",
-      npm_config_userconfig: "/dev/null",
-      NPM_CONFIG_UPDATE_NOTIFIER: "false",
-    },
+    env,
     detached: false,
     stdio: ["ignore", "pipe", "pipe"],
+    shell: false,
   });
+}
+
+export function startDevServer(projectId: number, cwd: string, command?: string): DevServer {
+  stopDevServer(projectId);
+
+  const startCmd = command && isAllowedCommand(command) ? command : detectStartCommand(cwd);
+  const autoInstall = needsInstall(cwd);
+
+  const cleanEnv = buildCleanEnv();
+  const projectEnv: Record<string, string> = {
+    ...cleanEnv,
+    BROWSER: "none",
+    CI: "false",
+    NO_COLOR: "1",
+    FORCE_COLOR: "0",
+    PORT: "3000",
+    npm_config_userconfig: "/dev/null",
+    NPM_CONFIG_UPDATE_NOTIFIER: "false",
+  };
+
+  const displayCmd = autoInstall ? `npm install && ${startCmd}` : startCmd;
 
   const server: DevServer = {
-    process: proc,
+    process: null as unknown as ChildProcess,
     port: null,
     status: "starting",
-    log: [],
-    command: cmd,
+    log: autoInstall ? ["[auto] Instalando dependências antes de iniciar…\n"] : [],
+    command: displayCmd,
     startedAt: new Date(),
   };
 
   registry.set(projectId, server);
 
-  const handleOutput = (data: Buffer) => {
-    const text = data.toString();
-    server.log = [...server.log.slice(-199), text];
-    // Try to detect port from output
-    if (!server.port) {
-      const detected = detectPort(text);
-      if (detected) {
-        server.port = detected;
-        server.status = "running";
+  const attachListeners = (proc: ChildProcess, isServerProc: boolean) => {
+    const handleOutput = (data: Buffer) => {
+      const text = data.toString();
+      server.log = [...server.log.slice(-199), text];
+      if (isServerProc && !server.port) {
+        const detected = detectPort(text);
+        if (detected) {
+          server.port = detected;
+          server.status = "running";
+        }
       }
-    }
+    };
+    proc.stdout?.on("data", handleOutput);
+    proc.stderr?.on("data", handleOutput);
+    proc.on("error", (err) => {
+      server.status = "error";
+      server.log.push(`[erro] ${err.message}`);
+    });
   };
 
-  proc.stdout?.on("data", handleOutput);
-  proc.stderr?.on("data", handleOutput);
+  const launchServer = () => {
+    const proc = spawnInProject(startCmd, cwd, projectEnv);
+    server.process = proc;
+    attachListeners(proc, true);
 
-  proc.on("error", (err) => {
-    server.status = "error";
-    server.log.push(`[erro] ${err.message}`);
-  });
+    proc.on("close", (code) => {
+      server.status = code === 0 ? "stopped" : "error";
+      registry.delete(projectId);
+    });
 
-  proc.on("close", (code) => {
-    server.status = code === 0 ? "stopped" : "error";
-    registry.delete(projectId);
-  });
+    const timer = setTimeout(() => {
+      if (server.status === "starting" && !server.port) {
+        server.port = 3000;
+        server.status = "running";
+      }
+    }, 30_000);
+    proc.on("close", () => clearTimeout(timer));
+  };
 
-  // After 20s with no port detected, assume default 3000
-  const timer = setTimeout(() => {
-    if (server.status === "starting") {
-      server.port = parseInt(process.env.PORT ?? "3000", 10);
-      server.status = "running";
-    }
-  }, 20_000);
+  if (autoInstall) {
+    const installProc = spawnInProject("npm install", cwd, projectEnv);
+    server.process = installProc;
+    attachListeners(installProc, false);
 
-  proc.on("close", () => clearTimeout(timer));
+    installProc.on("close", (code) => {
+      if (code === 0) {
+        server.log.push("[auto] Dependências instaladas. Iniciando servidor…\n");
+        launchServer();
+      } else {
+        server.status = "error";
+        server.log.push(`[erro] npm install falhou (código ${code})\n`);
+        registry.delete(projectId);
+      }
+    });
+  } else {
+    launchServer();
+  }
 
   return server;
 }

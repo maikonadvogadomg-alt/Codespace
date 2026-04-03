@@ -188,10 +188,18 @@ const MANAGERS: PackageManager[] = [
   },
 ];
 
-function detectManager(node: FileNode): PackageManager | null {
+interface DetectedManager {
+  manager: PackageManager;
+  depsInstalled: boolean;
+}
+
+function detectManager(node: FileNode): DetectedManager | null {
   const names = collectFileNames(node);
   for (const m of MANAGERS) {
-    if (names.has(m.markerFile)) return m;
+    if (names.has(m.markerFile)) {
+      const depsInstalled = m.markerFile === "package.json" ? names.has("node_modules") : true;
+      return { manager: m, depsInstalled };
+    }
   }
   return null;
 }
@@ -255,7 +263,9 @@ export function PackagesPanel({ projectId, fileTree, onRunCommand }: PackagesPan
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const manager = useMemo(() => detectManager(fileTree), [fileTree]);
+  const detected = useMemo(() => detectManager(fileTree), [fileTree]);
+  const manager = detected?.manager ?? null;
+  const depsInstalled = detected?.depsInstalled ?? false;
   const isNpm = manager?.supportsSearch || !manager;
 
   const installCmd = (name: string) =>
@@ -312,16 +322,27 @@ export function PackagesPanel({ projectId, fileTree, onRunCommand }: PackagesPan
         <div className="flex flex-col">
           {/* Manager badge */}
           {manager ? (
-            <div className="px-3 pb-1 flex items-center gap-2">
-              <span className={cn("text-[11px] font-medium", manager.color)}>{manager.label}</span>
-              {manager.preInstalled ? (
-                <span className="flex items-center gap-1 text-[10px] text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded">
-                  <CheckCircle2 className="w-2.5 h-2.5" /> disponível
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-[10px] text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded">
-                  <AlertTriangle className="w-2.5 h-2.5" /> verificar instalação
-                </span>
+            <div className="px-3 pb-1 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className={cn("text-[11px] font-medium", manager.color)}>{manager.label}</span>
+                {depsInstalled ? (
+                  <span className="flex items-center gap-1 text-[10px] text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded">
+                    <CheckCircle2 className="w-2.5 h-2.5" /> instalado
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-[10px] text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded">
+                    <AlertTriangle className="w-2.5 h-2.5" /> não instalado
+                  </span>
+                )}
+              </div>
+              {!depsInstalled && manager.markerFile === "package.json" && (
+                <button
+                  onClick={() => onRunCommand("npm install")}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border border-yellow-500/30 text-xs font-medium transition-colors active:scale-[0.98] touch-manipulation"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Instalar dependências (npm install)
+                </button>
               )}
             </div>
           ) : (

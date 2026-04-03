@@ -7,6 +7,7 @@ import {
   getGetFileContentQueryKey,
   type FileContent,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout";
 import { FileTree } from "@/components/file-tree";
 import { useFileOps } from "@/hooks/use-file-ops";
@@ -98,6 +99,11 @@ export default function ProjectExplorer() {
     [terminalLog]
   );
   const terminalPanelRef = useRef<ImperativePanelHandle>(null);
+  const queryClient = useQueryClient();
+
+  const refreshProjectTree = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(projectId) });
+  }, [queryClient, projectId]);
 
   const { data: project, isLoading: isProjectLoading } = useGetProject(projectId, {
     query: { queryKey: getGetProjectQueryKey(projectId) },
@@ -307,6 +313,7 @@ export default function ProjectExplorer() {
                 pendingCommand={pendingTerminalCommand}
                 onEntriesChange={setTerminalLog}
                 onServerDetected={handleServerDetected}
+                onCommandDone={refreshProjectTree}
               />
             </div>
           </div>
@@ -483,6 +490,7 @@ export default function ProjectExplorer() {
                     pendingCommand={pendingTerminalCommand}
                     onEntriesChange={setTerminalLog}
                     onServerDetected={handleServerDetected}
+                    onCommandDone={refreshProjectTree}
                   />
                 </ResizablePanel>
               </>

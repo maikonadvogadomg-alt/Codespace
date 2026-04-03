@@ -7,6 +7,7 @@ import {
   stopDevServer,
   getDevServer,
   detectStartCommand,
+  needsInstall,
 } from "../lib/devServerRegistry.js";
 import { ensureProjectOnDisk } from "../lib/persistFiles.js";
 
@@ -31,19 +32,22 @@ router.post("/projects/:projectId/dev-server/start", async (req, res): Promise<v
 
   const { command } = (req.body ?? {}) as { command?: string };
   const id = project.id;
+  const willInstall = needsInstall(project.storagePath);
   startDevServer(id, project.storagePath, command);
 
-  // Wait up to 15s for port to be detected before responding
   const server = getDevServer(id)!;
   const start = Date.now();
-  while (!server.port && Date.now() - start < 15_000) {
-    await new Promise((r) => setTimeout(r, 300));
+  const timeout = willInstall ? 60_000 : 15_000;
+  while (!server.port && server.status === "starting" && Date.now() - start < timeout) {
+    await new Promise((r) => setTimeout(r, 500));
   }
 
   res.json({
+    running: server.status === "running",
     status: server.status,
     port: server.port,
     command: server.command,
+    autoInstall: willInstall,
     suggestedCommand: detectStartCommand(project.storagePath),
   });
 });

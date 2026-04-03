@@ -87,8 +87,8 @@ interface TerminalPanelProps {
   onClose?: () => void;
   pendingCommand?: { cmd: string; id: number } | null;
   onEntriesChange?: (entries: TerminalEntry[]) => void;
-  /** Called when a running command opens a server on a port — connect preview to it */
   onServerDetected?: (port: number) => void;
+  onCommandDone?: () => void;
 }
 
 // ─── Base URL helper ───────────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ function EntryView({ entry, onInstall, onCopy, copiedId }: {
 }
 
 // ─── Main component ────────────────────────────────────────────────────────────
-export function TerminalPanel({ projectId, onClose, pendingCommand, onEntriesChange, onServerDetected }: TerminalPanelProps) {
+export function TerminalPanel({ projectId, onClose, pendingCommand, onEntriesChange, onServerDetected, onCommandDone }: TerminalPanelProps) {
   const [entries, setEntries] = useState<TerminalEntry[]>([]);
   const [input, setInput] = useState("");
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -377,8 +377,9 @@ export function TerminalPanel({ projectId, onClose, pendingCommand, onEntriesCha
       setIsRunning(false);
       abortRef.current = null;
       setTimeout(() => inputRef.current?.focus(), 50);
+      onCommandDone?.();
     }
-  }, [projectId, isRunning]);
+  }, [projectId, isRunning, onCommandDone]);
 
   // Auto-run command sent from outside (AI panel / packages panel)
   useEffect(() => {
