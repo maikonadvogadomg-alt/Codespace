@@ -2,16 +2,18 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, projectsTable, settingsTable } from "@workspace/db";
 import { AnalyzeFileBody, AnalyzeFolderBody, AiChatBody } from "@workspace/api-zod";
-import { isBinaryFile, detectLanguage, getProjectDir } from "../lib/storage.js";
+import { isBinaryFile, detectLanguage } from "../lib/storage.js";
 import path from "path";
 import fs from "fs/promises";
 
 async function buildProjectContext(projectId: string): Promise<{ text: string; fileCount: number; truncated: boolean }> {
-  const rows = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
+  const numId = parseInt(projectId, 10);
+  if (isNaN(numId)) throw new Error("ID de projeto inválido");
+  const rows = await db.select().from(projectsTable).where(eq(projectsTable.id, numId)).limit(1);
   const project = rows[0];
   if (!project) throw new Error("Projeto não encontrado");
 
-  const projectDir = getProjectDir(project.slug);
+  const projectDir = project.storagePath;
   const parts: string[] = [];
   let fileCount = 0;
   let totalChars = 0;

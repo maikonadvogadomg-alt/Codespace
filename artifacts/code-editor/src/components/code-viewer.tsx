@@ -1,6 +1,18 @@
-import React, { useMemo } from "react";
-import { Loader2, FileX, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import React, { useMemo, useState, useRef, useCallback, useEffect } from "react";
+import {
+  Loader2,
+  FileX,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Pencil,
+  Save,
+  X,
+} from "lucide-react";
 import type { FileContent } from "@workspace/api-client-react";
+import { useWriteFile, getGetProjectQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import hljs from "highlight.js";
 import "highlight.js/styles/github-dark.css";
 
@@ -11,8 +23,10 @@ interface CodeViewerProps {
   canGoForward?: boolean;
   onBack?: () => void;
   onForward?: () => void;
-  /** Called when user clicks "Visualizar" on an HTML file */
+  /** Called when user clicks "Visualizar" on an HTML/SVG file */
   onPreview?: (filePath: string) => void;
+  /** Project ID – enables inline editing + save */
+  projectId?: string;
 }
 
 const PREVIEWABLE_EXTS = new Set(["html", "htm", "svg"]);
@@ -59,9 +73,73 @@ export function CodeViewer({
   onBack,
   onForward,
   onPreview,
+  projectId,
 }: CodeViewerProps) {
   const ext = file?.path?.split(".").pop()?.toLowerCase() ?? "";
   const isPreviewable = PREVIEWABLE_EXTS.has(ext);
+  const canEdit = !!projectId && !!file && !file.isBinary;
+
+  const [editMode, setEditMode] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [saving, setSaving] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const writeMutation = useWriteFile();
+
+  // Enter edit mode — copy current content
+  const enterEdit = useCallback(() => {
+    setEditContent(file?.content ?? "");
+    setEditMode(true);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, [file?.content]);
+
+  // Exit edit mode without saving
+  const cancelEdit = useCallback(() => {
+    setEditMode(false);
+    setEditContent("");
+  }, []);
+
+  // Save
+  const saveFile = useCallback(async () => {
+    if (!file || !projectId) return;
+    setSaving(true);
+    try {
+      await writeMutation.mutateAsync({
+        projectId,
+        data: { path: file.path, content: editContent },
+      });
+      queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(projectId) });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
+      setEditMode(false);
+      toast({ title: "Arquivo salvo com sucesso" });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro ao salvar";
+      toast({ title: "Erro ao salvar", description: msg, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }, [file, projectId, editContent, writeMutation, queryClient, toast]);
+
+  // Ctrl+S saves; Esc cancels
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        saveFile();
+      }
+      if (e.key === "Escape") cancelEdit();
+    },
+    [saveFile, cancelEdit]
+  );
+
+  // Exit edit mode when a different file opens
+  useEffect(() => {
+    setEditMode(false);
+    setEditContent("");
+  }, [file?.path]);
+
   const { highlighted, lineCount } = useMemo(() => {
     if (!file?.content) return { highlighted: "", lineCount: 0 };
     const lang = file.language ? LANG_MAP[file.language.toLowerCase()] : undefined;
@@ -82,12 +160,18 @@ export function CodeViewer({
     }
   }, [file?.content, file?.language]);
 
-  const lineNumbers = useMemo(
-    () => Array.from({ length: lineCount }, (_, i) => i + 1),
-    [lineCount]
+  const editLineCount = useMemo(
+    () => (editContent.match(/\n/g)?.length ?? 0) + 1,
+    [editContent]
   );
 
-  const lineNumWidth = Math.max(String(lineCount).length, 2);
+  const lineNumbers = useMemo(
+    () => Array.from({ length: editMode ? editLineCount : lineCount }, (_, i) => i + 1),
+    [editMode, editLineCount, lineCount]
+  );
+
+  const displayLineCount = editMode ? editLineCount : lineCount;
+  const lineNumWidth = Math.max(String(displayLineCount).length, 2);
 
   if (isLoading) {
     return (
@@ -142,6 +226,9 @@ export function CodeViewer({
 
         <span className="text-sm text-[#c9d1d9] font-mono truncate flex-1">
           {file.path.split("/").pop()}
+          {editMode && (
+            <span className="ml-1.5 text-[10px] text-yellow-400 font-medium">• editando</span>
+          )}
         </span>
         <span className="text-[10px] text-[#8b949e] truncate hidden md:block max-w-[200px]">
           {file.path}
@@ -150,7 +237,7 @@ export function CodeViewer({
         <div className="w-px h-5 bg-[#30363d] mx-1 shrink-0" />
 
         {/* Visualizar button for HTML/SVG files */}
-        {isPreviewable && onPreview && (
+        {isPreviewable && onPreview && !editMode && (
           <button
             onClick={() => onPreview(file.path)}
             className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 border border-blue-500/30 transition-colors shrink-0"
@@ -161,18 +248,56 @@ export function CodeViewer({
           </button>
         )}
 
-        {file.language && (
+        {/* Edit / Save / Cancel buttons */}
+        {canEdit && !editMode && (
+          <button
+            onClick={enterEdit}
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-[#30363d] text-[#8b949e] hover:text-[#e6edf3] border border-[#444d56] transition-colors shrink-0"
+            title="Editar arquivo (duplo clique no código também funciona)"
+          >
+            <Pencil className="w-3 h-3" />
+            Editar
+          </button>
+        )}
+
+        {editMode && (
+          <>
+            <button
+              onClick={saveFile}
+              disabled={saving}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30 transition-colors shrink-0"
+              title="Salvar (Ctrl+S)"
+            >
+              {saving ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Save className="w-3 h-3" />
+              )}
+              Salvar
+            </button>
+            <button
+              onClick={cancelEdit}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-[#30363d] text-[#8b949e] hover:text-[#e6edf3] border border-[#444d56] transition-colors shrink-0"
+              title="Cancelar edição (Esc)"
+            >
+              <X className="w-3 h-3" />
+              Cancelar
+            </button>
+          </>
+        )}
+
+        {file.language && !editMode && (
           <span className="text-[10px] uppercase tracking-wider font-semibold text-[#8b949e] shrink-0">
             {file.language}
           </span>
         )}
         <span className="text-[10px] text-[#8b949e] shrink-0 tabular-nums ml-2">
-          {lineCount} ln
+          {displayLineCount} ln
         </span>
       </div>
 
-      {/* Code with line numbers */}
-      <div className="flex-1 overflow-auto flex">
+      {/* Code / Editor area */}
+      <div className="flex-1 overflow-auto flex" onDoubleClick={canEdit && !editMode ? enterEdit : undefined}>
         {/* Line numbers column */}
         <div
           className="select-none text-right text-[#8b949e] text-[12px] font-mono leading-relaxed pt-3 pb-3 pr-3 pl-4 border-r border-[#30363d] shrink-0"
@@ -186,16 +311,31 @@ export function CodeViewer({
           ))}
         </div>
 
-        {/* Highlighted code */}
-        <pre
-          className="flex-1 pl-4 pr-6 pt-3 pb-3 text-sm font-mono leading-relaxed overflow-x-auto m-0 bg-transparent"
-          style={{ tabSize: 2 }}
-        >
-          <code
-            className="hljs"
-            dangerouslySetInnerHTML={{ __html: highlighted }}
+        {editMode ? (
+          /* Edit mode — textarea */
+          <textarea
+            ref={textareaRef}
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="flex-1 pl-4 pr-6 pt-3 pb-3 text-sm font-mono leading-relaxed bg-transparent text-[#e6edf3] outline-none resize-none caret-white selection:bg-blue-500/40"
+            style={{ tabSize: 2, lineHeight: "1.625" }}
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
           />
-        </pre>
+        ) : (
+          /* View mode — highlighted */
+          <pre
+            className="flex-1 pl-4 pr-6 pt-3 pb-3 text-sm font-mono leading-relaxed overflow-x-auto m-0 bg-transparent"
+            style={{ tabSize: 2 }}
+          >
+            <code
+              className="hljs"
+              dangerouslySetInnerHTML={{ __html: highlighted }}
+            />
+          </pre>
+        )}
       </div>
     </div>
   );

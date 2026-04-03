@@ -49,7 +49,7 @@ export default function ProjectExplorer() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
-  // File navigation history (like browser back/forward)
+  // File navigation history
   const [fileHistory, setFileHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
 
@@ -81,7 +81,7 @@ export default function ProjectExplorer() {
   const terminalPanelRef = useRef<ImperativePanelHandle>(null);
 
   const { data: project, isLoading: isProjectLoading } = useGetProject(projectId, {
-    query: { enabled: !!projectId, queryKey: getGetProjectQueryKey(projectId) },
+    query: { queryKey: getGetProjectQueryKey(projectId) },
   });
 
   const { data: fileContent, isLoading: isFileLoading } = useGetFileContent(
@@ -89,14 +89,14 @@ export default function ProjectExplorer() {
     { path: selectedFile! },
     {
       query: {
-        enabled: !!projectId && !!selectedFile,
+        enabled: !!selectedFile,
         queryKey: getGetFileContentQueryKey(projectId, { path: selectedFile! }),
       },
     }
   );
 
-  // File operations (create, rename, delete, copy, cut/paste)
   const fileOps = useFileOps(projectId);
+
   useEffect(() => {
     if (fileOps.error) {
       toast({ title: "Erro na operação", description: fileOps.error, variant: "destructive" });
@@ -159,7 +159,7 @@ export default function ProjectExplorer() {
     ? { path: fileContent.path, content: fileContent.content, language: fileContent.language }
     : null;
 
-  // ─── Loading ────────────────────────────────────────────────────────────────
+  // ─── Loading ─────────────────────────────────────────────────────────────────
   if (isProjectLoading) {
     return (
       <AppLayout>
@@ -180,7 +180,7 @@ export default function ProjectExplorer() {
     );
   }
 
-  // ─── Mobile Layout ───────────────────────────────────────────────────────────
+  // ─── Mobile Layout ────────────────────────────────────────────────────────────
   if (isMobile) {
     return (
       <AppLayout hideBottomNav>
@@ -208,14 +208,15 @@ export default function ProjectExplorer() {
 
           {/* Tab content */}
           <div className="flex-1 overflow-hidden">
+
             {/* Files tab */}
             <div className={cn("h-full overflow-auto flex flex-col", mobileTab !== "files" && "hidden")}>
               <div className="h-9 shrink-0 flex items-center px-3 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30 gap-2">
                 <span className="flex-1 tracking-wider">Explorer</span>
-                <button title="Novo arquivo" onClick={() => fileOps.createFile(`novo-arquivo.txt`, "")} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                <button title="Novo arquivo" onClick={() => fileOps.createFile("novo-arquivo.txt", "")} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                   <FilePlus className="w-3.5 h-3.5" />
                 </button>
-                <button title="Nova pasta" onClick={() => fileOps.createFolder(`nova-pasta`)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                <button title="Nova pasta" onClick={() => fileOps.createFolder("nova-pasta")} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                   <FolderPlus className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -252,6 +253,7 @@ export default function ProjectExplorer() {
                   onBack={navigateBack}
                   onForward={navigateForward}
                   onPreview={(path) => { setMobilePreviewPath(path); setMobileTab("preview"); }}
+                  projectId={projectId}
                 />
               )}
             </div>
@@ -286,32 +288,32 @@ export default function ProjectExplorer() {
 
           {/* Mobile bottom tab bar */}
           <nav className="shrink-0 h-14 border-t border-border bg-card flex items-stretch">
-            <MobileTab
+            <MobileTabButton
               label="Arquivos"
               icon={<Files className="w-5 h-5" />}
               active={mobileTab === "files"}
               onClick={() => setMobileTab("files")}
             />
-            <MobileTab
+            <MobileTabButton
               label="Código"
               icon={<Code2 className="w-5 h-5" />}
               active={mobileTab === "code"}
               onClick={() => setMobileTab("code")}
               badge={selectedFile ? selectedFile.split("/").pop() : undefined}
             />
-            <MobileTab
+            <MobileTabButton
               label="Preview"
               icon={<Monitor className="w-5 h-5" />}
               active={mobileTab === "preview"}
               onClick={() => setMobileTab("preview")}
             />
-            <MobileTab
+            <MobileTabButton
               label="IA"
               icon={<Sparkles className="w-5 h-5" />}
               active={mobileTab === "ai"}
               onClick={() => setMobileTab("ai")}
             />
-            <MobileTab
+            <MobileTabButton
               label="Terminal"
               icon={<Terminal className="w-5 h-5" />}
               active={mobileTab === "terminal"}
@@ -330,7 +332,7 @@ export default function ProjectExplorer() {
     );
   }
 
-  // ─── Desktop Layout ──────────────────────────────────────────────────────────
+  // ─── Desktop Layout ───────────────────────────────────────────────────────────
   return (
     <AppLayout>
       <div className="flex flex-col h-full overflow-hidden">
@@ -341,73 +343,74 @@ export default function ProjectExplorer() {
                 <ArrowLeft className="w-4 h-4" />
               </Button>
             </Link>
-            <div className="flex items-center gap-2 px-2 border-l border-border/50">
-              <TerminalSquare className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm text-foreground">{project.name}</span>
-            </div>
+            <TerminalSquare className="w-4 h-4 text-primary shrink-0" />
+            <span className="font-semibold text-sm text-foreground">{project.name}</span>
           </div>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               onClick={() => setTerminalOpen((v) => !v)}
-              className={cn(
-                "gap-2 h-8 px-3 border",
-                terminalOpen
-                  ? "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20"
-                  : "border-border text-muted-foreground hover:text-foreground"
-              )}
+              className="h-7 gap-1.5 text-xs"
             >
               <Terminal className="w-3.5 h-3.5" />
               Terminal
             </Button>
             <Button
               size="sm"
-              variant="secondary"
+              variant="outline"
               onClick={() => setGithubModalOpen(true)}
-              className="gap-2 bg-background hover:bg-accent border border-border h-8 px-3"
+              className="h-7 gap-1.5 text-xs"
             >
-              <Github className="w-4 h-4" />
-              Enviar ao GitHub
+              <Github className="w-3.5 h-3.5" />
+              GitHub
             </Button>
           </div>
         </header>
 
         <div className="flex-1 overflow-hidden">
-          <ResizablePanelGroup direction="vertical">
+          <ResizablePanelGroup direction="vertical" className="h-full">
+            {/* Main row */}
             <ResizablePanel defaultSize={terminalOpen ? 65 : 100} minSize={30}>
-              <ResizablePanelGroup direction="horizontal">
-                <ResizablePanel defaultSize={20} minSize={15} maxSize={35} className="bg-sidebar flex flex-col">
-                  <div className="h-9 shrink-0 flex items-center px-3 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30 gap-2">
-                    <span className="flex-1 tracking-wider">Explorer</span>
-                    <button title="Novo arquivo" onClick={() => fileOps.createFile(`novo-arquivo.txt`, "")} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-                      <FilePlus className="w-3.5 h-3.5" />
-                    </button>
-                    <button title="Nova pasta" onClick={() => fileOps.createFolder(`nova-pasta`)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-                      <FolderPlus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <div className="flex-1 overflow-auto p-2">
-                    <FileTree
-                      node={project.tree}
-                      onSelectFile={openFile}
-                      onAnalyzeFile={handleAnalyzeFileClick}
-                      onAnalyzeFolder={handleAnalyzeFolderClick}
-                      selectedPath={selectedFile}
-                      ops={fileOps}
+              <ResizablePanelGroup direction="horizontal" className="h-full">
+
+                {/* File tree */}
+                <ResizablePanel defaultSize={18} minSize={12} maxSize={35}>
+                  <div className="h-full flex flex-col border-r border-border overflow-hidden">
+                    <div className="h-9 shrink-0 flex items-center px-3 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30 gap-2">
+                      <span className="flex-1 tracking-wider">Explorer</span>
+                      <button title="Novo arquivo" onClick={() => fileOps.createFile("novo-arquivo.txt", "")} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                        <FilePlus className="w-3.5 h-3.5" />
+                      </button>
+                      <button title="Nova pasta" onClick={() => fileOps.createFolder("nova-pasta")} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                        <FolderPlus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-auto p-2">
+                      <FileTree
+                        node={project.tree}
+                        onSelectFile={handleSelectFile}
+                        onAnalyzeFile={handleAnalyzeFileClick}
+                        onAnalyzeFolder={handleAnalyzeFolderClick}
+                        selectedPath={selectedFile}
+                        ops={fileOps}
+                      />
+                    </div>
+                    <PackagesPanel
+                      projectId={projectId}
+                      fileTree={project.tree}
+                      onRunCommand={(cmd) => {
+                        handleRunCommand(cmd);
+                        setTerminalOpen(true);
+                      }}
                     />
                   </div>
-                  <PackagesPanel
-                    projectId={projectId}
-                    fileTree={project.tree}
-                    onRunCommand={(cmd) => {
-                      handleRunCommand(cmd);
-                      setTerminalOpen(true);
-                    }}
-                  />
                 </ResizablePanel>
+
                 <ResizableHandle className="bg-border w-[1px] hover:w-1 hover:bg-primary/50 transition-all" />
-                <ResizablePanel defaultSize={50} minSize={30}>
+
+                {/* Code / Preview panel */}
+                <ResizablePanel defaultSize={52} minSize={30}>
                   <DesktopCodePreview
                     projectId={projectId}
                     fileContent={fileContent}
@@ -419,7 +422,10 @@ export default function ProjectExplorer() {
                     onRunBuild={(cmd) => { handleRunCommand(cmd); setTerminalOpen(true); }}
                   />
                 </ResizablePanel>
+
                 <ResizableHandle className="bg-border w-[1px] hover:w-1 hover:bg-primary/50 transition-all" />
+
+                {/* AI Panel */}
                 <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
                   <AiPanel
                     projectId={projectId}
@@ -428,9 +434,11 @@ export default function ProjectExplorer() {
                     onRunCommand={handleRunCommand}
                   />
                 </ResizablePanel>
+
               </ResizablePanelGroup>
             </ResizablePanel>
 
+            {/* Terminal panel */}
             {terminalOpen && (
               <>
                 <ResizableHandle className="bg-border h-[1px] hover:h-1 hover:bg-green-500/50 transition-all" />
@@ -462,7 +470,7 @@ export default function ProjectExplorer() {
   );
 }
 
-// ─── Desktop: Code/Preview toggle panel ──────────────────────────────────────
+// ─── Desktop: Code / Preview tab switcher ────────────────────────────────────
 
 function DesktopCodePreview({
   projectId,
@@ -532,6 +540,7 @@ function DesktopCodePreview({
             onBack={onBack}
             onForward={onForward}
             onPreview={handlePreview}
+            projectId={projectId}
           />
         ) : (
           <PreviewPanel
@@ -545,9 +554,9 @@ function DesktopCodePreview({
   );
 }
 
-// ─── Mobile Tab Button ───────────────────────────────────────────────────────
+// ─── Mobile Tab Button ────────────────────────────────────────────────────────
 
-function MobileTab({
+function MobileTabButton({
   label,
   icon,
   active,
