@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, projectsTable, settingsTable } from "@workspace/db";
 import { AnalyzeFileBody, AnalyzeFolderBody, AiChatBody } from "@workspace/api-zod";
 import { isBinaryFile, detectLanguage } from "../lib/storage.js";
+import { ensureProjectOnDisk } from "../lib/persistFiles.js";
 import path from "path";
 import fs from "fs/promises";
 
@@ -12,6 +13,9 @@ async function buildProjectContext(projectId: string): Promise<{ text: string; f
   const rows = await db.select().from(projectsTable).where(eq(projectsTable.id, numId)).limit(1);
   const project = rows[0];
   if (!project) throw new Error("Projeto não encontrado");
+
+  // Restore from DB if /tmp was wiped
+  await ensureProjectOnDisk(project.id, project.storagePath);
 
   const projectDir = project.storagePath;
   const parts: string[] = [];
@@ -87,7 +91,7 @@ async function callAi(
     body: JSON.stringify({
       model,
       messages,
-      max_tokens: 2000,
+      max_tokens: 8000,
     }),
   });
 
@@ -137,14 +141,17 @@ conteúdo completo do arquivo aqui
 2. DELETAR arquivo:
 <codelens-delete path="caminho/do/arquivo.ts"/>
 
-3. SUGERIR COMANDO para o terminal (npm, pip, git, etc.):
+3. SUGERIR COMANDO para o terminal (npm install, git, node, etc.):
 <codelens-exec>npm install axios</codelens-exec>
 
-Regras:
-- Caminhos relativos à raiz, sem / inicial
-- Conteúdo COMPLETO no bloco write, nunca parcial
-- Pode combinar múltiplos blocos em uma resposta
-- Fora dos blocos, explique em português o que está fazendo`;
+REGRAS IMPORTANTES:
+- Caminhos sempre relativos à raiz do projeto, sem / inicial
+- Conteúdo COMPLETO no bloco write (nunca use "..." ou "resto do código aqui")
+- Pode combinar múltiplos blocos write + exec em uma única resposta
+- Para instalar pacotes: use <codelens-exec>npm install nome-do-pacote</codelens-exec>
+- Para banco de dados: SQLite usa "better-sqlite3" ou "drizzle-orm", Postgres usa "pg" ou "drizzle-orm/node-postgres"
+- Explique em PORTUGUÊS o que você está fazendo antes de cada bloco
+- Quando houver múltiplas etapas (instalar + criar arquivo + configurar), faça tudo em sequência na mesma resposta`;
 
   if (projectContext && projectId) {
     try {

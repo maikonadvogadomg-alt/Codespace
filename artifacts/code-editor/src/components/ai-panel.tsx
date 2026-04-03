@@ -356,13 +356,43 @@ const CONTEXT_ICONS: Record<ContextMode, React.ReactNode> = {
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
+// Read active AI profile name from localStorage
+function useActiveModel(): string {
+  const [model, setModel] = useState<string>(() => {
+    try {
+      const profiles = JSON.parse(localStorage.getItem("codelens_ai_profiles") ?? "[]");
+      const slot = parseInt(localStorage.getItem("codelens_ai_active_slot") ?? "0", 10);
+      return profiles[slot]?.model ?? "";
+    } catch { return ""; }
+  });
+  useEffect(() => {
+    const update = () => {
+      try {
+        const profiles = JSON.parse(localStorage.getItem("codelens_ai_profiles") ?? "[]");
+        const slot = parseInt(localStorage.getItem("codelens_ai_active_slot") ?? "0", 10);
+        setModel(profiles[slot]?.model ?? "");
+      } catch { setModel(""); }
+    };
+    window.addEventListener("storage", update);
+    window.addEventListener("codelens-settings-saved", update);
+    return () => { window.removeEventListener("storage", update); window.removeEventListener("codelens-settings-saved", update); };
+  }, []);
+  return model;
+}
+
+const CONTEXT_STORAGE_KEY = "codelens_ai_context_mode";
+
 export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand, terminalLog }: AiPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [contextMode, setContextMode] = useState<ContextMode>("none");
+  const [contextMode, setContextMode] = useState<ContextMode>(() => {
+    const saved = localStorage.getItem(CONTEXT_STORAGE_KEY) as ContextMode | null;
+    return saved ?? "project";
+  });
   const [lastExternalId, setLastExternalId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const activeModel = useActiveModel();
 
   const { listening, toggle: toggleVoice } = useVoice((text) => {
     setInput((prev) => (prev ? prev + " " + text : text));
@@ -398,8 +428,14 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
     }
   }, [externalMessage]);
 
+  // Persist context mode choice
+  const changeContextMode = (mode: ContextMode) => {
+    setContextMode(mode);
+    localStorage.setItem(CONTEXT_STORAGE_KEY, mode);
+  };
+
   useEffect(() => {
-    if (contextMode === "file" && !fileContext) setContextMode("none");
+    if (contextMode === "file" && !fileContext) changeContextMode("project");
   }, [fileContext, contextMode]);
 
   // Build terminal context string from last N entries (only if there's any output)
@@ -459,7 +495,13 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
       {/* Header */}
       <div className="h-10 shrink-0 border-b border-border bg-background/50 flex items-center px-3 gap-2">
         <Sparkles className="w-4 h-4 text-primary" />
-        <span className="text-sm font-medium text-foreground flex-1">Chat IA</span>
+        <span className="text-sm font-medium text-foreground">Chat IA</span>
+        {activeModel && (
+          <span className="text-[10px] text-muted-foreground bg-muted/60 rounded px-1.5 py-0.5 truncate max-w-[120px]" title={activeModel}>
+            {activeModel}
+          </span>
+        )}
+        <span className="flex-1" />
         {messages.length > 0 && (
           <Button
             variant="ghost"
@@ -557,7 +599,7 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
             {availableModes.map((mode) => (
               <DropdownMenuItem
                 key={mode}
-                onClick={() => setContextMode(mode)}
+                onClick={() => changeContextMode(mode)}
                 className={cn("gap-2 text-xs", contextMode === mode && "bg-accent")}
               >
                 {CONTEXT_ICONS[mode]}
