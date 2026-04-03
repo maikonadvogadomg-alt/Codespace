@@ -4,6 +4,7 @@ import {
   RefreshCw,
   ExternalLink,
   Play,
+  Square,
   Loader2,
   Smartphone,
   Tablet,
@@ -13,6 +14,11 @@ import {
   Hammer,
   Zap,
   CheckCircle2,
+  Server,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
+  Terminal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +27,16 @@ interface PreviewStatus {
   entry: string | null;
 }
 
+interface DevServerStatus {
+  running: boolean;
+  port: number | null;
+  status: "starting" | "running" | "error" | "stopped";
+  command?: string;
+  log?: string;
+}
+
 type Viewport = "desktop" | "tablet" | "mobile";
+type PreviewMode = "static" | "live";
 
 const VIEWPORT_WIDTHS: Record<Viewport, string> = {
   desktop: "100%",
@@ -36,59 +51,215 @@ interface PreviewPanelProps {
 }
 
 export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPanelProps) {
-  const [status, setStatus] = useState<PreviewStatus | null>(null);
+  const [staticStatus, setStaticStatus] = useState<PreviewStatus | null>(null);
+  const [devStatus, setDevStatus] = useState<DevServerStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [iframeKey, setIframeKey] = useState(0);
   const [viewport, setViewport] = useState<Viewport>("desktop");
+  const [mode, setMode] = useState<PreviewMode>("live");
+  const [startingServer, setStartingServer] = useState(false);
+  const [showLog, setShowLog] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const base = (import.meta.env.BASE_URL ?? "").replace(/\/$/, "");
-  const previewBase = `${base}/api/projects/${projectId}/preview`;
 
-  const fetchStatus = useCallback(async () => {
-    setLoading(true);
+  // ── Fetch static preview status ──────────────────────────────────────────
+  const fetchStaticStatus = useCallback(async () => {
     try {
       const res = await fetch(`${base}/api/projects/${projectId}/preview/status`);
-      const data: PreviewStatus = await res.json();
-      setStatus(data);
+      setStaticStatus(await res.json());
     } catch {
-      setStatus({ ready: false, entry: null });
-    } finally {
-      setLoading(false);
+      setStaticStatus({ ready: false, entry: null });
     }
   }, [projectId, base]);
 
-  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+  // ── Fetch dev server status ───────────────────────────────────────────────
+  const fetchDevStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${base}/api/projects/${projectId}/dev-server/status`);
+      const data: DevServerStatus = await res.json();
+      setDevStatus(data);
+      return data;
+    } catch {
+      return null;
+    }
+  }, [projectId, base]);
+
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true);
+      await Promise.all([fetchStaticStatus(), fetchDevStatus()]);
+      setLoading(false);
+    };
+    init();
+  }, [fetchStaticStatus, fetchDevStatus]);
+
+  // Poll dev server status while starting
+  useEffect(() => {
+    if (!startingServer) return;
+    const interval = setInterval(async () => {
+      const s = await fetchDevStatus();
+      if (s && (s.status === "running" || s.status === "error" || !s.running)) {
+        setStartingServer(false);
+        if (s.status === "running") setIframeKey((k) => k + 1);
+        clearInterval(interval);
+      }
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [startingServer, fetchDevStatus]);
+
   useEffect(() => { setIframeKey((k) => k + 1); }, [previewPath]);
 
-  const reload = () => {
-    fetchStatus();
+  // ── Actions ──────────────────────────────────────────────────────────────
+  const startServer = async () => {
+    setStartingServer(true);
+    try {
+      const res = await fetch(`${base}/api/projects/${projectId}/dev-server/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data: DevServerStatus & { port?: number } = await res.json();
+      setDevStatus({ running: true, port: data.port ?? null, status: data.status ?? "starting" });
+      if (data.status === "running" && data.port) {
+        setStartingServer(false);
+        setIframeKey((k) => k + 1);
+      }
+    } catch {
+      setStartingServer(false);
+    }
+  };
+
+  const stopServer = async () => {
+    await fetch(`${base}/api/projects/${projectId}/dev-server/stop`, { method: "DELETE" });
+    setDevStatus({ running: false, port: null, status: "stopped" });
     setIframeKey((k) => k + 1);
   };
 
-  const isFilePreview = !!previewPath;
-  const iframeUrl = isFilePreview
-    ? `${previewBase}/${previewPath.replace(/^\//, "")}`
-    : `${previewBase}/`;
+  const reload = () => {
+    fetchStaticStatus();
+    fetchDevStatus();
+    setIframeKey((k) => k + 1);
+  };
 
-  const entryLabel = isFilePreview ? previewPath : (status?.entry ?? null);
-  const canShow = isFilePreview || status?.ready;
+  // ── Compute iframe URL ───────────────────────────────────────────────────
+  const isFilePreview = !!previewPath;
+
+  let iframeUrl = "";
+  if (mode === "live" && devStatus?.port) {
+    const livePath = isFilePreview ? previewPath.replace(/^\//, "") : "";
+    iframeUrl = `${base}/api/projects/${projectId}/dev-proxy/${livePath}`;
+  } else {
+    const staticPath = isFilePreview
+      ? previewPath.replace(/^\//, "")
+      : "";
+    iframeUrl = `${base}/api/projects/${projectId}/preview/${staticPath}`;
+  }
+
+  const isServerRunning = devStatus?.status === "running" && devStatus?.port;
+  const isServerStarting = startingServer || devStatus?.status === "starting";
+  const canShowIframe = mode === "live"
+    ? (isServerRunning !== null && isServerRunning !== undefined && isServerRunning !== false)
+    : (isFilePreview || staticStatus?.ready);
 
   return (
     <div className="h-full w-full flex flex-col bg-[#0d1117]">
       {/* Toolbar */}
       <div className="h-10 shrink-0 border-b border-[#30363d] bg-[#161b22] flex items-center px-3 gap-2">
         <Monitor className="w-4 h-4 text-[#8b949e] shrink-0" />
-        <span className="text-xs font-semibold text-[#8b949e] uppercase tracking-wider flex-1">
-          Preview
-        </span>
 
-        {isFilePreview && (
-          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 text-[10px] text-blue-400 font-mono truncate max-w-[160px]">
-            <Eye className="w-2.5 h-2.5 shrink-0" />
-            {previewPath.split("/").pop()}
-          </span>
+        {/* Mode toggle */}
+        <div className="flex items-center gap-0.5 bg-[#0d1117] rounded p-0.5">
+          <button
+            onClick={() => setMode("live")}
+            className={cn(
+              "flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+              mode === "live"
+                ? "bg-[#30363d] text-[#e6edf3]"
+                : "text-[#8b949e] hover:text-[#e6edf3]"
+            )}
+            title="Servidor ao vivo (npm run dev / npm start)"
+          >
+            <Server className="w-3 h-3" />
+            Ao Vivo
+          </button>
+          <button
+            onClick={() => setMode("static")}
+            className={cn(
+              "flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+              mode === "static"
+                ? "bg-[#30363d] text-[#e6edf3]"
+                : "text-[#8b949e] hover:text-[#e6edf3]"
+            )}
+            title="Preview estático (HTML ou build)"
+          >
+            <FileCode className="w-3 h-3" />
+            Build
+          </button>
+        </div>
+
+        <div className="w-px h-4 bg-[#30363d]" />
+
+        {/* Server start/stop */}
+        {mode === "live" && (
+          <>
+            {isServerRunning ? (
+              <button
+                onClick={stopServer}
+                className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30 transition-colors"
+                title="Parar servidor"
+              >
+                <Square className="w-3 h-3" />
+                Parar
+              </button>
+            ) : (
+              <button
+                onClick={startServer}
+                disabled={isServerStarting}
+                className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30 transition-colors disabled:opacity-60"
+                title="Iniciar servidor de desenvolvimento"
+              >
+                {isServerStarting ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Play className="w-3 h-3" />
+                )}
+                {isServerStarting ? "Iniciando…" : "Iniciar"}
+              </button>
+            )}
+
+            {/* Server status indicator */}
+            <span className={cn(
+              "text-[10px] flex items-center gap-1",
+              isServerRunning ? "text-green-400" : isServerStarting ? "text-yellow-400" : "text-[#8b949e]"
+            )}>
+              {isServerRunning ? <Wifi className="w-3 h-3" /> : isServerStarting ? <Loader2 className="w-3 h-3 animate-spin" /> : <WifiOff className="w-3 h-3" />}
+              {isServerRunning ? `porta ${devStatus!.port}` : isServerStarting ? "aguardando…" : "parado"}
+            </span>
+
+            {devStatus?.log && (
+              <button
+                onClick={() => setShowLog((v) => !v)}
+                className="text-[10px] text-[#8b949e] hover:text-[#e6edf3] transition-colors"
+                title="Ver log do servidor"
+              >
+                <Terminal className="w-3 h-3" />
+              </button>
+            )}
+          </>
         )}
+
+        {mode === "static" && onRunBuild && !staticStatus?.ready && !isFilePreview && (
+          <button
+            onClick={() => onRunBuild("npm install && npm run build")}
+            className="flex items-center gap-1.5 px-2 py-1 rounded text-[10px] bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 transition-colors"
+          >
+            <Zap className="w-3 h-3" />
+            Build
+          </button>
+        )}
+
+        <span className="flex-1" />
 
         {/* Viewport switcher */}
         <div className="flex items-center gap-0.5 bg-[#0d1117] rounded px-0.5 py-0.5">
@@ -102,7 +273,7 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
                   "p-1 rounded transition-colors",
                   viewport === v ? "bg-[#30363d] text-[#e6edf3]" : "text-[#8b949e] hover:text-[#e6edf3]"
                 )}
-                title={v.charAt(0).toUpperCase() + v.slice(1)}
+                title={v}
               >
                 <Icon className="w-3.5 h-3.5" />
               </button>
@@ -112,26 +283,15 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
 
         <div className="w-px h-4 bg-[#30363d]" />
 
-        {onRunBuild && !status?.ready && !isFilePreview && (
-          <button
-            onClick={() => onRunBuild("npm run build")}
-            className="flex items-center gap-1.5 px-2 py-1 rounded text-[10px] bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 transition-colors"
-            title="Executar build"
-          >
-            <Play className="w-3 h-3" />
-            Build
-          </button>
-        )}
-
         <button
           onClick={reload}
           className="p-1.5 rounded text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#30363d] transition-colors"
-          title="Recarregar preview"
+          title="Recarregar"
         >
           <RefreshCw className="w-3.5 h-3.5" />
         </button>
 
-        {canShow && (
+        {canShowIframe && (
           <button
             onClick={() => window.open(iframeUrl, "_blank")}
             className="p-1.5 rounded text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#30363d] transition-colors"
@@ -142,183 +302,266 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
         )}
       </div>
 
-      {/* Entry file indicator */}
-      {entryLabel && (
+      {/* Server log panel */}
+      {showLog && devStatus?.log && (
+        <div className="shrink-0 max-h-32 overflow-auto bg-[#0d1117] border-b border-[#30363d] p-2">
+          <pre className="text-[10px] text-[#8b949e] whitespace-pre-wrap">{devStatus.log}</pre>
+        </div>
+      )}
+
+      {/* File entry label */}
+      {mode === "static" && (staticStatus?.entry || isFilePreview) && (
         <div className="shrink-0 px-3 py-1 bg-[#161b22] border-b border-[#30363d] flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
-          <span className="text-[10px] text-[#8b949e] font-mono truncate">{entryLabel}</span>
+          <span className="text-[10px] text-[#8b949e] font-mono truncate">
+            {isFilePreview ? previewPath : staticStatus!.entry}
+          </span>
         </div>
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-auto flex items-start justify-center bg-[#1a1f26] p-0">
-        {loading && !isFilePreview ? (
+      <div className="flex-1 overflow-auto flex items-start justify-center bg-[#1a1f26]">
+        {loading ? (
           <div className="flex-1 h-full flex items-center justify-center">
             <Loader2 className="w-6 h-6 animate-spin text-[#8b949e]" />
           </div>
-        ) : !canShow ? (
-          <EmptyState onRunBuild={onRunBuild} onReload={reload} />
-        ) : (
-          <div
-            className={cn(
-              "h-full bg-white transition-all duration-300",
-              viewport === "desktop" ? "w-full" : "shadow-2xl"
-            )}
-            style={{
-              width: VIEWPORT_WIDTHS[viewport],
-              minWidth: viewport !== "desktop" ? VIEWPORT_WIDTHS[viewport] : undefined,
-            }}
-          >
-            <iframe
-              key={iframeKey}
-              ref={iframeRef}
-              src={iframeUrl}
-              className="w-full h-full border-0"
-              title="Project Preview"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+        ) : mode === "live" ? (
+          isServerRunning ? (
+            <IframeView
+              url={iframeUrl}
+              iframeKey={iframeKey}
+              iframeRef={iframeRef}
+              viewport={viewport}
             />
-          </div>
+          ) : (
+            <LiveEmptyState
+              isStarting={isServerStarting}
+              status={devStatus}
+              onStart={startServer}
+            />
+          )
+        ) : (
+          canShowIframe ? (
+            <IframeView
+              url={iframeUrl}
+              iframeKey={iframeKey}
+              iframeRef={iframeRef}
+              viewport={viewport}
+            />
+          ) : (
+            <StaticEmptyState onRunBuild={onRunBuild} onReload={reload} />
+          )
         )}
       </div>
     </div>
   );
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
+// ─── Iframe view ──────────────────────────────────────────────────────────────
+function IframeView({
+  url,
+  iframeKey,
+  iframeRef,
+  viewport,
+}: {
+  url: string;
+  iframeKey: number;
+  iframeRef: React.RefObject<HTMLIFrameElement | null>;
+  viewport: Viewport;
+}) {
+  return (
+    <div
+      className={cn(
+        "h-full bg-white transition-all duration-300",
+        viewport === "desktop" ? "w-full" : "shadow-2xl"
+      )}
+      style={{
+        width: VIEWPORT_WIDTHS[viewport],
+        minWidth: viewport !== "desktop" ? VIEWPORT_WIDTHS[viewport] : undefined,
+      }}
+    >
+      <iframe
+        key={iframeKey}
+        ref={iframeRef}
+        src={url}
+        className="w-full h-full border-0"
+        title="Project Preview"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+      />
+    </div>
+  );
+}
 
-function EmptyState({
+// ─── Live empty state ─────────────────────────────────────────────────────────
+function LiveEmptyState({
+  isStarting,
+  status,
+  onStart,
+}: {
+  isStarting: boolean;
+  status: DevServerStatus | null;
+  onStart: () => void;
+}) {
+  return (
+    <div className="flex-1 h-full flex flex-col items-center justify-center gap-4 text-[#8b949e] px-6 text-center max-w-sm mx-auto">
+      <div className={cn(
+        "w-12 h-12 rounded-full flex items-center justify-center",
+        isStarting ? "bg-yellow-500/10" : "bg-[#30363d]"
+      )}>
+        {isStarting ? (
+          <Loader2 className="w-6 h-6 text-yellow-400 animate-spin" />
+        ) : (
+          <Server className="w-6 h-6 opacity-40" />
+        )}
+      </div>
+
+      {isStarting ? (
+        <>
+          <div>
+            <p className="text-sm font-semibold text-yellow-400 mb-1">Iniciando servidor…</p>
+            <p className="text-xs text-[#8b949e]">
+              Aguardando o servidor responder. Pode levar alguns segundos.
+            </p>
+          </div>
+        </>
+      ) : status?.status === "error" ? (
+        <>
+          <div>
+            <p className="text-sm font-semibold text-red-400 mb-1">Erro ao iniciar servidor</p>
+            <p className="text-xs text-[#8b949e]">
+              Verifique o terminal para mais detalhes.
+            </p>
+          </div>
+          <button
+            onClick={onStart}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30 text-xs font-medium transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Tentar novamente
+          </button>
+        </>
+      ) : (
+        <>
+          <div>
+            <p className="text-sm font-semibold text-[#c9d1d9] mb-1">Servidor parado</p>
+            <p className="text-xs text-[#8b949e] leading-relaxed">
+              Clique em <strong className="text-green-400">Iniciar</strong> para rodar o servidor do projeto e ver o resultado ao vivo.
+            </p>
+          </div>
+          <div className="w-full space-y-2 text-left text-[11px]">
+            <div className="bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2.5">
+              <p className="text-[#8b949e] mb-1">Funciona para:</p>
+              <ul className="text-[#c9d1d9] space-y-0.5">
+                <li className="flex items-center gap-1.5"><span className="text-green-400">✓</span> Node.js / Express</li>
+                <li className="flex items-center gap-1.5"><span className="text-green-400">✓</span> React + Vite (dev)</li>
+                <li className="flex items-center gap-1.5"><span className="text-green-400">✓</span> Next.js, Vue, Angular</li>
+                <li className="flex items-center gap-1.5"><span className="text-green-400">✓</span> Qualquer <code>npm start</code></li>
+              </ul>
+            </div>
+          </div>
+          <button
+            onClick={onStart}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30 text-sm font-semibold transition-colors"
+          >
+            <Play className="w-4 h-4" />
+            Iniciar Servidor
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Static empty state ───────────────────────────────────────────────────────
+function StaticEmptyState({
   onRunBuild,
   onReload,
 }: {
   onRunBuild?: (cmd: string) => void;
   onReload: () => void;
 }) {
-  const [installing, setInstalling] = useState(false);
   const [buildStep, setBuildStep] = useState<"idle" | "installing" | "building" | "done">("idle");
 
-  const runInstallAndBuild = async () => {
+  const runInstallAndBuild = () => {
     if (!onRunBuild) return;
     setBuildStep("installing");
-    setInstalling(true);
-    // Run npm install first (via terminal panel through onRunBuild)
-    // We chain the commands with &&
     onRunBuild("npm install && npm run build");
-    // Show progress UI for 30 seconds then reset
-    setTimeout(() => {
-      setBuildStep("building");
-    }, 8000);
-    setTimeout(() => {
-      setBuildStep("done");
-      setInstalling(false);
-      onReload();
-    }, 60000);
+    setTimeout(() => setBuildStep("building"), 10_000);
+    setTimeout(() => { setBuildStep("done"); onReload(); }, 60_000);
   };
 
   return (
-    <div className="flex-1 h-full flex flex-col items-center justify-center gap-5 text-[#8b949e] px-6 text-center max-w-sm mx-auto">
+    <div className="flex-1 h-full flex flex-col items-center justify-center gap-4 text-[#8b949e] px-6 text-center max-w-sm mx-auto">
       <Monitor className="w-10 h-10 opacity-20" />
 
       <div>
-        <p className="text-sm font-medium text-[#c9d1d9] mb-1">Preview não disponível</p>
+        <p className="text-sm font-semibold text-[#c9d1d9] mb-1">Build não encontrado</p>
         <p className="text-xs text-[#8b949e]">
-          O projeto ainda não tem um arquivo HTML pronto para exibir.
+          Nenhum <code>index.html</code> ou pasta <code>dist/</code> encontrada.
         </p>
       </div>
 
-      {/* Per-type quick actions */}
       <div className="w-full space-y-2 text-left">
-        {/* HTML direto */}
-        <div className="bg-[#161b22] border border-[#30363d] rounded-lg px-4 py-3 space-y-1.5">
-          <div className="flex items-center gap-2">
-            <FileCode className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-            <span className="text-xs font-semibold text-[#c9d1d9]">HTML / CSS / JS puro</span>
-          </div>
-          <p className="text-[11px] text-[#8b949e] leading-relaxed">
-            Abra o arquivo <code className="text-orange-300">.html</code> no editor — o botão{" "}
-            <span className="text-blue-400 font-medium">👁 Visualizar</span> aparece na barra superior do código.
-          </p>
-        </div>
-
-        {/* React / Vite com botão */}
-        <div className="bg-[#161b22] border border-[#30363d] rounded-lg px-4 py-3 space-y-2">
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2.5 space-y-1.5">
           <div className="flex items-center gap-2">
             <FileCode className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-            <span className="text-xs font-semibold text-[#c9d1d9]">React / Vite / Vue / Angular</span>
+            <span className="text-xs font-semibold text-[#c9d1d9]">React / Vite / Vue</span>
           </div>
-          <p className="text-[11px] text-[#8b949e] leading-relaxed">
-            Precisa instalar as dependências e fazer o build antes de visualizar.
-            Clique no botão abaixo — pode demorar alguns minutos:
-          </p>
-
           {onRunBuild && (
             <div className="space-y-1.5">
               {buildStep === "idle" && (
                 <button
                   onClick={runInstallAndBuild}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 transition-colors text-xs font-medium"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 text-xs font-medium transition-colors"
                 >
                   <Zap className="w-3.5 h-3.5" />
-                  Instalar dependências + Build
+                  npm install + npm run build
                 </button>
               )}
-
               {buildStep === "installing" && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-[11px] text-yellow-400">
+                <div className="flex items-center gap-2 px-3 py-2 rounded bg-yellow-500/10 border border-yellow-500/20 text-[11px] text-yellow-400">
                   <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                  Instalando pacotes (npm install)… pode demorar 2-5 min
+                  Instalando pacotes… pode demorar
                 </div>
               )}
               {buildStep === "building" && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-400">
+                <div className="flex items-center gap-2 px-3 py-2 rounded bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-400">
                   <Hammer className="w-3.5 h-3.5 animate-bounce shrink-0" />
-                  Fazendo build do projeto...
+                  Fazendo build…
                 </div>
               )}
               {buildStep === "done" && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-[11px] text-green-400">
+                <div className="flex items-center gap-2 px-3 py-2 rounded bg-green-500/10 border border-green-500/20 text-[11px] text-green-400">
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                  Concluído! Verificando preview...
+                  Concluído!
                 </div>
               )}
-
               <div className="flex gap-1.5">
-                <button
-                  onClick={() => onRunBuild("npm install")}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded bg-[#30363d] hover:bg-[#3a4048] text-[10px] text-[#8b949e] hover:text-[#e6edf3] transition-colors border border-[#444c56]"
-                >
-                  <Package className="w-3 h-3" />
-                  npm install
+                <button onClick={() => onRunBuild("npm install")} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#30363d] hover:bg-[#3a4048] text-[10px] text-[#8b949e] hover:text-[#e6edf3] transition-colors border border-[#444c56]">
+                  <Package className="w-3 h-3" /> npm install
                 </button>
-                <button
-                  onClick={() => onRunBuild("npm run build")}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded bg-[#30363d] hover:bg-[#3a4048] text-[10px] text-[#8b949e] hover:text-[#e6edf3] transition-colors border border-[#444c56]"
-                >
-                  <Hammer className="w-3 h-3" />
-                  npm run build
+                <button onClick={() => onRunBuild("npm run build")} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#30363d] hover:bg-[#3a4048] text-[10px] text-[#8b949e] hover:text-[#e6edf3] transition-colors border border-[#444c56]">
+                  <Hammer className="w-3 h-3" /> npm run build
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Python / Node */}
-        <div className="bg-[#161b22] border border-[#30363d] rounded-lg px-4 py-3 space-y-1">
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2.5 space-y-1">
           <div className="flex items-center gap-2">
-            <FileCode className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
-            <span className="text-xs font-semibold text-[#c9d1d9]">Python / Node (servidor)</span>
+            <FileCode className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+            <span className="text-xs font-semibold text-[#c9d1d9]">HTML / CSS / JS puro</span>
           </div>
-          <p className="text-[11px] text-[#8b949e] leading-relaxed">
-            Use o terminal para iniciar o servidor. O preview só mostra conteúdo estático.
+          <p className="text-[11px] text-[#8b949e]">
+            Abra o arquivo <code className="text-orange-300">.html</code> — o botão <span className="text-blue-400 font-medium">👁 Visualizar</span> aparece na barra do editor.
           </p>
         </div>
       </div>
 
-      <button
-        onClick={onReload}
-        className="flex items-center gap-2 px-3 py-1.5 rounded bg-[#30363d] text-[#8b949e] hover:text-[#e6edf3] text-xs transition-colors"
-      >
+      <button onClick={onReload} className="flex items-center gap-2 px-3 py-1.5 rounded bg-[#30363d] text-[#8b949e] hover:text-[#e6edf3] text-xs transition-colors">
         <RefreshCw className="w-3.5 h-3.5" />
-        Verificar preview novamente
+        Verificar novamente
       </button>
     </div>
   );
