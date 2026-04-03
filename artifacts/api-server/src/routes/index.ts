@@ -7,6 +7,7 @@ import execRouter from "./exec";
 import aiRouter from "./ai";
 import githubRouter from "./github";
 import settingsRouter from "./settings";
+import previewRouter from "./preview";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(execRouter);
 router.use(aiRouter);
 router.use(githubRouter);
 router.use(settingsRouter);
+router.use(previewRouter);
 
 export default router;

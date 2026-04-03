@@ -172,6 +172,9 @@ importers:
       '@types/adm-zip':
         specifier: ^0.5.8
         version: 0.5.8
+      '@types/mime-types':
+        specifier: ^3.0.1
+        version: 3.0.1
       '@types/multer':
         specifier: ^2.1.0
         version: 2.1.0
@@ -196,6 +199,9 @@ importers:
       express:
         specifier: ^5
         version: 5.2.1
+      mime-types:
+        specifier: ^3.0.2
+        version: 3.0.2
       multer:
         specifier: ^2.1.1
         version: 2.1.1
@@ -1750,6 +1756,9 @@ packages:
 
   '@types/http-errors@2.0.5':
     resolution: {integrity: sha512-r8Tayk8HJnX0FztbZN7oVqGccWgw98T/0neJphO91KkmOzug1KkofZURD4UaD5uH8AqcFLfdPErnBod0u71/qg==}
+
+  '@types/mime-types@3.0.1':
+    resolution: {integrity: sha512-xRMsfuQbnRq1Ef+C+RKaENOxXX87Ygl38W1vDfPHRku02TgQr+Qd8iivLtAMcR0KF5/29xlnFihkTlbqFrGOVQ==}
 
   '@types/multer@2.1.0':
     resolution: {integrity: sha512-zYZb0+nJhOHtPpGDb3vqPjwpdeGlGC157VpkqNQL+UU2qwoacoQ7MpsAmUptI/0Oa127X32JzWDqQVEXp2RcIA==}
@@ -4576,6 +4585,8 @@ snapshots:
       '@types/unist': 3.0.3
 
   '@types/http-errors@2.0.5': {}
+
+  '@types/mime-types@3.0.1': {}
 
   '@types/multer@2.1.0':
     dependencies:

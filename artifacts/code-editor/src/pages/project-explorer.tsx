@@ -5,6 +5,7 @@ import {
   useGetFileContent,
   getGetProjectQueryKey,
   getGetFileContentQueryKey,
+  type FileContent,
 } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { FileTree } from "@/components/file-tree";
@@ -13,6 +14,7 @@ import { CodeViewer } from "@/components/code-viewer";
 import { AiPanel } from "@/components/ai-panel";
 import { TerminalPanel } from "@/components/terminal-panel";
 import { PackagesPanel } from "@/components/packages-panel";
+import { PreviewPanel } from "@/components/preview-panel";
 import { GithubDeployModal } from "@/components/github-deploy-modal";
 import {
   ResizableHandle,
@@ -31,6 +33,7 @@ import {
   Sparkles,
   FilePlus,
   FolderPlus,
+  Monitor,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -38,7 +41,7 @@ import { cn } from "@/lib/utils";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 type ContextMode = "none" | "file" | "project";
-type MobileTab = "files" | "code" | "ai" | "terminal";
+type MobileTab = "files" | "code" | "preview" | "ai" | "terminal";
 
 export default function ProjectExplorer() {
   const params = useParams();
@@ -261,6 +264,14 @@ export default function ProjectExplorer() {
               />
             </div>
 
+            {/* Preview tab */}
+            <div className={cn("h-full", mobileTab !== "preview" && "hidden")}>
+              <PreviewPanel
+                projectId={projectId}
+                onRunBuild={(cmd) => { handleRunCommand(cmd); setMobileTab("terminal"); }}
+              />
+            </div>
+
             {/* Terminal tab */}
             <div className={cn("h-full", mobileTab !== "terminal" && "hidden")}>
               <TerminalPanel
@@ -284,6 +295,12 @@ export default function ProjectExplorer() {
               active={mobileTab === "code"}
               onClick={() => setMobileTab("code")}
               badge={selectedFile ? selectedFile.split("/").pop() : undefined}
+            />
+            <MobileTab
+              label="Preview"
+              icon={<Monitor className="w-5 h-5" />}
+              active={mobileTab === "preview"}
+              onClick={() => setMobileTab("preview")}
             />
             <MobileTab
               label="IA"
@@ -388,13 +405,15 @@ export default function ProjectExplorer() {
                 </ResizablePanel>
                 <ResizableHandle className="bg-border w-[1px] hover:w-1 hover:bg-primary/50 transition-all" />
                 <ResizablePanel defaultSize={50} minSize={30}>
-                  <CodeViewer
-                    file={fileContent}
-                    isLoading={isFileLoading && !!selectedFile}
+                  <DesktopCodePreview
+                    projectId={projectId}
+                    fileContent={fileContent}
+                    isFileLoading={isFileLoading && !!selectedFile}
                     canGoBack={canGoBack}
                     canGoForward={canGoForward}
                     onBack={navigateBack}
                     onForward={navigateForward}
+                    onRunBuild={(cmd) => { handleRunCommand(cmd); setTerminalOpen(true); }}
                   />
                 </ResizablePanel>
                 <ResizableHandle className="bg-border w-[1px] hover:w-1 hover:bg-primary/50 transition-all" />
@@ -437,6 +456,78 @@ export default function ProjectExplorer() {
         defaultName={project.name}
       />
     </AppLayout>
+  );
+}
+
+// ─── Desktop: Code/Preview toggle panel ──────────────────────────────────────
+
+function DesktopCodePreview({
+  projectId,
+  fileContent,
+  isFileLoading,
+  canGoBack,
+  canGoForward,
+  onBack,
+  onForward,
+  onRunBuild,
+}: {
+  projectId: string;
+  fileContent: FileContent | undefined;
+  isFileLoading: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  onBack: () => void;
+  onForward: () => void;
+  onRunBuild: (cmd: string) => void;
+}) {
+  const [view, setView] = React.useState<"code" | "preview">("code");
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Tab switcher */}
+      <div className="h-8 shrink-0 flex border-b border-[#30363d] bg-[#161b22]">
+        <button
+          onClick={() => setView("code")}
+          className={cn(
+            "px-4 text-xs font-medium transition-colors flex items-center gap-1.5",
+            view === "code"
+              ? "text-[#e6edf3] border-b-2 border-primary -mb-px"
+              : "text-[#8b949e] hover:text-[#c9d1d9]"
+          )}
+        >
+          <Code2 className="w-3 h-3" />
+          Código
+        </button>
+        <button
+          onClick={() => setView("preview")}
+          className={cn(
+            "px-4 text-xs font-medium transition-colors flex items-center gap-1.5",
+            view === "preview"
+              ? "text-[#e6edf3] border-b-2 border-primary -mb-px"
+              : "text-[#8b949e] hover:text-[#c9d1d9]"
+          )}
+        >
+          <Monitor className="w-3 h-3" />
+          Preview
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-hidden">
+        {view === "code" ? (
+          <CodeViewer
+            file={fileContent}
+            isLoading={isFileLoading}
+            canGoBack={canGoBack}
+            canGoForward={canGoForward}
+            onBack={onBack}
+            onForward={onForward}
+          />
+        ) : (
+          <PreviewPanel projectId={projectId} onRunBuild={onRunBuild} />
+        )}
+      </div>
+    </div>
   );
 }
 
