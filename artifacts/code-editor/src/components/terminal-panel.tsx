@@ -117,6 +117,16 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
 
   const commandHistory = entries.map((e) => e.command);
 
+  // Detect commands that need extended timeouts
+  const getTimeout = (cmd: string): number => {
+    const c = cmd.trim().toLowerCase();
+    const isInstall = /^(npm\s+install|npm\s+i\b|yarn\s+install|yarn\b|pnpm\s+install|pip3?\s+install|poetry\s+install|composer\s+install|bundle\s+install|cargo\s+build|go\s+get)/.test(c);
+    const isBuild = /^(npm\s+run\s+build|npm\s+run\s+start|vite\s+build|next\s+build|tsc\b)/.test(c);
+    if (isInstall) return 600_000; // 10 minutes
+    if (isBuild) return 300_000;  // 5 minutes
+    return 60_000;                 // 1 minute default
+  };
+
   const runCommand = useCallback(
     (cmd: string) => {
       const trimmed = cmd.trim();
@@ -125,9 +135,10 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
       setHistoryIndex(-1);
 
       const pendingId = ++entryCounter.current;
+      const timeout = getTimeout(trimmed);
 
       execMutation.mutate(
-        { projectId, data: { command: trimmed, timeout: 60000 } },
+        { projectId, data: { command: trimmed, timeout } },
         {
           onSuccess: (data) => {
             const missingPackage = data.exitCode !== 0
@@ -298,9 +309,19 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
         ))}
 
         {execMutation.isPending && (
-          <div className="flex items-center gap-2 text-[11px] text-[#8b949e]">
-            <Loader2 className="w-3 h-3 animate-spin text-green-400" />
-            <span>Executando...</span>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-[11px] text-[#8b949e]">
+              <Loader2 className="w-3 h-3 animate-spin text-green-400" />
+              <span>Executando...</span>
+            </div>
+            {/* Show extended-wait notice for install commands */}
+            {entries.length > 0 && /^(npm\s+install|yarn\s+install|pip3?\s+install|pnpm\s+install)/i.test(
+              entries[entries.length - 1]?.command ?? ""
+            ) && (
+              <p className="text-[10px] text-yellow-400/70 pl-5">
+                ⏳ Instalação de pacotes pode levar 2-10 minutos. Por favor aguarde...
+              </p>
+            )}
           </div>
         )}
       </div>

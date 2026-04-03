@@ -5,11 +5,14 @@ import {
   ExternalLink,
   Play,
   Loader2,
-  AlertTriangle,
   Smartphone,
   Tablet,
   FileCode,
   Eye,
+  Package,
+  Hammer,
+  Zap,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +32,6 @@ const VIEWPORT_WIDTHS: Record<Viewport, string> = {
 interface PreviewPanelProps {
   projectId: string;
   onRunBuild?: (cmd: string) => void;
-  /** When set, previews this specific file instead of the project entry point */
   previewPath?: string;
 }
 
@@ -57,8 +59,6 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
   }, [projectId, base]);
 
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
-
-  // When previewPath changes, bump the iframe key to reload
   useEffect(() => { setIframeKey((k) => k + 1); }, [previewPath]);
 
   const reload = () => {
@@ -66,20 +66,12 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
     setIframeKey((k) => k + 1);
   };
 
-  const openExternal = () => {
-    window.open(iframeUrl, "_blank");
-  };
-
-  // If a specific file was requested, use it directly; otherwise use entry point
   const isFilePreview = !!previewPath;
   const iframeUrl = isFilePreview
     ? `${previewBase}/${previewPath.replace(/^\//, "")}`
     : `${previewBase}/`;
 
-  // Entry label shown in the green indicator bar
   const entryLabel = isFilePreview ? previewPath : (status?.entry ?? null);
-
-  // Whether we can actually show the iframe
   const canShow = isFilePreview || status?.ready;
 
   return (
@@ -91,7 +83,6 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
           Preview
         </span>
 
-        {/* File preview badge */}
         {isFilePreview && (
           <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 text-[10px] text-blue-400 font-mono truncate max-w-[160px]">
             <Eye className="w-2.5 h-2.5 shrink-0" />
@@ -109,9 +100,7 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
                 onClick={() => setViewport(v)}
                 className={cn(
                   "p-1 rounded transition-colors",
-                  viewport === v
-                    ? "bg-[#30363d] text-[#e6edf3]"
-                    : "text-[#8b949e] hover:text-[#e6edf3]"
+                  viewport === v ? "bg-[#30363d] text-[#e6edf3]" : "text-[#8b949e] hover:text-[#e6edf3]"
                 )}
                 title={v.charAt(0).toUpperCase() + v.slice(1)}
               >
@@ -123,7 +112,6 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
 
         <div className="w-px h-4 bg-[#30363d]" />
 
-        {/* Build button — only when no entry and no file override */}
         {onRunBuild && !status?.ready && !isFilePreview && (
           <button
             onClick={() => onRunBuild("npm run build")}
@@ -135,7 +123,6 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
           </button>
         )}
 
-        {/* Reload */}
         <button
           onClick={reload}
           className="p-1.5 rounded text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#30363d] transition-colors"
@@ -144,10 +131,9 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
           <RefreshCw className="w-3.5 h-3.5" />
         </button>
 
-        {/* Open in new tab */}
         {canShow && (
           <button
-            onClick={openExternal}
+            onClick={() => window.open(iframeUrl, "_blank")}
             className="p-1.5 rounded text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#30363d] transition-colors"
             title="Abrir em nova aba"
           >
@@ -164,7 +150,7 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath }: PreviewPane
         </div>
       )}
 
-      {/* Viewport frame */}
+      {/* Content */}
       <div className="flex-1 overflow-auto flex items-start justify-center bg-[#1a1f26] p-0">
         {loading && !isFilePreview ? (
           <div className="flex-1 h-full flex items-center justify-center">
@@ -207,55 +193,122 @@ function EmptyState({
   onRunBuild?: (cmd: string) => void;
   onReload: () => void;
 }) {
+  const [installing, setInstalling] = useState(false);
+  const [buildStep, setBuildStep] = useState<"idle" | "installing" | "building" | "done">("idle");
+
+  const runInstallAndBuild = async () => {
+    if (!onRunBuild) return;
+    setBuildStep("installing");
+    setInstalling(true);
+    // Run npm install first (via terminal panel through onRunBuild)
+    // We chain the commands with &&
+    onRunBuild("npm install && npm run build");
+    // Show progress UI for 30 seconds then reset
+    setTimeout(() => {
+      setBuildStep("building");
+    }, 8000);
+    setTimeout(() => {
+      setBuildStep("done");
+      setInstalling(false);
+      onReload();
+    }, 60000);
+  };
+
   return (
-    <div className="flex-1 h-full flex flex-col items-center justify-center gap-5 text-[#8b949e] px-8 text-center max-w-md mx-auto">
-      <AlertTriangle className="w-10 h-10 opacity-30" />
+    <div className="flex-1 h-full flex flex-col items-center justify-center gap-5 text-[#8b949e] px-6 text-center max-w-sm mx-auto">
+      <Monitor className="w-10 h-10 opacity-20" />
 
       <div>
-        <p className="text-sm font-medium text-[#c9d1d9] mb-1">Nenhum preview disponível</p>
+        <p className="text-sm font-medium text-[#c9d1d9] mb-1">Preview não disponível</p>
         <p className="text-xs text-[#8b949e]">
-          Abra um arquivo <code className="text-primary">.html</code> no editor e clique em{" "}
-          <span className="text-blue-400 font-medium">Visualizar</span> para vê-lo aqui diretamente,
-          ou use os atalhos abaixo.
+          O projeto ainda não tem um arquivo HTML pronto para exibir.
         </p>
       </div>
 
-      {/* Quick guide by project type */}
-      <div className="w-full bg-[#161b22] border border-[#30363d] rounded-lg divide-y divide-[#30363d] text-left text-xs">
-        <div className="px-4 py-3">
-          <div className="flex items-center gap-2 mb-1">
-            <FileCode className="w-3.5 h-3.5 text-orange-400" />
-            <span className="font-semibold text-[#c9d1d9]">HTML / CSS / JS puro</span>
+      {/* Per-type quick actions */}
+      <div className="w-full space-y-2 text-left">
+        {/* HTML direto */}
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg px-4 py-3 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <FileCode className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+            <span className="text-xs font-semibold text-[#c9d1d9]">HTML / CSS / JS puro</span>
           </div>
-          <p className="text-[#8b949e] leading-relaxed">
-            Abra qualquer <code>.html</code> no editor → botão <span className="text-blue-400">👁 Visualizar</span> aparece na barra do arquivo.
+          <p className="text-[11px] text-[#8b949e] leading-relaxed">
+            Abra o arquivo <code className="text-orange-300">.html</code> no editor — o botão{" "}
+            <span className="text-blue-400 font-medium">👁 Visualizar</span> aparece na barra superior do código.
           </p>
         </div>
-        <div className="px-4 py-3">
-          <div className="flex items-center gap-2 mb-1">
-            <FileCode className="w-3.5 h-3.5 text-blue-400" />
-            <span className="font-semibold text-[#c9d1d9]">React / Vite / Vue / Angular</span>
+
+        {/* React / Vite com botão */}
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg px-4 py-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <FileCode className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span className="text-xs font-semibold text-[#c9d1d9]">React / Vite / Vue / Angular</span>
           </div>
-          <p className="text-[#8b949e] leading-relaxed">
-            No terminal: <code className="text-green-400">npm install</code> → <code className="text-green-400">npm run build</code> → recarregue o preview.
+          <p className="text-[11px] text-[#8b949e] leading-relaxed">
+            Precisa instalar as dependências e fazer o build antes de visualizar.
+            Clique no botão abaixo — pode demorar alguns minutos:
           </p>
+
           {onRunBuild && (
-            <button
-              onClick={() => onRunBuild("npm run build")}
-              className="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 transition-colors text-[11px]"
-            >
-              <Play className="w-3 h-3" />
-              npm run build
-            </button>
+            <div className="space-y-1.5">
+              {buildStep === "idle" && (
+                <button
+                  onClick={runInstallAndBuild}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 transition-colors text-xs font-medium"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  Instalar dependências + Build
+                </button>
+              )}
+
+              {buildStep === "installing" && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-[11px] text-yellow-400">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                  Instalando pacotes (npm install)… pode demorar 2-5 min
+                </div>
+              )}
+              {buildStep === "building" && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-400">
+                  <Hammer className="w-3.5 h-3.5 animate-bounce shrink-0" />
+                  Fazendo build do projeto...
+                </div>
+              )}
+              {buildStep === "done" && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-[11px] text-green-400">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  Concluído! Verificando preview...
+                </div>
+              )}
+
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => onRunBuild("npm install")}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded bg-[#30363d] hover:bg-[#3a4048] text-[10px] text-[#8b949e] hover:text-[#e6edf3] transition-colors border border-[#444c56]"
+                >
+                  <Package className="w-3 h-3" />
+                  npm install
+                </button>
+                <button
+                  onClick={() => onRunBuild("npm run build")}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded bg-[#30363d] hover:bg-[#3a4048] text-[10px] text-[#8b949e] hover:text-[#e6edf3] transition-colors border border-[#444c56]"
+                >
+                  <Hammer className="w-3 h-3" />
+                  npm run build
+                </button>
+              </div>
+            </div>
           )}
         </div>
-        <div className="px-4 py-3">
-          <div className="flex items-center gap-2 mb-1">
-            <FileCode className="w-3.5 h-3.5 text-yellow-400" />
-            <span className="font-semibold text-[#c9d1d9]">Python / Node (servidor)</span>
+
+        {/* Python / Node */}
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg px-4 py-3 space-y-1">
+          <div className="flex items-center gap-2">
+            <FileCode className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+            <span className="text-xs font-semibold text-[#c9d1d9]">Python / Node (servidor)</span>
           </div>
-          <p className="text-[#8b949e] leading-relaxed">
-            Inicie o servidor no terminal. O preview exibe conteúdo estático — para apps com servidor use a aba Terminal.
+          <p className="text-[11px] text-[#8b949e] leading-relaxed">
+            Use o terminal para iniciar o servidor. O preview só mostra conteúdo estático.
           </p>
         </div>
       </div>
@@ -265,7 +318,7 @@ function EmptyState({
         className="flex items-center gap-2 px-3 py-1.5 rounded bg-[#30363d] text-[#8b949e] hover:text-[#e6edf3] text-xs transition-colors"
       >
         <RefreshCw className="w-3.5 h-3.5" />
-        Verificar novamente
+        Verificar preview novamente
       </button>
     </div>
   );

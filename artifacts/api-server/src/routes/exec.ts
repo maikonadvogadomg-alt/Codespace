@@ -79,7 +79,10 @@ router.post("/projects/:projectId/exec", async (req, res): Promise<void> => {
   }
 
   const { command, timeout: timeoutMs = 30000 } = parsed.data;
-  const clampedTimeout = Math.min(timeoutMs ?? 30000, 120000);
+  // Allow up to 10 minutes for package installation commands
+  const isInstallCmd = /^(npm\s+install|npm\s+i\b|yarn\s+install|yarn\b|pnpm\s+install|pip3?\s+install|poetry\s+install|composer\s+install|bundle\s+install|cargo\s+build|go\s+get)/.test(command.trim());
+  const maxTimeout = isInstallCmd ? 600_000 : 120_000;
+  const clampedTimeout = Math.min(timeoutMs ?? 30000, maxTimeout);
 
   if (isCommandBlocked(command)) {
     res.status(400).json({ error: "Comando bloqueado por segurança." });
