@@ -142,32 +142,42 @@ router.post("/projects/:projectId/exec", async (req, res): Promise<void> => {
         }
       }
 
-      // Enrich stderr with a friendly hint for "command not found" (exit 127)
+      // Enrich stderr with a friendly hint for "command not found"
       let enrichedStderr = stderr ?? "";
-      if (
-        exitCode === 127 ||
-        enrichedStderr.includes("not found") ||
-        enrichedStderr.includes("No such file")
-      ) {
-        const tool = normalized.split(" ")[0];
-        let hint = `\n⚠️  Ferramenta "${tool}" não encontrada neste ambiente.\n`;
-        if (tool === "npm" || tool === "node" || tool === "npx") {
-          hint += `   O Node.js/npm pode não estar disponível neste servidor.\n`;
-          hint += `   Tente usar: npx <pacote> ou verifique as configurações.`;
+
+      // Extract the actual missing tool from shell error messages like:
+      //   "sh: 1: tsx: not found"  or  "bash: tsx: command not found"
+      const notFoundMatch = enrichedStderr.match(
+        /(?:sh|bash|zsh):\s*\d*:?\s*([^\s:]+):\s*(?:not found|command not found|No such file)/
+      );
+      const missingTool = notFoundMatch ? notFoundMatch[1] : null;
+
+      if (exitCode === 127 || missingTool) {
+        const tool = missingTool ?? normalized.split(" ")[0];
+        let hint = `\n⚠️  "${tool}" não encontrado.\n`;
+
+        // Tools that come from npm install (local node_modules/.bin)
+        const npmLocalTools = ["tsx", "ts-node", "vite", "react-scripts", "next", "tsc", "eslint", "prettier", "jest", "vitest", "esbuild", "rollup", "webpack"];
+        if (npmLocalTools.includes(tool)) {
+          hint += `   Este comando faz parte das dependências do projeto.\n`;
+          hint += `   💡 Rode primeiro: npm install`;
+        } else if (tool === "npm" || tool === "node" || tool === "npx") {
+          hint += `   O Node.js/npm não está disponível neste servidor.\n`;
+          hint += `   💡 Tente: npx <pacote>`;
         } else if (tool === "python" || tool === "python3" || tool === "pip3") {
           hint += `   Python não está disponível neste ambiente.\n`;
           hint += `   Este servidor suporta apenas Node.js/npm.`;
         } else {
-          hint += `   Verifique se está instalada ou use uma alternativa disponível.`;
+          hint += `   Verifique se está instalada ou tente: npm install -g ${tool}`;
         }
         enrichedStderr = (enrichedStderr ? enrichedStderr + "\n" : "") + hint;
       }
 
       // Timeout hint
-      if (error?.signal === "SIGTERM" || (error && enrichedStderr.includes("timeout"))) {
-        enrichedStderr += `\n\n⏱️  O comando demorou mais que o limite permitido e foi interrompido.`;
+      if (error?.signal === "SIGTERM" || (error && enrichedStderr.includes("timed out"))) {
+        enrichedStderr += `\n\n⏱️  O comando demorou mais que o limite e foi interrompido.`;
         if (normalized.startsWith("npm install")) {
-          enrichedStderr += `\n   Para instalações grandes, tente instalar pacotes em partes: npm install <pacote1> <pacote2>`;
+          enrichedStderr += `\n   Para instalações grandes, tente partes: npm install <pacote1> <pacote2>`;
         }
       }
 

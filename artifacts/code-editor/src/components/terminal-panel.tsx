@@ -37,12 +37,41 @@ function useVoice(onResult: (text: string) => void) {
 
 // ─── Smart install detection ──────────────────────────────────────────────────
 
+// Maps known CLI executables to their npm package name
+const CLI_TO_PACKAGE: Record<string, string> = {
+  tsx: "tsx",
+  "ts-node": "ts-node",
+  vite: "vite",
+  "react-scripts": "react-scripts",
+  next: "next",
+  tsc: "typescript",
+  eslint: "eslint",
+  prettier: "prettier",
+  jest: "jest",
+  vitest: "vitest",
+  esbuild: "esbuild",
+  rollup: "rollup",
+  webpack: "webpack",
+  nodemon: "nodemon",
+  concurrently: "concurrently",
+  "cross-env": "cross-env",
+};
+
 /**
  * Given combined stdout+stderr output, try to detect an npm package name
  * that is missing and should be installed.
  */
 function detectMissingPackage(stderr: string, stdout: string): string | null {
   const text = stderr + "\n" + stdout;
+
+  // Shell "tsx: not found" or "bash: tsx: command not found"
+  // Covers cases where npm run <script> calls a missing local binary
+  const shellNotFound = text.match(/(?:sh|bash|zsh):\s*\d*:?\s*([^\s:]+):\s*(?:not found|command not found)/);
+  if (shellNotFound) {
+    const bin = shellNotFound[1];
+    const pkg = CLI_TO_PACKAGE[bin];
+    if (pkg) return pkg;
+  }
 
   // Node "Cannot find module 'X'" — captures scoped and unscoped packages
   const cannotFind = text.match(/Cannot find module ['"](@?[a-zA-Z0-9._/-]+)['"]/);
