@@ -5,7 +5,7 @@ import fs from "fs";
 export type DevServerStatus = "starting" | "running" | "error" | "stopped";
 
 export interface DevServer {
-  process: ChildProcess;
+  process: ChildProcess | null;
   port: number | null;
   status: DevServerStatus;
   log: string[];
@@ -134,7 +134,7 @@ export function startDevServer(projectId: number, cwd: string, command?: string)
   const displayCmd = autoInstall ? `npm install && ${startCmd}` : startCmd;
 
   const server: DevServer = {
-    process: null as unknown as ChildProcess,
+    process: null,
     port: null,
     status: "starting",
     log: autoInstall ? ["[auto] Instalando dependências antes de iniciar…\n"] : [],
@@ -209,9 +209,9 @@ export function stopDevServer(projectId: number): boolean {
   const server = registry.get(projectId);
   if (!server) return false;
   try {
-    server.process.kill("SIGTERM");
+    server.process?.kill("SIGTERM");
     setTimeout(() => {
-      try { server.process.kill("SIGKILL"); } catch { /* already dead */ }
+      try { server.process?.kill("SIGKILL"); } catch { /* already dead */ }
     }, 3000);
   } catch { /* process already exited */ }
   registry.delete(projectId);
