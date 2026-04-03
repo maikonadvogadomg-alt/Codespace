@@ -74,14 +74,39 @@ router.post("/github/create-repo", async (req, res): Promise<void> => {
   const octokit = new Octokit({ auth: settings.githubToken });
 
   try {
-    const { data: user } = await octokit.rest.users.getAuthenticated();
+    // Verify token first
+    let user: { login: string };
+    try {
+      const { data } = await octokit.rest.users.getAuthenticated();
+      user = data;
+    } catch (authErr: any) {
+      const status = authErr?.status ?? 0;
+      if (status === 401 || status === 403) {
+        res.status(400).json({ error: "Token GitHub inválido ou sem permissão. Verifique o token em Configurações." });
+      } else {
+        res.status(400).json({ error: "Não foi possível autenticar no GitHub. Verifique sua conexão e o token." });
+      }
+      return;
+    }
 
-    const { data: repo } = await octokit.rest.repos.createForAuthenticatedUser({
-      name: repoName,
-      description: description ?? undefined,
-      private: isPrivate,
-      auto_init: false,
-    });
+    let repo: { html_url: string; full_name: string };
+    try {
+      const { data } = await octokit.rest.repos.createForAuthenticatedUser({
+        name: repoName,
+        description: description ?? undefined,
+        private: isPrivate,
+        auto_init: false,
+      });
+      repo = data;
+    } catch (createErr: any) {
+      const status = createErr?.status ?? 0;
+      if (status === 422) {
+        res.status(400).json({ error: `Repositório "${repoName}" já existe na conta ${user.login}. Escolha outro nome.` });
+      } else {
+        res.status(400).json({ error: createErr?.message ?? "Falha ao criar repositório no GitHub." });
+      }
+      return;
+    }
 
     const files: FileToCommit[] = [];
     await collectAllFiles(project.storagePath, "", files);
