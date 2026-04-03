@@ -180,6 +180,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: writeFile
+      tags: [files]
+      summary: Create or overwrite a file within a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteFileRequest"
+      responses:
+        "200":
+          description: File written
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteFileResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteFile
+      tags: [files]
+      summary: Delete a file within a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /ai/chat:
     post:
@@ -500,6 +553,30 @@ components:
           type: ["string", "null"]
         githubToken:
           type: ["string", "null"]
+
+    WriteFileRequest:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Relative path of the file to write (will create parent dirs)
+        content:
+          type: string
+          description: Full content to write to the file
+      required:
+        - path
+        - content
+
+    WriteFileResponse:
+      type: object
+      properties:
+        path:
+          type: string
+        message:
+          type: string
+      required:
+        - path
+        - message
 
     ChatMessage:
       type: object

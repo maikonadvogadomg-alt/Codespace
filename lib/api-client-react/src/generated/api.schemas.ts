@@ -101,6 +101,18 @@ export interface UpdateSettingsRequest {
   githubToken?: string | null;
 }
 
+export interface WriteFileRequest {
+  /** Relative path of the file to write (will create parent dirs) */
+  path: string;
+  /** Full content to write to the file */
+  content: string;
+}
+
+export interface WriteFileResponse {
+  path: string;
+  message: string;
+}
+
 export type ChatMessageRole =
   (typeof ChatMessageRole)[keyof typeof ChatMessageRole];
 
@@ -162,5 +174,9 @@ export type GetFileContentParams = {
   /**
    * The relative path to the file within the project
    */
+  path: string;
+};
+
+export type DeleteFileParams = {
   path: string;
 };

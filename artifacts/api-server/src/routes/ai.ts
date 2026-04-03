@@ -124,19 +124,38 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
 
   const systemMessages: Array<{ role: string; content: string }> = [];
 
+  const FILE_CHANGE_INSTRUCTIONS = `
+Quando o usuário pedir para criar, editar ou modificar arquivos, use OBRIGATORIAMENTE o seguinte formato especial para propor as alterações. O sistema irá renderizar botões "Aplicar" para cada bloco.
+
+Para criar ou editar um arquivo:
+<codelens-write path="caminho/do/arquivo.ts">
+conteúdo completo do arquivo aqui
+</codelens-write>
+
+Para deletar um arquivo:
+<codelens-delete path="caminho/do/arquivo.ts"/>
+
+Regras importantes:
+- Use caminhos relativos à raiz do projeto (sem / inicial)
+- Inclua o conteúdo COMPLETO do arquivo no bloco write, não apenas partes
+- Pode propor múltiplas alterações em uma única resposta
+- Fora dos blocos, explique o que está fazendo e por quê
+- Responda sempre em português`;
+
   if (projectContext && projectId) {
     try {
       const { text, fileCount, truncated } = await buildProjectContext(projectId);
       systemMessages.push({
         role: "system",
-        content: `Você é um assistente especialista em código com acesso ao projeto completo.
+        content: `Você é um assistente especialista em código com acesso ao projeto completo e capacidade de propor alterações nos arquivos.
 ${truncated ? `\n⚠️ O projeto é grande — foram incluídos os primeiros ${fileCount} arquivos (limite de 200k caracteres).` : `\nO projeto contém ${fileCount} arquivo(s) de código.`}
 
 Abaixo está o conteúdo completo do projeto:
 
 ${text}
 
-Responda de forma direta e clara, em português. Use markdown quando útil. Ao referenciar código, cite o arquivo pelo caminho.`,
+Use markdown quando útil. Ao referenciar código, cite o arquivo pelo caminho.
+${FILE_CHANGE_INSTRUCTIONS}`,
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erro ao carregar projeto";
@@ -147,19 +166,21 @@ Responda de forma direta e clara, em português. Use markdown quando útil. Ao r
     const language = detectLanguage(filePath);
     systemMessages.push({
       role: "system",
-      content: `Você é um assistente especialista em código. O usuário está visualizando o arquivo "${filePath}".
+      content: `Você é um assistente especialista em código com capacidade de propor alterações nos arquivos. O usuário está visualizando o arquivo "${filePath}".
 
 Conteúdo do arquivo (${language}):
 \`\`\`${language}
 ${fileContext}
 \`\`\`
 
-Responda de forma direta e clara, em português. Use markdown quando útil.`,
+Use markdown quando útil.
+${FILE_CHANGE_INSTRUCTIONS}`,
     });
   } else {
     systemMessages.push({
       role: "system",
-      content: `Você é um assistente especialista em código e desenvolvimento de software. Responda de forma direta e clara, em português. Use markdown quando útil.`,
+      content: `Você é um assistente especialista em código e desenvolvimento de software com capacidade de propor alterações nos arquivos. Use markdown quando útil.
+${FILE_CHANGE_INSTRUCTIONS}`,
     });
   }
 

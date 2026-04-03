@@ -24,6 +24,7 @@ import type {
   AnalyzeFolderRequest,
   CreateGithubRepoRequest,
   CreateGithubRepoResult,
+  DeleteFileParams,
   ErrorResponse,
   FileContent,
   GetFileContentParams,
@@ -34,6 +35,8 @@ import type {
   Settings,
   UpdateSettingsRequest,
   UploadProjectBody,
+  WriteFileRequest,
+  WriteFileResponse,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -659,6 +662,193 @@ export function useGetFileContent<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Create or overwrite a file within a project
+ */
+export const getWriteFileUrl = (projectId: string) => {
+  return `/api/projects/${projectId}/files`;
+};
+
+export const writeFile = async (
+  projectId: string,
+  writeFileRequest: WriteFileRequest,
+  options?: RequestInit,
+): Promise<WriteFileResponse> => {
+  return customFetch<WriteFileResponse>(getWriteFileUrl(projectId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(writeFileRequest),
+  });
+};
+
+export const getWriteFileMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof writeFile>>,
+    TError,
+    { projectId: string; data: BodyType<WriteFileRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof writeFile>>,
+  TError,
+  { projectId: string; data: BodyType<WriteFileRequest> },
+  TContext
+> => {
+  const mutationKey = ["writeFile"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof writeFile>>,
+    { projectId: string; data: BodyType<WriteFileRequest> }
+  > = (props) => {
+    const { projectId, data } = props ?? {};
+
+    return writeFile(projectId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type WriteFileMutationResult = NonNullable<
+  Awaited<ReturnType<typeof writeFile>>
+>;
+export type WriteFileMutationBody = BodyType<WriteFileRequest>;
+export type WriteFileMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create or overwrite a file within a project
+ */
+export const useWriteFile = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof writeFile>>,
+    TError,
+    { projectId: string; data: BodyType<WriteFileRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof writeFile>>,
+  TError,
+  { projectId: string; data: BodyType<WriteFileRequest> },
+  TContext
+> => {
+  return useMutation(getWriteFileMutationOptions(options));
+};
+
+/**
+ * @summary Delete a file within a project
+ */
+export const getDeleteFileUrl = (
+  projectId: string,
+  params: DeleteFileParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/projects/${projectId}/files?${stringifiedParams}`
+    : `/api/projects/${projectId}/files`;
+};
+
+export const deleteFile = async (
+  projectId: string,
+  params: DeleteFileParams,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteFileUrl(projectId, params), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteFileMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFile>>,
+    TError,
+    { projectId: string; params: DeleteFileParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteFile>>,
+  TError,
+  { projectId: string; params: DeleteFileParams },
+  TContext
+> => {
+  const mutationKey = ["deleteFile"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteFile>>,
+    { projectId: string; params: DeleteFileParams }
+  > = (props) => {
+    const { projectId, params } = props ?? {};
+
+    return deleteFile(projectId, params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteFileMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteFile>>
+>;
+
+export type DeleteFileMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete a file within a project
+ */
+export const useDeleteFile = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFile>>,
+    TError,
+    { projectId: string; params: DeleteFileParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteFile>>,
+  TError,
+  { projectId: string; params: DeleteFileParams },
+  TContext
+> => {
+  return useMutation(getDeleteFileMutationOptions(options));
+};
 
 /**
  * @summary Send a free-form message to the AI with optional file context

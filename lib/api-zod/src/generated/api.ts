@@ -97,6 +97,36 @@ export const GetFileContentResponse = zod.object({
 });
 
 /**
+ * @summary Create or overwrite a file within a project
+ */
+export const WriteFileParams = zod.object({
+  projectId: zod.coerce.string(),
+});
+
+export const WriteFileBody = zod.object({
+  path: zod
+    .string()
+    .describe("Relative path of the file to write (will create parent dirs)"),
+  content: zod.string().describe("Full content to write to the file"),
+});
+
+export const WriteFileResponse = zod.object({
+  path: zod.string(),
+  message: zod.string(),
+});
+
+/**
+ * @summary Delete a file within a project
+ */
+export const DeleteFileParams = zod.object({
+  projectId: zod.coerce.string(),
+});
+
+export const DeleteFileQueryParams = zod.object({
+  path: zod.coerce.string(),
+});
+
+/**
  * @summary Send a free-form message to the AI with optional file context
  */
 export const AiChatBody = zod.object({
