@@ -2,10 +2,29 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, projectsTable } from "@workspace/db";
 import { ExecCommandBody } from "@workspace/api-zod";
-import { exec } from "child_process";
+import { exec, execSync } from "child_process";
 import path from "path";
 
 const router: IRouter = Router();
+
+// Detect runtime binary paths at startup so they work in all environments
+function detectBinPaths(): string[] {
+  const extra: string[] = [];
+  const tryResolve = (cmd: string) => {
+    try {
+      const p = execSync(`which ${cmd} 2>/dev/null`, { encoding: "utf8" }).trim();
+      if (p) extra.push(path.dirname(p));
+    } catch {}
+  };
+  tryResolve("npm");
+  tryResolve("node");
+  tryResolve("npx");
+  tryResolve("yarn");
+  tryResolve("pnpm");
+  return [...new Set(extra)];
+}
+
+const DETECTED_BIN_PATHS = detectBinPaths();
 
 // Commands that are blocked for safety
 const BLOCKED_PATTERNS = [
@@ -40,6 +59,7 @@ function normalizeCommand(cmd: string): string {
 // Build a comprehensive PATH for child processes
 function buildEnv() {
   const extraPaths = [
+    ...DETECTED_BIN_PATHS, // runtime-detected binary paths (npm, node, etc.)
     "/usr/local/bin",
     "/usr/bin",
     "/bin",
@@ -130,10 +150,25 @@ router.post("/projects/:projectId/exec", async (req, res): Promise<void> => {
         enrichedStderr.includes("No such file")
       ) {
         const tool = normalized.split(" ")[0];
-        enrichedStderr =
-          (enrichedStderr ? enrichedStderr + "\n" : "") +
-          `\n⚠️  Ferramenta "${tool}" não encontrada neste ambiente.\n` +
-          `   Verifique se está instalada ou use uma alternativa disponível.`;
+        let hint = `\n⚠️  Ferramenta "${tool}" não encontrada neste ambiente.\n`;
+        if (tool === "npm" || tool === "node" || tool === "npx") {
+          hint += `   O Node.js/npm pode não estar disponível neste servidor.\n`;
+          hint += `   Tente usar: npx <pacote> ou verifique as configurações.`;
+        } else if (tool === "python" || tool === "python3" || tool === "pip3") {
+          hint += `   Python não está disponível neste ambiente.\n`;
+          hint += `   Este servidor suporta apenas Node.js/npm.`;
+        } else {
+          hint += `   Verifique se está instalada ou use uma alternativa disponível.`;
+        }
+        enrichedStderr = (enrichedStderr ? enrichedStderr + "\n" : "") + hint;
+      }
+
+      // Timeout hint
+      if (error?.signal === "SIGTERM" || (error && enrichedStderr.includes("timeout"))) {
+        enrichedStderr += `\n\n⏱️  O comando demorou mais que o limite permitido e foi interrompido.`;
+        if (normalized.startsWith("npm install")) {
+          enrichedStderr += `\n   Para instalações grandes, tente instalar pacotes em partes: npm install <pacote1> <pacote2>`;
+        }
       }
 
       res.json({
