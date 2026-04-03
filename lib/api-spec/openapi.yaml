@@ -181,6 +181,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /ai/chat:
+    post:
+      operationId: aiChat
+      tags: [ai]
+      summary: Send a free-form message to the AI with optional file context
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiChatRequest"
+      responses:
+        "200":
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiChatResponse"
+        "400":
+          description: Bad request or AI not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /ai/analyze-file:
     post:
       operationId: analyzeFile
@@ -475,6 +500,45 @@ components:
           type: ["string", "null"]
         githubToken:
           type: ["string", "null"]
+
+    ChatMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+      required:
+        - role
+        - content
+
+    AiChatRequest:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+        fileContext:
+          type: ["string", "null"]
+          description: Optional file content to inject as context
+        filePath:
+          type: ["string", "null"]
+          description: Optional file path for context label
+      required:
+        - messages
+
+    AiChatResponse:
+      type: object
+      properties:
+        reply:
+          type: string
+        model:
+          type: string
+      required:
+        - reply
+        - model
 
     ImportGithubRequest:
       type: object

@@ -7,8 +7,12 @@
  */
 
 export * from "./aiAnalysisResult";
+export * from "./aiChatRequest";
+export * from "./aiChatResponse";
 export * from "./analyzeFileRequest";
 export * from "./analyzeFolderRequest";
+export * from "./chatMessage";
+export * from "./chatMessageRole";
 export * from "./createGithubRepoRequest";
 export * from "./createGithubRepoResult";
 export * from "./errorResponse";

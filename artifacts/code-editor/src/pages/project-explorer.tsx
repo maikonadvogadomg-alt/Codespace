@@ -1,12 +1,10 @@
 import React, { useState } from "react";
 import { useParams, Link } from "wouter";
-import { 
-  useGetProject, 
-  useGetFileContent, 
-  useAnalyzeFile, 
-  useAnalyzeFolder,
+import {
+  useGetProject,
+  useGetFileContent,
   getGetProjectQueryKey,
-  getGetFileContentQueryKey
+  getGetFileContentQueryKey,
 } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { FileTree } from "@/components/file-tree";
@@ -29,80 +27,42 @@ export default function ProjectExplorer() {
 
   const [selectedFile, setSelectedFile] = useState<string | undefined>(undefined);
   const [githubModalOpen, setGithubModalOpen] = useState(false);
-  
-  // AI State
-  const [aiTarget, setAiTarget] = useState<{ path: string, type: "file" | "folder" } | undefined>();
+
+  // External AI trigger: bumping this id sends a message to the AI panel
+  const [externalMessage, setExternalMessage] = useState<{ text: string; id: number } | null>(null);
 
   const { data: project, isLoading: isProjectLoading } = useGetProject(projectId, {
     query: {
       enabled: !!projectId,
-      queryKey: getGetProjectQueryKey(projectId)
-    }
+      queryKey: getGetProjectQueryKey(projectId),
+    },
   });
 
   const { data: fileContent, isLoading: isFileLoading } = useGetFileContent(
-    projectId, 
+    projectId,
     { params: { path: selectedFile! } },
     {
       query: {
         enabled: !!projectId && !!selectedFile,
-        queryKey: getGetFileContentQueryKey(projectId, { path: selectedFile! })
-      }
+        queryKey: getGetFileContentQueryKey(projectId, { path: selectedFile! }),
+      },
     }
   );
 
-  const analyzeFileMutation = useAnalyzeFile({
-    mutation: {
-      onError: (error) => {
-        toast({ title: "Analysis failed", description: error.error, variant: "destructive" });
-      }
-    }
-  });
+  // Track pending analysis path (so we can load file then trigger)
+  const [pendingAnalysisPath, setPendingAnalysisPath] = useState<string | null>(null);
 
-  const analyzeFolderMutation = useAnalyzeFolder({
-    mutation: {
-      onError: (error) => {
-        toast({ title: "Analysis failed", description: error.error, variant: "destructive" });
-      }
-    }
-  });
-
-  const handleAnalyzeFile = (path: string) => {
-    // Need content to analyze file
-    // Ideally we'd fetch it if not selected, but for now let's just trigger if selected, or we could fetch it via API
-    // Actually, the useAnalyzeFile mutation requires `content`. Wait, the requirement says we send { projectId, filePath, content }.
-    // If we only have path from the tree, how do we get content? 
-    // Let's just make them select it first, OR we can use the API. 
-    // Oh, the backend schema for `analyzeFileRequest` requires `content`.
-    // Let's just use the currently selected file content if it matches.
-    if (selectedFile !== path || !fileContent) {
-      // Auto select it so it loads
-      setSelectedFile(path);
-      toast({ title: "Loading file for analysis..." });
-      // We will trigger analysis in an effect once loaded, but that's messy.
-      // Let's just require them to open it first or handle it gracefully.
-      return;
-    }
-
-    setAiTarget({ path, type: "file" });
-    analyzeFileMutation.mutate({
-      data: {
-        projectId,
-        filePath: path,
-        content: fileContent.content
-      }
+  const triggerFileAnalysis = (path: string, content: string) => {
+    const fileName = path.split("/").pop() ?? path;
+    setExternalMessage({
+      text: `Analise o arquivo "${fileName}". Explique o que ele faz, suas responsabilidades principais e aponte possíveis problemas ou melhorias.`,
+      id: Date.now(),
     });
   };
 
-  // We need a small effect to handle auto-analyzing if we selected a file for analysis
-  const [pendingAnalysisPath, setPendingAnalysisPath] = useState<string | null>(null);
-
   const handleAnalyzeFileClick = (path: string) => {
     if (selectedFile === path && fileContent) {
-      setAiTarget({ path, type: "file" });
-      analyzeFileMutation.mutate({
-        data: { projectId, filePath: path, content: fileContent.content }
-      });
+      triggerFileAnalysis(path, fileContent.content);
     } else {
       setSelectedFile(path);
       setPendingAnalysisPath(path);
@@ -111,19 +71,16 @@ export default function ProjectExplorer() {
 
   React.useEffect(() => {
     if (pendingAnalysisPath && selectedFile === pendingAnalysisPath && fileContent) {
-      setAiTarget({ path: pendingAnalysisPath, type: "file" });
-      analyzeFileMutation.mutate({
-        data: { projectId, filePath: pendingAnalysisPath, content: fileContent.content }
-      });
+      triggerFileAnalysis(pendingAnalysisPath, fileContent.content);
       setPendingAnalysisPath(null);
     }
-  }, [pendingAnalysisPath, selectedFile, fileContent, projectId, analyzeFileMutation]);
+  }, [pendingAnalysisPath, selectedFile, fileContent]);
 
-
-  const handleAnalyzeFolderClick = (path: string) => {
-    setAiTarget({ path, type: "folder" });
-    analyzeFolderMutation.mutate({
-      data: { projectId, folderPath: path }
+  const handleAnalyzeFolderClick = (folderPath: string) => {
+    const folderName = (folderPath.split("/").pop() ?? folderPath) || "raiz";
+    setExternalMessage({
+      text: `Analise a pasta "${folderName}" do projeto. Explique qual é o papel desta pasta na arquitetura geral do projeto.`,
+      id: Date.now(),
     });
   };
 
@@ -141,14 +98,15 @@ export default function ProjectExplorer() {
     return (
       <AppLayout>
         <div className="h-full flex items-center justify-center text-muted-foreground">
-          Project not found.
+          Projeto não encontrado.
         </div>
       </AppLayout>
     );
   }
 
-  const isAiLoading = analyzeFileMutation.isPending || analyzeFolderMutation.isPending;
-  const activeAnalysis = analyzeFileMutation.data || analyzeFolderMutation.data;
+  const fileContextForAi = fileContent
+    ? { path: fileContent.path, content: fileContent.content, language: fileContent.language }
+    : null;
 
   return (
     <AppLayout>
@@ -167,9 +125,14 @@ export default function ProjectExplorer() {
             </div>
           </div>
           <div className="flex items-center">
-            <Button size="sm" variant="secondary" onClick={() => setGithubModalOpen(true)} className="gap-2 bg-background hover:bg-accent border border-border">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setGithubModalOpen(true)}
+              className="gap-2 bg-background hover:bg-accent border border-border"
+            >
               <Github className="w-4 h-4" />
-              Send to GitHub
+              Enviar para GitHub
             </Button>
           </div>
         </header>
@@ -177,15 +140,14 @@ export default function ProjectExplorer() {
         {/* 3-Panel Layout */}
         <div className="flex-1 overflow-hidden">
           <ResizablePanelGroup direction="horizontal">
-            
             {/* Left Panel: File Tree */}
             <ResizablePanel defaultSize={20} minSize={15} maxSize={30} className="bg-sidebar flex flex-col">
               <div className="h-9 shrink-0 flex items-center px-4 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30">
                 Explorer
               </div>
               <div className="flex-1 overflow-auto p-2">
-                <FileTree 
-                  node={project.tree} 
+                <FileTree
+                  node={project.tree}
                   onSelectFile={setSelectedFile}
                   onAnalyzeFile={handleAnalyzeFileClick}
                   onAnalyzeFolder={handleAnalyzeFolderClick}
@@ -193,36 +155,35 @@ export default function ProjectExplorer() {
                 />
               </div>
             </ResizablePanel>
-            
+
             <ResizableHandle className="bg-border w-[1px] hover:w-1 hover:bg-primary/50 transition-all" />
-            
+
             {/* Center Panel: Code Viewer */}
             <ResizablePanel defaultSize={50} minSize={30}>
-              <CodeViewer 
-                file={fileContent} 
-                isLoading={isFileLoading && !!selectedFile} 
+              <CodeViewer
+                file={fileContent}
+                isLoading={isFileLoading && !!selectedFile}
               />
             </ResizablePanel>
 
             <ResizableHandle className="bg-border w-[1px] hover:w-1 hover:bg-primary/50 transition-all" />
 
-            {/* Right Panel: AI Analysis */}
+            {/* Right Panel: AI Chat */}
             <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
-              <AiPanel 
-                analysis={activeAnalysis} 
-                isLoading={isAiLoading} 
-                activePath={aiTarget?.path}
-                activeType={aiTarget?.type}
+              <AiPanel
+                fileContext={fileContextForAi}
+                onAnalyzeFile={selectedFile ? () => handleAnalyzeFileClick(selectedFile) : undefined}
+                onAnalyzeFolder={undefined}
+                externalMessage={externalMessage}
               />
             </ResizablePanel>
-
           </ResizablePanelGroup>
         </div>
       </div>
 
-      <GithubDeployModal 
-        open={githubModalOpen} 
-        onOpenChange={setGithubModalOpen} 
+      <GithubDeployModal
+        open={githubModalOpen}
+        onOpenChange={setGithubModalOpen}
         projectId={project.id}
         defaultName={project.name}
       />

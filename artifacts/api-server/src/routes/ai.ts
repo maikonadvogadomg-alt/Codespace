@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, projectsTable, settingsTable } from "@workspace/db";
-import { AnalyzeFileBody, AnalyzeFolderBody } from "@workspace/api-zod";
-import { getProjectDir, isBinaryFile, detectLanguage } from "../lib/storage.js";
+import { AnalyzeFileBody, AnalyzeFolderBody, AiChatBody } from "@workspace/api-zod";
+import { isBinaryFile, detectLanguage } from "../lib/storage.js";
 import path from "path";
 import fs from "fs/promises";
 
@@ -56,6 +56,59 @@ async function callAi(
 
   return content;
 }
+
+router.post("/ai/chat", async (req, res): Promise<void> => {
+  const parsed = AiChatBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { messages, fileContext, filePath } = parsed.data;
+
+  const settings = await getAiSettings();
+  if (!settings?.aiApiKey) {
+    res.status(400).json({ error: "Chave de API da IA não configurada. Vá em Configurações." });
+    return;
+  }
+
+  const systemMessages: Array<{ role: string; content: string }> = [];
+
+  if (fileContext && filePath) {
+    const language = detectLanguage(filePath);
+    systemMessages.push({
+      role: "system",
+      content: `Você é um assistente especialista em código. O usuário está visualizando o arquivo "${filePath}".
+
+Conteúdo do arquivo (${language}):
+\`\`\`${language}
+${fileContext}
+\`\`\`
+
+Responda de forma direta e clara, em português. Use markdown quando útil.`,
+    });
+  } else {
+    systemMessages.push({
+      role: "system",
+      content: `Você é um assistente especialista em código e desenvolvimento de software. Responda de forma direta e clara, em português. Use markdown quando útil.`,
+    });
+  }
+
+  const allMessages = [
+    ...systemMessages,
+    ...messages.map((m) => ({ role: m.role, content: m.content })),
+  ];
+
+  try {
+    const reply = await callAi(settings, allMessages);
+    res.json({ reply, model: settings.aiModel ?? "gpt-4o" });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Erro na IA";
+    req.log.error({ err }, "AI chat failed");
+    res.status(400).json({ error: message });
+    return;
+  }
+});
 
 router.post("/ai/analyze-file", async (req, res): Promise<void> => {
   const parsed = AnalyzeFileBody.safeParse(req.body);

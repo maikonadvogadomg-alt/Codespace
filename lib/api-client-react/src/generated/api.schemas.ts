@@ -101,6 +101,38 @@ export interface UpdateSettingsRequest {
   githubToken?: string | null;
 }
 
+export type ChatMessageRole =
+  (typeof ChatMessageRole)[keyof typeof ChatMessageRole];
+
+export const ChatMessageRole = {
+  user: "user",
+  assistant: "assistant",
+} as const;
+
+export interface ChatMessage {
+  role: ChatMessageRole;
+  content: string;
+}
+
+export interface AiChatRequest {
+  messages: ChatMessage[];
+  /**
+   * Optional file content to inject as context
+   * @nullable
+   */
+  fileContext?: string | null;
+  /**
+   * Optional file path for context label
+   * @nullable
+   */
+  filePath?: string | null;
+}
+
+export interface AiChatResponse {
+  reply: string;
+  model: string;
+}
+
 export interface ImportGithubRequest {
   /** GitHub repository URL (e.g. https://github.com/owner/repo) */
   repoUrl: string;

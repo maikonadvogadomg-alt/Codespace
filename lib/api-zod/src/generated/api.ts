@@ -97,6 +97,31 @@ export const GetFileContentResponse = zod.object({
 });
 
 /**
+ * @summary Send a free-form message to the AI with optional file context
+ */
+export const AiChatBody = zod.object({
+  messages: zod.array(
+    zod.object({
+      role: zod.enum(["user", "assistant"]),
+      content: zod.string(),
+    }),
+  ),
+  fileContext: zod
+    .string()
+    .nullish()
+    .describe("Optional file content to inject as context"),
+  filePath: zod
+    .string()
+    .nullish()
+    .describe("Optional file path for context label"),
+});
+
+export const AiChatResponse = zod.object({
+  reply: zod.string(),
+  model: zod.string(),
+});
+
+/**
  * @summary Analyze a single file using configured AI
  */
 export const AnalyzeFileBody = zod.object({
