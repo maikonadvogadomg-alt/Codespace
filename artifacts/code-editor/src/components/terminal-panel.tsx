@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Terminal, Loader2, X, ChevronRight, Trash2, Copy, Check, Mic, MicOff } from "lucide-react";
+import { Terminal, Loader2, X, ChevronRight, Trash2, Copy, Check, Mic, MicOff, Download } from "lucide-react";
 import { useExecCommand } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,43 @@ function useVoice(onResult: (text: string) => void) {
   return { listening, toggle };
 }
 
+// ─── Smart install detection ──────────────────────────────────────────────────
+
+/**
+ * Given combined stdout+stderr output, try to detect an npm package name
+ * that is missing and should be installed.
+ */
+function detectMissingPackage(stderr: string, stdout: string): string | null {
+  const text = stderr + "\n" + stdout;
+
+  // Node "Cannot find module 'X'" — captures scoped and unscoped packages
+  const cannotFind = text.match(/Cannot find module ['"](@?[a-zA-Z0-9._/-]+)['"]/);
+  if (cannotFind) {
+    const mod = cannotFind[1];
+    // Strip relative paths — only suggest external packages
+    if (!mod.startsWith(".") && !mod.startsWith("/")) return mod.split("/").slice(0, mod.startsWith("@") ? 2 : 1).join("/");
+  }
+
+  // npm ERR! missing: X@Y
+  const npmMissing = text.match(/npm ERR! missing: ([a-zA-Z0-9@._/-]+)@/);
+  if (npmMissing) return npmMissing[1].split("/").slice(0, npmMissing[1].startsWith("@") ? 2 : 1).join("/");
+
+  // MODULE_NOT_FOUND (vite/webpack bundler style): Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'X'
+  const errModNotFound = text.match(/Cannot find package ['"](@?[a-zA-Z0-9._/-]+)['"]/);
+  if (errModNotFound) {
+    const mod = errModNotFound[1];
+    if (!mod.startsWith(".") && !mod.startsWith("/")) return mod;
+  }
+
+  // Vite: "X" is not installed
+  const viteNotInstalled = text.match(/"(@?[a-zA-Z0-9._/-]+)" is not installed/);
+  if (viteNotInstalled) return viteNotInstalled[1];
+
+  return null;
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 interface TerminalEntry {
   id: number;
   command: string;
@@ -42,6 +79,7 @@ interface TerminalEntry {
   stderr: string;
   exitCode: number;
   durationMs: number;
+  missingPackage?: string | null;
 }
 
 interface TerminalPanelProps {
@@ -49,6 +87,8 @@ interface TerminalPanelProps {
   onClose?: () => void;
   pendingCommand?: { cmd: string; id: number } | null;
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPanelProps) {
   const [entries, setEntries] = useState<TerminalEntry[]>([]);
@@ -71,7 +111,6 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
     outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight, behavior: "smooth" });
   }, [entries, execMutation.isPending]);
 
-  // Focus input when panel opens
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
@@ -91,6 +130,9 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
         { projectId, data: { command: trimmed, timeout: 60000 } },
         {
           onSuccess: (data) => {
+            const missingPackage = data.exitCode !== 0
+              ? detectMissingPackage(data.stderr, data.stdout)
+              : null;
             setEntries((prev) => [
               ...prev,
               {
@@ -100,6 +142,7 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
                 stderr: data.stderr,
                 exitCode: data.exitCode,
                 durationMs: data.durationMs,
+                missingPackage,
               },
             ]);
           },
@@ -122,7 +165,7 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
     [projectId, execMutation]
   );
 
-  // Auto-run command sent from AI panel (after runCommand is defined)
+  // Auto-run command sent from outside (AI panel / packages panel)
   useEffect(() => {
     if (pendingCommand && pendingCommand.id !== lastPendingId) {
       setLastPendingId(pendingCommand.id);
@@ -198,7 +241,7 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
               <span className="text-green-400 shrink-0">$</span>
               <span className="text-[#e6edf3]">{entry.command}</span>
               <button
-                className="ml-auto opacity-0 group-hover:opacity-100 text-[#8b949e] hover:text-[#e6edf3] transition-opacity"
+                className="ml-auto text-[#8b949e] hover:text-[#e6edf3] transition-opacity"
                 onClick={() => copyOutput(entry)}
                 title="Copiar saída"
               >
@@ -220,17 +263,36 @@ export function TerminalPanel({ projectId, onClose, pendingCommand }: TerminalPa
               </span>
               <span className="text-[#8b949e] text-[9px]">{entry.durationMs}ms</span>
             </div>
+
             {/* stdout */}
             {entry.stdout && (
               <pre className="text-[11px] text-[#c9d1d9] whitespace-pre-wrap break-words pl-4 leading-relaxed">
                 {entry.stdout}
               </pre>
             )}
+
             {/* stderr */}
             {entry.stderr && (
               <pre className="text-[11px] text-[#f85149] whitespace-pre-wrap break-words pl-4 leading-relaxed">
                 {entry.stderr}
               </pre>
+            )}
+
+            {/* ── Smart npm install suggestion ─────────────────────────── */}
+            {entry.missingPackage && (
+              <div className="flex items-center gap-2 mt-1 ml-4 p-2 rounded bg-yellow-400/10 border border-yellow-400/30">
+                <Download className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+                <span className="text-[11px] text-yellow-300 flex-1">
+                  Módulo <code className="font-bold">{entry.missingPackage}</code> não encontrado.
+                </span>
+                <button
+                  onClick={() => runCommand(`npm install ${entry.missingPackage}`)}
+                  disabled={execMutation.isPending}
+                  className="text-[10px] font-semibold px-2 py-1 rounded bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-300 border border-yellow-400/30 transition-colors shrink-0 disabled:opacity-50"
+                >
+                  npm install {entry.missingPackage}
+                </button>
+              </div>
             )}
           </div>
         ))}

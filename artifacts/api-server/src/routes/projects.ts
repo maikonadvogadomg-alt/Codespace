@@ -19,7 +19,7 @@ import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs/promises";
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 250 * 1024 * 1024 } });
 
 const router: IRouter = Router();
 
@@ -125,6 +125,162 @@ router.post(
     }
   }
 );
+
+// ─── POST /projects/blank — create a blank project from template ─────────────
+
+const TEMPLATES: Record<string, Array<{ file: string; content: string }>> = {
+  blank: [
+    { file: "README.md", content: "# Novo Projeto\n\nDescreva seu projeto aqui.\n" },
+  ],
+  html: [
+    {
+      file: "index.html",
+      content: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meu Projeto</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Olá, mundo!</h1>
+  <p>Edite este arquivo para começar.</p>
+  <script src="script.js"></script>
+</body>
+</html>
+`,
+    },
+    {
+      file: "style.css",
+      content: `* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; padding: 2rem; background: #f9f9f9; color: #333; }
+h1 { margin-bottom: 1rem; color: #1a73e8; }
+`,
+    },
+    {
+      file: "script.js",
+      content: `// Seu código JavaScript aqui
+console.log('Projeto iniciado!');
+`,
+    },
+  ],
+  node: [
+    {
+      file: "index.js",
+      content: `// Ponto de entrada do projeto Node.js
+console.log('Servidor iniciado!');
+`,
+    },
+    {
+      file: "package.json",
+      content: JSON.stringify(
+        { name: "meu-projeto", version: "1.0.0", main: "index.js", scripts: { start: "node index.js" } },
+        null,
+        2
+      ) + "\n",
+    },
+    { file: "README.md", content: "# Meu Projeto Node.js\n\n```bash\nnpm install\nnpm start\n```\n" },
+  ],
+  react: [
+    {
+      file: "index.html",
+      content: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>React App</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
+`,
+    },
+    {
+      file: "package.json",
+      content: JSON.stringify(
+        {
+          name: "react-app",
+          version: "0.0.0",
+          private: true,
+          scripts: { dev: "vite", build: "vite build", preview: "vite preview" },
+          dependencies: { react: "^18.3.0", "react-dom": "^18.3.0" },
+          devDependencies: { "@vitejs/plugin-react": "^4.3.0", vite: "^6.0.0" },
+        },
+        null,
+        2
+      ) + "\n",
+    },
+    {
+      file: "vite.config.js",
+      content: `import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+export default defineConfig({ plugins: [react()] })
+`,
+    },
+    {
+      file: "src/main.jsx",
+      content: `import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App.jsx'
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+)
+`,
+    },
+    {
+      file: "src/App.jsx",
+      content: `import React, { useState } from 'react'
+
+export default function App() {
+  const [count, setCount] = useState(0)
+  return (
+    <div style={{ padding: '2rem', fontFamily: 'system-ui, sans-serif' }}>
+      <h1>React App</h1>
+      <p>Contador: {count}</p>
+      <button onClick={() => setCount(c => c + 1)}>+1</button>
+    </div>
+  )
+}
+`,
+    },
+    { file: "README.md", content: "# React App\n\n```bash\nnpm install\nnpm run dev\n```\n" },
+  ],
+};
+
+router.post("/projects/blank", async (req, res): Promise<void> => {
+  const { name, template = "blank" } = req.body as { name?: string; template?: string };
+  const projectName = (name ?? "Novo Projeto").trim() || "Novo Projeto";
+  const files = TEMPLATES[template] ?? TEMPLATES.blank;
+  const slug = randomUUID();
+  const projectDir = await ensureProjectDir(slug);
+
+  for (const { file, content } of files) {
+    const fullPath = path.join(projectDir, file);
+    await fs.mkdir(path.dirname(fullPath), { recursive: true });
+    await fs.writeFile(fullPath, content, "utf-8");
+  }
+
+  const { count, sizeBytes } = await countFiles(projectDir);
+  const [inserted] = await db
+    .insert(projectsTable)
+    .values({ slug, name: projectName, storagePath: projectDir, fileCount: count, sizeBytes })
+    .returning();
+
+  res.status(201).json({
+    id: String(inserted.id),
+    name: inserted.name,
+    createdAt: inserted.createdAt.toISOString(),
+    fileCount: inserted.fileCount,
+    sizeBytes: inserted.sizeBytes,
+  });
+});
 
 router.get("/projects/:projectId", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.projectId) ? req.params.projectId[0] : req.params.projectId;

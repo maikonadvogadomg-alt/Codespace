@@ -1,7 +1,4 @@
-import React, { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import React, { useState, useEffect } from "react";
 import {
   useGetSettings,
   useUpdateSettings,
@@ -10,16 +7,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2,
@@ -29,6 +18,11 @@ import {
   Sparkles,
   Eye,
   EyeOff,
+  Github,
+  Zap,
+  Star,
+  FlaskConical,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -94,10 +88,7 @@ const PROVIDERS: { match: (key: string) => boolean; provider: Provider }[] = [
     },
   },
   {
-    match: (k) =>
-      k.startsWith("sk-") &&
-      !k.startsWith("sk-ant-") &&
-      !k.startsWith("sk-or-"),
+    match: (k) => k.startsWith("sk-") && !k.startsWith("sk-ant-") && !k.startsWith("sk-or-"),
     provider: {
       name: "OpenAI",
       color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30",
@@ -107,9 +98,7 @@ const PROVIDERS: { match: (key: string) => boolean; provider: Provider }[] = [
     },
   },
   {
-    match: (k) =>
-      k.length > 20 &&
-      (k.includes("mistral") || k.match(/^[a-zA-Z0-9]{32,}$/) !== null),
+    match: (k) => k.length > 20 && (k.includes("mistral") || k.match(/^[a-zA-Z0-9]{32,}$/) !== null),
     provider: {
       name: "Mistral",
       color: "text-yellow-400 bg-yellow-400/10 border-yellow-400/30",
@@ -128,25 +117,100 @@ function detectProvider(key: string): Provider | null {
   return null;
 }
 
-// ─── Schema ──────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-const settingsSchema = z.object({
-  aiApiKey: z.string().optional(),
-  aiBaseUrl: z.string().optional(),
-  aiModel: z.string().optional(),
-  githubToken: z.string().optional(),
-});
+interface AiProfile {
+  name: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}
 
-type SettingsFormValues = z.infer<typeof settingsSchema>;
+const DEFAULT_PROFILE: AiProfile = { name: "", apiKey: "", baseUrl: "", model: "" };
+
+const SLOT_ICONS = [
+  <Star className="w-3.5 h-3.5" />,
+  <Zap className="w-3.5 h-3.5" />,
+  <Cpu className="w-3.5 h-3.5" />,
+  <FlaskConical className="w-3.5 h-3.5" />,
+];
+
+const SLOT_DEFAULT_NAMES = ["Principal", "Rápido", "Especializado", "Teste"];
+
+const LS_PROFILES_KEY = "codelens_ai_profiles";
+const LS_ACTIVE_KEY = "codelens_ai_active_slot";
+
+function loadProfiles(): AiProfile[] {
+  try {
+    const raw = localStorage.getItem(LS_PROFILES_KEY);
+    if (!raw) return Array(4).fill(null).map(() => ({ ...DEFAULT_PROFILE }));
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length === 4) return parsed;
+  } catch {}
+  return Array(4).fill(null).map(() => ({ ...DEFAULT_PROFILE }));
+}
+
+function saveProfiles(profiles: AiProfile[]) {
+  localStorage.setItem(LS_PROFILES_KEY, JSON.stringify(profiles));
+}
+
+function loadActiveSlot(): number {
+  try {
+    const raw = localStorage.getItem(LS_ACTIVE_KEY);
+    const n = parseInt(raw ?? "0", 10);
+    return isNaN(n) || n < 0 || n > 3 ? 0 : n;
+  } catch {
+    return 0;
+  }
+}
+
+// ─── PasswordInput ────────────────────────────────────────────────────────────
+
+function PasswordInput({ value, onChange, placeholder, disabled }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="bg-background pr-10 font-mono text-sm"
+      />
+      <button
+        type="button"
+        onClick={() => setShow((v) => !v)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        tabIndex={-1}
+      >
+        {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
+    </div>
+  );
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // AI profiles state
+  const [profiles, setProfiles] = useState<AiProfile[]>(loadProfiles);
+  const [activeSlot, setActiveSlot] = useState<number>(loadActiveSlot);
+  const [editSlot, setEditSlot] = useState<number>(0);
   const [detectedProvider, setDetectedProvider] = useState<Provider | null>(null);
-  const [showKey, setShowKey] = useState(false);
+
+  // GitHub token state (separate, goes to backend)
+  const [githubToken, setGithubToken] = useState("");
   const [showGhToken, setShowGhToken] = useState(false);
+  const [savingGithub, setSavingGithub] = useState(false);
 
   const { data: settings, isLoading } = useGetSettings({
     query: { queryKey: getGetSettingsQueryKey() },
@@ -161,50 +225,68 @@ export default function SettingsPage() {
       onError: (error) => {
         toast({
           title: "Erro ao salvar",
-          description: error.error || "Erro desconhecido",
+          description: (error as any).error || "Erro desconhecido",
           variant: "destructive",
         });
       },
     },
   });
 
-  const form = useForm<SettingsFormValues>({
-    resolver: zodResolver(settingsSchema),
-    defaultValues: { aiApiKey: "", aiBaseUrl: "", aiModel: "", githubToken: "" },
-  });
+  // Initialize detect on load
+  useEffect(() => {
+    const p = profiles[editSlot];
+    if (p.apiKey) setDetectedProvider(detectProvider(p.apiKey));
+  }, [editSlot]);
 
-  React.useEffect(() => {
-    if (settings) {
-      form.reset({
-        aiApiKey: "",
-        aiBaseUrl: settings.aiBaseUrl || "",
-        aiModel: settings.aiModel || "",
-        githubToken: "",
-      });
-    }
-  }, [settings, form]);
+  const currentProfile = profiles[editSlot];
 
-  // Auto-detect provider when key changes
-  const handleKeyChange = (value: string, fieldOnChange: (v: string) => void) => {
-    fieldOnChange(value);
+  const updateCurrentProfile = (patch: Partial<AiProfile>) => {
+    setProfiles((prev) => {
+      const next = [...prev];
+      next[editSlot] = { ...next[editSlot], ...patch };
+      saveProfiles(next);
+      return next;
+    });
+  };
+
+  const handleKeyChange = (value: string) => {
+    updateCurrentProfile({ apiKey: value });
     const provider = detectProvider(value.trim());
     setDetectedProvider(provider);
     if (provider) {
-      form.setValue("aiBaseUrl", provider.baseUrl);
-      form.setValue("aiModel", provider.model);
+      updateCurrentProfile({ apiKey: value, baseUrl: provider.baseUrl, model: provider.model });
     }
   };
 
-  const onSubmit = (data: SettingsFormValues) => {
+  const handleActivate = () => {
+    const profile = profiles[editSlot];
+    if (!profile.apiKey.trim() && !profile.baseUrl.trim() && !profile.model.trim()) {
+      toast({ title: "Perfil vazio", description: "Adicione pelo menos a chave de API.", variant: "destructive" });
+      return;
+    }
+    localStorage.setItem(LS_ACTIVE_KEY, String(editSlot));
+    setActiveSlot(editSlot);
     updateMutation.mutate({
       data: {
-        aiApiKey: data.aiApiKey || undefined,
-        aiBaseUrl: data.aiBaseUrl || undefined,
-        aiModel: data.aiModel || undefined,
-        githubToken: data.githubToken || undefined,
+        aiApiKey: profile.apiKey || undefined,
+        aiBaseUrl: profile.baseUrl || undefined,
+        aiModel: profile.model || undefined,
       },
     });
   };
+
+  const handleSaveGithub = () => {
+    if (!githubToken.trim()) return;
+    setSavingGithub(true);
+    updateMutation.mutate(
+      { data: { githubToken: githubToken.trim() } },
+      { onSettled: () => setSavingGithub(false) }
+    );
+    setGithubToken("");
+  };
+
+  const slotName = (i: number) =>
+    profiles[i].name.trim() || SLOT_DEFAULT_NAMES[i];
 
   return (
     <AppLayout>
@@ -220,7 +302,7 @@ export default function SettingsPage() {
                 Configurações
               </h1>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Configure sua IA e integrações
+                Configure seus perfis de IA e integrações
               </p>
             </div>
           </div>
@@ -232,223 +314,218 @@ export default function SettingsPage() {
               ))}
             </div>
           ) : (
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                {/* AI Section */}
-                <div className="p-5 sm:p-6 rounded-xl border border-border bg-card/50 space-y-5">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-primary" />
-                    <h2 className="text-base font-medium text-foreground">
-                      Configuração da IA
-                    </h2>
-                  </div>
+            <div className="space-y-6">
+              {/* ─── AI Profiles Section ─────────────────────────────────── */}
+              <div className="p-5 sm:p-6 rounded-xl border border-border bg-card/50 space-y-5">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <h2 className="text-base font-medium text-foreground">
+                    Perfis de IA
+                  </h2>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    Ativo: <strong className="text-primary">{slotName(activeSlot)}</strong>
+                  </span>
+                </div>
 
-                  {/* API Key with auto-detect */}
-                  <FormField
-                    control={form.control}
-                    name="aiApiKey"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center justify-between">
-                          <FormLabel>Chave de API</FormLabel>
-                          {settings?.aiApiKeySet && !field.value && (
-                            <span className="text-[10px] uppercase tracking-wider font-semibold text-primary flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" /> Configurada
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Detected provider badge */}
-                        {detectedProvider && (
-                          <div
-                            className={cn(
-                              "flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium mb-1",
-                              detectedProvider.color
-                            )}
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                            <span>
-                              <strong>{detectedProvider.name}</strong> detectado —{" "}
-                              URL e modelo preenchidos automaticamente
-                              {" "}({detectedProvider.hint})
-                            </span>
-                          </div>
+                {/* Profile tabs */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[0, 1, 2, 3].map((i) => {
+                    const hasKey = !!profiles[i].apiKey.trim();
+                    const isActive = activeSlot === i;
+                    const isEditing = editSlot === i;
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => { setEditSlot(i); setDetectedProvider(detectProvider(profiles[i].apiKey)); }}
+                        className={cn(
+                          "flex flex-col items-center gap-1.5 py-3 px-2 rounded-lg border text-center transition-all",
+                          isEditing
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border hover:border-border/80 hover:bg-accent/30 text-muted-foreground"
                         )}
-
-                        <FormControl>
-                          <div className="relative">
-                            <Input
-                              type={showKey ? "text" : "password"}
-                              placeholder={
-                                settings?.aiApiKeySet
-                                  ? "••••••••••••••••  (cole para substituir)"
-                                  : "Cole sua chave aqui — sk-..., AIzaSy..., gsk_..."
-                              }
-                              {...field}
-                              onChange={(e) =>
-                                handleKeyChange(e.target.value, field.onChange)
-                              }
-                              className="bg-background pr-10 font-mono text-sm"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowKey((v) => !v)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                              tabIndex={-1}
-                            >
-                              {showKey ? (
-                                <EyeOff className="w-4 h-4" />
-                              ) : (
-                                <Eye className="w-4 h-4" />
-                              )}
-                            </button>
-                          </div>
-                        </FormControl>
-                        <FormDescription>
-                          Cole sua chave — o provedor é detectado automaticamente.
-                          Deixe em branco para manter a chave atual.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Providers quick guide */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {[
-                      { name: "OpenAI", prefix: "sk-…", color: "text-emerald-400" },
-                      { name: "Anthropic", prefix: "sk-ant-…", color: "text-orange-400" },
-                      { name: "Gemini", prefix: "AIzaSy…", color: "text-blue-400" },
-                      { name: "Groq", prefix: "gsk_…", color: "text-purple-400" },
-                      { name: "OpenRouter", prefix: "sk-or-…", color: "text-green-400" },
-                      { name: "xAI (Grok)", prefix: "xai-…", color: "text-gray-300" },
-                    ].map(({ name, prefix, color }) => (
-                      <div
-                        key={name}
-                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-background/60 border border-border/40 text-[11px]"
                       >
-                        <span className={cn("font-semibold shrink-0", color)}>{name}</span>
-                        <code className="text-muted-foreground truncate">{prefix}</code>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <FormField
-                      control={form.control}
-                      name="aiBaseUrl"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>URL Base</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="https://api.openai.com/v1"
-                              {...field}
-                              className="bg-background font-mono text-xs"
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Preenchida automaticamente
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="aiModel"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Modelo</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="gpt-4o"
-                              {...field}
-                              className="bg-background font-mono text-xs"
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Preenchido automaticamente
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* GitHub Section */}
-                <div className="p-5 sm:p-6 rounded-xl border border-border bg-card/50 space-y-5">
-                  <h2 className="text-base font-medium text-foreground">GitHub</h2>
-
-                  <FormField
-                    control={form.control}
-                    name="githubToken"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center justify-between">
-                          <FormLabel>Token de Acesso Pessoal</FormLabel>
-                          {settings?.githubTokenSet ? (
-                            <span className="text-[10px] uppercase tracking-wider font-semibold text-primary flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" /> Configurado
-                            </span>
-                          ) : (
-                            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground flex items-center gap-1">
-                              <ShieldAlert className="w-3 h-3" /> Não configurado
-                            </span>
+                        <div className="relative">
+                          {SLOT_ICONS[i]}
+                          {isActive && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-400" />
                           )}
                         </div>
-                        <FormControl>
-                          <div className="relative">
-                            <Input
-                              type={showGhToken ? "text" : "password"}
-                              placeholder={
-                                settings?.githubTokenSet
-                                  ? "••••••••••••••••  (cole para substituir)"
-                                  : "ghp_..."
-                              }
-                              {...field}
-                              className="bg-background pr-10 font-mono text-sm"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowGhToken((v) => !v)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                              tabIndex={-1}
-                            >
-                              {showGhToken ? (
-                                <EyeOff className="w-4 h-4" />
-                              ) : (
-                                <Eye className="w-4 h-4" />
-                              )}
-                            </button>
-                          </div>
-                        </FormControl>
-                        <FormDescription>
-                          Necessário para exportar projetos ao GitHub. Precisa da
-                          permissão <code>repo</code>.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                        <span className="text-[10px] font-medium leading-tight truncate w-full">
+                          {slotName(i)}
+                        </span>
+                        {hasKey && (
+                          <span className="text-[9px] text-green-400 leading-none">●</span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
 
-                <div className="flex justify-end pb-6">
-                  <Button
-                    type="submit"
-                    disabled={updateMutation.isPending}
-                    className="min-w-[140px]"
-                  >
-                    {updateMutation.isPending && (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                {/* Edit selected profile */}
+                <div className="space-y-4 pt-1">
+                  <div className="flex items-center gap-2">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="text-[11px] text-muted-foreground font-medium px-2">
+                      Editando: {slotName(editSlot)}
+                    </span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+
+                  {/* Profile name */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Nome do perfil</Label>
+                    <Input
+                      value={currentProfile.name}
+                      onChange={(e) => updateCurrentProfile({ name: e.target.value })}
+                      placeholder={SLOT_DEFAULT_NAMES[editSlot]}
+                      className="bg-background text-sm h-8"
+                    />
+                  </div>
+
+                  {/* API Key */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Chave de API</Label>
+                    {detectedProvider && (
+                      <div className={cn(
+                        "flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium",
+                        detectedProvider.color
+                      )}>
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        <span>
+                          <strong>{detectedProvider.name}</strong> — URL e modelo preenchidos
+                          ({detectedProvider.hint})
+                        </span>
+                      </div>
                     )}
-                    Salvar configurações
-                  </Button>
+                    <PasswordInput
+                      value={currentProfile.apiKey}
+                      onChange={handleKeyChange}
+                      placeholder="sk-..., AIzaSy..., gsk_..., xai-..."
+                    />
+                  </div>
+
+                  {/* URL + Model */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">URL Base</Label>
+                      <Input
+                        value={currentProfile.baseUrl}
+                        onChange={(e) => updateCurrentProfile({ baseUrl: e.target.value })}
+                        placeholder="https://api.openai.com/v1"
+                        className="bg-background font-mono text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Modelo</Label>
+                      <Input
+                        value={currentProfile.model}
+                        onChange={(e) => updateCurrentProfile({ model: e.target.value })}
+                        placeholder="gpt-4o"
+                        className="bg-background font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Activate button */}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={handleActivate}
+                      disabled={updateMutation.isPending}
+                      className="gap-2 flex-1"
+                      variant={activeSlot === editSlot ? "outline" : "default"}
+                    >
+                      {updateMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : activeSlot === editSlot ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-400" />
+                      ) : (
+                        <Zap className="w-4 h-4" />
+                      )}
+                      {activeSlot === editSlot ? "Perfil ativo — salvar alterações" : "Ativar este perfil"}
+                    </Button>
+                  </div>
                 </div>
-              </form>
-            </Form>
+
+                {/* Providers quick guide */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                  {[
+                    { name: "OpenAI", prefix: "sk-…", color: "text-emerald-400" },
+                    { name: "Anthropic", prefix: "sk-ant-…", color: "text-orange-400" },
+                    { name: "Gemini", prefix: "AIzaSy…", color: "text-blue-400" },
+                    { name: "Groq", prefix: "gsk_…", color: "text-purple-400" },
+                    { name: "OpenRouter", prefix: "sk-or-…", color: "text-green-400" },
+                    { name: "xAI (Grok)", prefix: "xai-…", color: "text-gray-300" },
+                  ].map(({ name, prefix, color }) => (
+                    <div
+                      key={name}
+                      className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-background/60 border border-border/40 text-[11px]"
+                    >
+                      <span className={cn("font-semibold shrink-0", color)}>{name}</span>
+                      <code className="text-muted-foreground truncate">{prefix}</code>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-[11px] text-muted-foreground">
+                  Configure até 4 perfis — por exemplo: principal (Claude), rápido (Groq), 
+                  especializado (GPT-4o) e teste (chave gratuita). Clique em{" "}
+                  <strong>Ativar</strong> para usar um perfil na IA do chat.
+                </p>
+              </div>
+
+              {/* ─── GitHub Section ───────────────────────────────────────── */}
+              <div className="p-5 sm:p-6 rounded-xl border border-border bg-card/50 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Github className="w-4 h-4 text-foreground" />
+                  <h2 className="text-base font-medium text-foreground">GitHub</h2>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Token de Acesso Pessoal</Label>
+                    {settings?.githubTokenSet ? (
+                      <span className="text-[10px] uppercase tracking-wider font-semibold text-primary flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Configurado
+                      </span>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground flex items-center gap-1">
+                        <ShieldAlert className="w-3 h-3" /> Não configurado
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type={showGhToken ? "text" : "password"}
+                      value={githubToken}
+                      onChange={(e) => setGithubToken(e.target.value)}
+                      placeholder={settings?.githubTokenSet ? "••••••••  (cole para substituir)" : "ghp_..."}
+                      className="bg-background pr-10 font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowGhToken((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      tabIndex={-1}
+                    >
+                      {showGhToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Necessário para exportar ao GitHub. Permissão <code>repo</code> necessária.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleSaveGithub}
+                  disabled={!githubToken.trim() || savingGithub}
+                  className="gap-2"
+                  size="sm"
+                >
+                  {savingGithub ? <Loader2 className="w-4 h-4 animate-spin" /> : <Github className="w-4 h-4" />}
+                  Salvar token do GitHub
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       </div>
