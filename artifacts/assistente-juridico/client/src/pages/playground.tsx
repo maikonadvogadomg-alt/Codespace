@@ -650,8 +650,9 @@ export default function Playground() {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script>window.onerror=function(m){document.getElementById('root').innerHTML='<div style=\"color:#c00;padding:20px;font-family:monospace;white-space:pre-wrap\">Erro: '+m+'</div>';return true;}</script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 ${pdfJsScripts}
 <style>
@@ -669,7 +670,7 @@ try {
   _root.render(<App />);
 } catch(e) {
   document.getElementById('root').innerHTML =
-    '<div style="color:red;padding:20px;font-family:monospace;white-space:pre-wrap">'+
+    '<div style="color:#c00;padding:20px;font-family:monospace;white-space:pre-wrap">'+
     'Erro ao montar: ' + e.message + '\\n\\nCertifique-se de ter um componente chamado App</div>';
 }
 </script>
@@ -893,7 +894,6 @@ ${html}
     const blob = new Blob([doc], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank");
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
   const handleClear = () => {
