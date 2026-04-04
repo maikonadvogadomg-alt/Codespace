@@ -4805,6 +4805,212 @@ FORMATACAO OBRIGATORIA: Use paragrafos CURTOS, com no maximo 4 a 5 linhas cada. 
     }
   });
 
+  // ===== PDPJ NOTIFICATION SERVICE (notificacoes) =====
+  const NOTIFICACAO_BASE_PROD = "https://gateway.cloud.pje.jus.br/notificacoes";
+  const NOTIFICACAO_BASE_STG = "https://gateway.stg.cloud.pje.jus.br/notificacoes";
+
+  app.post("/api/pdpj/notificacoes/servicos", requireAuth, async (req, res) => {
+    try {
+      const { cpf, modo, tribunal, ambiente } = req.body;
+      const cleanCpf = (cpf || "").replace(/\D/g, "");
+      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
+      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
+      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
+      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
+      const response = await pdpjFetch(`${baseUrl}/api/v1/servicos/`, token, cleanCpf);
+      if (!response.ok) {
+        let errMsg = `Erro ${response.status}`;
+        try { const t = await response.text(); if (t) errMsg = t; } catch {}
+        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
+        if (response.status === 401) errMsg = "Token não autorizado";
+        return res.status(response.status).json({ message: errMsg });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("PDPJ notificacoes/servicos error:", error.message);
+      res.status(500).json({ message: "Erro ao listar serviços: " + (error.message || "desconhecido") });
+    }
+  });
+
+  app.post("/api/pdpj/notificacoes/eventos", requireAuth, async (req, res) => {
+    try {
+      const { cpf, modo, tribunal, ambiente, servicoId } = req.body;
+      const cleanCpf = (cpf || "").replace(/\D/g, "");
+      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
+      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
+      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
+      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
+      let url = `${baseUrl}/api/v1/eventos`;
+      if (servicoId) url += `?servicoId=${servicoId}`;
+      const response = await pdpjFetch(url, token, cleanCpf);
+      if (!response.ok) {
+        let errMsg = `Erro ${response.status}`;
+        try { const t = await response.text(); if (t) errMsg = t; } catch {}
+        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
+        if (response.status === 401) errMsg = "Token não autorizado";
+        return res.status(response.status).json({ message: errMsg });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("PDPJ notificacoes/eventos error:", error.message);
+      res.status(500).json({ message: "Erro ao listar eventos: " + (error.message || "desconhecido") });
+    }
+  });
+
+  app.post("/api/pdpj/notificacoes/inscricoes", requireAuth, async (req, res) => {
+    try {
+      const { cpf, modo, tribunal, ambiente, servicoId, eventoId } = req.body;
+      const cleanCpf = (cpf || "").replace(/\D/g, "");
+      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
+      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
+      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
+      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
+      let url = `${baseUrl}/api/v1/inscricoes`;
+      const params: string[] = [];
+      if (servicoId) params.push(`servicoId=${servicoId}`);
+      if (eventoId) params.push(`eventoId=${eventoId}`);
+      if (params.length) url += `?${params.join("&")}`;
+      const response = await pdpjFetch(url, token, cleanCpf);
+      if (!response.ok) {
+        let errMsg = `Erro ${response.status}`;
+        try { const t = await response.text(); if (t) errMsg = t; } catch {}
+        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
+        if (response.status === 401) errMsg = "Token não autorizado";
+        return res.status(response.status).json({ message: errMsg });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("PDPJ notificacoes/inscricoes error:", error.message);
+      res.status(500).json({ message: "Erro ao listar inscrições: " + (error.message || "desconhecido") });
+    }
+  });
+
+  app.post("/api/pdpj/notificacoes/inscricoes/usuario", requireAuth, async (req, res) => {
+    try {
+      const { cpf, modo, tribunal, ambiente } = req.body;
+      const cleanCpf = (cpf || "").replace(/\D/g, "");
+      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
+      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
+      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
+      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
+      const response = await pdpjFetch(`${baseUrl}/api/v1/inscricoes/usuario`, token, cleanCpf);
+      if (!response.ok) {
+        let errMsg = `Erro ${response.status}`;
+        try { const t = await response.text(); if (t) errMsg = t; } catch {}
+        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
+        if (response.status === 401) errMsg = "Token não autorizado";
+        return res.status(response.status).json({ message: errMsg });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("PDPJ notificacoes/inscricoes/usuario error:", error.message);
+      res.status(500).json({ message: "Erro ao listar inscrições do usuário: " + (error.message || "desconhecido") });
+    }
+  });
+
+  app.post("/api/pdpj/notificacoes/templates", requireAuth, async (req, res) => {
+    try {
+      const { cpf, modo, tribunal, ambiente, eventoId } = req.body;
+      const cleanCpf = (cpf || "").replace(/\D/g, "");
+      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
+      if (!eventoId) return res.status(400).json({ message: "eventoId obrigatório" });
+      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
+      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
+      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
+      const response = await pdpjFetch(`${baseUrl}/api/v1/templates?eventoId=${eventoId}`, token, cleanCpf);
+      if (!response.ok) {
+        let errMsg = `Erro ${response.status}`;
+        try { const t = await response.text(); if (t) errMsg = t; } catch {}
+        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
+        if (response.status === 401) errMsg = "Token não autorizado";
+        return res.status(response.status).json({ message: errMsg });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("PDPJ notificacoes/templates error:", error.message);
+      res.status(500).json({ message: "Erro ao listar templates: " + (error.message || "desconhecido") });
+    }
+  });
+
+  app.post("/api/pdpj/notificacoes/admin-consultas", requireAuth, async (req, res) => {
+    try {
+      const { cpf, modo, tribunal, ambiente } = req.body;
+      const cleanCpf = (cpf || "").replace(/\D/g, "");
+      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
+      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
+      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
+      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
+      const response = await pdpjFetch(`${baseUrl}/api/v1/admin-consultas`, token, cleanCpf);
+      if (!response.ok) {
+        let errMsg = `Erro ${response.status}`;
+        try { const t = await response.text(); if (t) errMsg = t; } catch {}
+        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
+        if (response.status === 401) errMsg = "Token não autorizado";
+        return res.status(response.status).json({ message: errMsg });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("PDPJ notificacoes/admin-consultas error:", error.message);
+      res.status(500).json({ message: "Erro ao consultar admin: " + (error.message || "desconhecido") });
+    }
+  });
+
+  app.post("/api/pdpj/notificacoes/subscritor-consultas", requireAuth, async (req, res) => {
+    try {
+      const { cpf, modo, tribunal, ambiente, servicoId } = req.body;
+      const cleanCpf = (cpf || "").replace(/\D/g, "");
+      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
+      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
+      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
+      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
+      let url = `${baseUrl}/api/v1/subscritor-consultas`;
+      if (servicoId) url += `?servicoId=${servicoId}`;
+      const response = await pdpjFetch(url, token, cleanCpf);
+      if (!response.ok) {
+        let errMsg = `Erro ${response.status}`;
+        try { const t = await response.text(); if (t) errMsg = t; } catch {}
+        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
+        if (response.status === 401) errMsg = "Token não autorizado";
+        return res.status(response.status).json({ message: errMsg });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("PDPJ notificacoes/subscritor-consultas error:", error.message);
+      res.status(500).json({ message: "Erro ao consultar subscrições: " + (error.message || "desconhecido") });
+    }
+  });
+
+  app.post("/api/pdpj/notificacoes/tribunais", requireAuth, async (req, res) => {
+    try {
+      const { cpf, modo, tribunal, ambiente } = req.body;
+      const cleanCpf = (cpf || "").replace(/\D/g, "");
+      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
+      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
+      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
+      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
+      const response = await pdpjFetch(`${baseUrl}/api/v1/subscritor-consultas/tribunais`, token, cleanCpf);
+      if (!response.ok) {
+        let errMsg = `Erro ${response.status}`;
+        try { const t = await response.text(); if (t) errMsg = t; } catch {}
+        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
+        if (response.status === 401) errMsg = "Token não autorizado";
+        return res.status(response.status).json({ message: errMsg });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("PDPJ notificacoes/tribunais error:", error.message);
+      res.status(500).json({ message: "Erro ao listar tribunais: " + (error.message || "desconhecido") });
+    }
+  });
+
   app.get("/api/datajud/tribunais", requireAuth, (_req, res) => {
     const tribunais = Object.keys(TRIBUNAL_ALIASES).map((key) => ({
       sigla: key,
