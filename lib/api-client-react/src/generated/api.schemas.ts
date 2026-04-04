@@ -170,6 +170,11 @@ export interface AiChatRequest {
    * @nullable
    */
   terminalContext?: string | null;
+  /**
+   * If true, AI is in agent mode and can auto-execute actions
+   * @nullable
+   */
+  agentMode?: boolean | null;
 }
 
 export interface AiChatResponse {

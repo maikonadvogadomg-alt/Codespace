@@ -178,6 +178,10 @@ export const AiChatBody = zod.object({
     .string()
     .nullish()
     .describe("Recent terminal output to inject as context for AI"),
+  agentMode: zod
+    .boolean()
+    .nullish()
+    .describe("If true, AI is in agent mode and can auto-execute actions"),
 });
 
 export const AiChatResponse = zod.object({

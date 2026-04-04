@@ -120,7 +120,7 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
     return;
   }
 
-  const { messages, fileContext, filePath, projectId, projectContext, terminalContext } = parsed.data;
+  const { messages, fileContext, filePath, projectId, projectContext, terminalContext, agentMode } = parsed.data;
 
   const settings = await getAiSettings();
   if (!settings?.aiApiKey) {
@@ -153,6 +153,21 @@ REGRAS IMPORTANTES:
 - Explique em PORTUGUÊS o que você está fazendo antes de cada bloco
 - Quando houver múltiplas etapas (instalar + criar arquivo + configurar), faça tudo em sequência na mesma resposta`;
 
+  const AGENT_MODE_INSTRUCTIONS = `
+🤖 MODO AGENTE ATIVO — Você tem execução AUTOMÁTICA de comandos e arquivos.
+Quando você usa <codelens-exec> ou <codelens-write>, o sistema EXECUTA automaticamente e te mostra o resultado.
+Você DEVE agir como um agente autônomo:
+- Diagnostique o problema executando comandos (ls, cat, npm ls, etc.)
+- Instale dependências se necessário (npm install)
+- Crie ou edite arquivos para corrigir erros
+- Após cada ação, analise o resultado e continue até resolver
+- Se um comando falhar, tente outra abordagem
+- NUNCA peça permissão — EXECUTE diretamente
+- Quando terminar, diga claramente "✅ Pronto!" e explique o que fez
+- Limite: máximo 10 ações por turno para evitar loops infinitos`;
+
+  const agentInstructions = agentMode ? AGENT_MODE_INSTRUCTIONS : "";
+
   if (projectContext && projectId) {
     try {
       const { text, fileCount, truncated } = await buildProjectContext(projectId);
@@ -166,7 +181,8 @@ Abaixo está o conteúdo completo do projeto:
 ${text}
 
 Use markdown quando útil. Ao referenciar código, cite o arquivo pelo caminho.
-${FILE_CHANGE_INSTRUCTIONS}`,
+${FILE_CHANGE_INSTRUCTIONS}
+${agentInstructions}`,
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erro ao carregar projeto";
@@ -386,6 +402,69 @@ Provide a clear, structured analysis of what this folder's role is in the projec
     res.status(400).json({ error: message });
     return;
   }
+});
+
+router.post("/ai/agent-exec", async (req, res): Promise<void> => {
+  const { projectId, command } = req.body;
+  if (!projectId || !command) {
+    res.status(400).json({ error: "projectId and command are required" });
+    return;
+  }
+
+  const numId = parseInt(projectId, 10);
+  if (isNaN(numId)) {
+    res.status(400).json({ error: "Invalid project ID" });
+    return;
+  }
+
+  const rows = await db.select().from(projectsTable).where(eq(projectsTable.id, numId)).limit(1);
+  const project = rows[0];
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  await ensureProjectOnDisk(project.id, project.storagePath);
+
+  const BLOCKED = [
+    /rm\s+-rf\s+\//,
+    /mkfs/,
+    /dd\s+if=.*of=\/dev/,
+    /shutdown|reboot|halt|poweroff/,
+    /curl.*\|\s*(bash|sh)/,
+  ];
+  if (BLOCKED.some(p => p.test(command))) {
+    res.json({ stdout: "", stderr: "Comando bloqueado por segurança.", exitCode: 1 });
+    return;
+  }
+
+  const { spawn } = await import("child_process");
+  const proc = spawn("bash", ["-c", command], {
+    cwd: project.storagePath,
+    env: {
+      ...process.env,
+      PATH: `${project.storagePath}/node_modules/.bin:${process.env.PATH}`,
+      HOME: process.env.HOME || "/home/runner",
+    },
+    timeout: 120_000,
+  });
+
+  let stdout = "";
+  let stderr = "";
+  proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
+  proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+
+  proc.on("close", (code) => {
+    res.json({
+      stdout: stdout.slice(-8000),
+      stderr: stderr.slice(-4000),
+      exitCode: code ?? 1,
+    });
+  });
+
+  proc.on("error", (err) => {
+    res.json({ stdout: "", stderr: err.message, exitCode: 1 });
+  });
 });
 
 export default router;

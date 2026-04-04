@@ -19,6 +19,7 @@ import {
   Play,
   Mic,
   MicOff,
+  Zap,
 } from "lucide-react";
 import {
   useAiChat,
@@ -380,6 +381,27 @@ function useActiveModel(): string {
 }
 
 const CONTEXT_STORAGE_KEY = "codelens_ai_context_mode";
+const AGENT_MODE_KEY = "codelens_agent_mode";
+
+async function agentExec(projectId: string, command: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const res = await fetch("/api/ai/agent-exec", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId, command }),
+  });
+  return res.json();
+}
+
+async function agentWriteFile(projectId: string, filePath: string, content: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/projects/${projectId}/files`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: filePath, content }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
 
 export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand, terminalLog }: AiPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -388,20 +410,90 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
     const saved = localStorage.getItem(CONTEXT_STORAGE_KEY) as ContextMode | null;
     return saved ?? "project";
   });
+  const [agentMode, setAgentMode] = useState(() => localStorage.getItem(AGENT_MODE_KEY) === "true");
+  const [agentWorking, setAgentWorking] = useState(false);
+  const agentAbortRef = useRef(false);
   const [lastExternalId, setLastExternalId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const activeModel = useActiveModel();
+
+  const toggleAgentMode = () => {
+    const next = !agentMode;
+    setAgentMode(next);
+    localStorage.setItem(AGENT_MODE_KEY, String(next));
+  };
 
   const { listening, toggle: toggleVoice } = useVoice((text) => {
     setInput((prev) => (prev ? prev + " " + text : text));
     setTimeout(() => textareaRef.current?.focus(), 50);
   });
 
+  const processAgentActions = useCallback(async (reply: string, allMessages: Message[]) => {
+    if (!agentMode) return;
+    const segments = parseAiMessage(reply);
+    const actionSegments = segments.filter(s => s.type === "exec" || s.type === "write");
+    if (actionSegments.length === 0) return;
+
+    setAgentWorking(true);
+    agentAbortRef.current = false;
+    const results: string[] = [];
+
+    for (const seg of actionSegments) {
+      if (agentAbortRef.current) break;
+
+      if (seg.type === "exec") {
+        const cmd = seg.command.trim();
+        setMessages(prev => [...prev, { role: "assistant", content: `⚡ Executando: \`${cmd}\`` }]);
+        onRunCommand?.(cmd);
+        try {
+          const r = await agentExec(projectId, cmd);
+          const output = [
+            r.stdout && `stdout:\n${r.stdout.slice(-3000)}`,
+            r.stderr && `stderr:\n${r.stderr.slice(-2000)}`,
+            `exit: ${r.exitCode}`,
+          ].filter(Boolean).join("\n");
+          results.push(`Comando: ${cmd}\n${output}`);
+          setMessages(prev => [...prev, {
+            role: "assistant",
+            content: `✅ Resultado de \`${cmd}\`:\n\`\`\`\n${output.slice(0, 2000)}\n\`\`\``
+          }]);
+        } catch (e: any) {
+          results.push(`Comando: ${cmd}\nErro: ${e.message}`);
+        }
+      } else if (seg.type === "write") {
+        const ok = await agentWriteFile(projectId, seg.path, seg.content);
+        results.push(`Arquivo ${seg.path}: ${ok ? "salvo" : "erro ao salvar"}`);
+        if (ok) {
+          setMessages(prev => [...prev, { role: "assistant", content: `📝 Arquivo \`${seg.path}\` aplicado automaticamente.` }]);
+        }
+      }
+    }
+
+    if (results.length > 0 && !agentAbortRef.current) {
+      const feedbackMsg: Message = {
+        role: "user",
+        content: `[Agente] Resultados das ações executadas automaticamente:\n\n${results.join("\n\n---\n\n")}\n\nContinue o trabalho se necessário, ou diga que terminou.`
+      };
+      setMessages(prev => {
+        const updated = [...prev, feedbackMsg];
+        triggerAgentFollowUp(updated);
+        return updated;
+      });
+    }
+    setAgentWorking(false);
+  }, [agentMode, projectId, onRunCommand]);
+
   const chatMutation = useAiChat({
     mutation: {
       onSuccess: (data) => {
-        setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+        setMessages((prev) => {
+          const updated = [...prev, { role: "assistant" as const, content: data.reply }];
+          if (agentMode) {
+            setTimeout(() => processAgentActions(data.reply, updated), 100);
+          }
+          return updated;
+        });
       },
       onError: (error) => {
         setMessages((prev) => [
@@ -411,9 +503,25 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
             content: `Erro: ${error.message || "Falha ao conectar com a IA. Verifique as Configurações."}`,
           },
         ]);
+        setAgentWorking(false);
       },
     },
   });
+
+  const triggerAgentFollowUp = useCallback((msgs: Message[]) => {
+    const tc = buildTerminalContext();
+    chatMutation.mutate({
+      data: {
+        messages: msgs.map(m => ({ role: m.role, content: m.content })),
+        fileContext: null,
+        filePath: null,
+        projectId,
+        projectContext: true,
+        terminalContext: tc ?? null,
+        agentMode: true,
+      },
+    });
+  }, [projectId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -466,6 +574,7 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
         projectId: mode === "project" ? projectId : null,
         projectContext: mode === "project" ? true : null,
         terminalContext: tc ?? null,
+        agentMode: agentMode || null,
       },
     });
   };
@@ -501,12 +610,27 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
           </span>
         )}
         <span className="flex-1" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "h-6 gap-1 text-[10px] px-2",
+            agentMode
+              ? "text-amber-400 bg-amber-500/10 hover:bg-amber-500/20"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          onClick={toggleAgentMode}
+          title={agentMode ? "Modo Agente ATIVO — IA executa comandos e aplica arquivos automaticamente" : "Ativar Modo Agente — IA executa ações sozinha"}
+        >
+          <Zap className="w-3 h-3" />
+          {agentMode ? "Agente ON" : "Agente"}
+        </Button>
         {messages.length > 0 && (
           <Button
             variant="ghost"
             size="icon"
             className="h-6 w-6 text-muted-foreground hover:text-foreground"
-            onClick={() => setMessages([])}
+            onClick={() => { setMessages([]); agentAbortRef.current = true; setAgentWorking(false); }}
             title="Limpar conversa"
           >
             <RefreshCw className="w-3 h-3" />
@@ -548,13 +672,14 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
                 <AssistantMessage key={i} content={msg.content} projectId={projectId} onRunCommand={onRunCommand} />
               )
             )}
-            {chatMutation.isPending && (
+            {(chatMutation.isPending || agentWorking) && (
               <div className="flex gap-2 justify-start">
-                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                  <Bot className="w-3.5 h-3.5 text-primary" />
+                <div className={cn("w-6 h-6 rounded-full flex items-center justify-center shrink-0", agentWorking ? "bg-amber-500/20" : "bg-primary/20")}>
+                  {agentWorking ? <Zap className="w-3.5 h-3.5 text-amber-400" /> : <Bot className="w-3.5 h-3.5 text-primary" />}
                 </div>
-                <div className="bg-muted rounded-lg rounded-bl-sm px-3 py-2">
+                <div className={cn("rounded-lg rounded-bl-sm px-3 py-2 flex items-center gap-2", agentWorking ? "bg-amber-500/10 border border-amber-500/20" : "bg-muted")}>
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                  {agentWorking && <span className="text-[10px] text-amber-400">Agente trabalhando...</span>}
                 </div>
               </div>
             )}

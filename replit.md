@@ -29,12 +29,16 @@ Personal code editor like SPCK Editor. Features:
 - Browse file trees, view/edit files with syntax highlighting
 - AI chat with 4 configurable profiles (user provides own API keys)
 - AI can modify, create, and delete project files via action tags
+- **Agent Mode**: toggle in AI panel header — when ON, AI auto-executes `<codelens-exec>` commands and auto-applies `<codelens-write>` file changes, then feeds results back to AI for iterative autonomous work
 - VS Code-like terminal (SSE streaming, auto-detects server ports)
 - Live preview panel (static preview + dev server proxy)
 - GitHub push/pull (create repo, push changes)
 - Plugin/library browser in sidebar
 - Settings page for AI profiles and GitHub token
 - PWA-ready
+
+### Assistente Jurídico (AplicativoMaikon) — `/app`
+Standalone legal assistant app running on port 5000. Express + Vite + React. Uses npm (not pnpm). BASE_PATH=/app.
 
 ### API Server — `/api`
 Express 5 backend serving all app routes.
