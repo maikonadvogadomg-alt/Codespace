@@ -82,6 +82,14 @@ export async function ensureProjectOnDisk(projectId: number, storagePath: string
   }
 }
 
+const SKIP_DIRS = new Set([
+  "node_modules", ".git", ".next", "dist", "build", ".cache",
+  ".turbo", ".parcel-cache", "__pycache__", ".venv", "venv",
+  "vendor", ".svn", "coverage", ".nyc_output",
+]);
+
+const MAX_FILE_SIZE = 1_000_000;
+
 /** Save all files in a directory tree to the database (called after ZIP import, template creation, etc.) */
 export async function dbSaveDirectoryTree(projectId: number, rootDir: string): Promise<void> {
   const files: { path: string; content: string }[] = [];
@@ -90,6 +98,7 @@ export async function dbSaveDirectoryTree(projectId: number, rootDir: string): P
     const entries = await fs.readdir(dir);
     for (const entry of entries) {
       if (entry.startsWith(".")) continue;
+      if (SKIP_DIRS.has(entry)) continue;
       const fullPath = path.join(dir, entry);
       const relPath = relBase ? `${relBase}/${entry}` : entry;
       const stat = await fs.stat(fullPath);
@@ -97,17 +106,15 @@ export async function dbSaveDirectoryTree(projectId: number, rootDir: string): P
         await walk(fullPath, relPath);
       } else {
         try {
+          if (stat.size > MAX_FILE_SIZE) continue;
           const buffer = await fs.readFile(fullPath);
-          // Skip binary files (detect by null bytes or high percentage of non-text bytes)
           if (buffer.includes(0)) {
             continue;
           }
           const content = buffer.toString("utf-8");
-          // Remove any remaining invalid UTF-8 sequences
           const cleaned = content.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
           files.push({ path: relPath, content: cleaned });
         } catch {
-          // Skip files that can't be read
         }
       }
     }
@@ -117,14 +124,19 @@ export async function dbSaveDirectoryTree(projectId: number, rootDir: string): P
 
   if (files.length === 0) return;
 
-  // Batch upsert all files
-  for (const f of files) {
-    await db
-      .insert(projectFilesTable)
-      .values({ projectId, path: f.path, content: f.content })
-      .onConflictDoUpdate({
-        target: [projectFilesTable.projectId, projectFilesTable.path],
-        set: { content: f.content, updatedAt: new Date() },
-      });
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    const batch = files.slice(i, i + BATCH_SIZE);
+    await Promise.all(
+      batch.map((f) =>
+        db
+          .insert(projectFilesTable)
+          .values({ projectId, path: f.path, content: f.content })
+          .onConflictDoUpdate({
+            target: [projectFilesTable.projectId, projectFilesTable.path],
+            set: { content: f.content, updatedAt: new Date() },
+          })
+      )
+    );
   }
 }

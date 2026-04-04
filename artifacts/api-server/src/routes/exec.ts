@@ -5,6 +5,7 @@ import { ExecCommandBody } from "@workspace/api-zod";
 import { spawn, execSync } from "child_process";
 import path from "path";
 import { registerTerminalProcess } from "../lib/devServerRegistry.js";
+import { ensureProjectOnDisk } from "../lib/persistFiles.js";
 
 const router: IRouter = Router();
 
@@ -175,6 +176,8 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, id));
   if (!project) { res.status(404).json({ error: "Projeto não encontrado" }); return; }
 
+  await ensureProjectOnDisk(project.id, project.storagePath);
+
   const normalized = normalizeCommand(command);
   const isInstallCmd = /^(npm\s+install|npm\s+i\b|yarn\s+install|yarn\b|pnpm\s+install|pip3?\s+install|poetry\s+install|composer\s+install|bundle\s+install|cargo\s+build|go\s+get)/.test(normalized.trim());
   const isBuildCmd = /^(npm\s+run\s+build|vite\s+build|next\s+build|tsc\b)/.test(normalized.trim());
@@ -286,6 +289,8 @@ router.post("/projects/:projectId/exec", async (req, res): Promise<void> => {
 
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, id));
   if (!project) { res.status(404).json({ error: "Projeto não encontrado" }); return; }
+
+  await ensureProjectOnDisk(project.id, project.storagePath);
 
   const normalized = normalizeCommand(command);
   const isInstallCmd = /^(npm\s+install|npm\s+i\b|yarn|pnpm\s+install|pip3?\s+install)/.test(normalized.trim());
