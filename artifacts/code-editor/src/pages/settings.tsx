@@ -78,6 +78,16 @@ const PROVIDERS: { match: (key: string) => boolean; provider: Provider }[] = [
     },
   },
   {
+    match: (k) => k.startsWith("pplx-"),
+    provider: {
+      name: "Perplexity",
+      color: "text-cyan-400 bg-cyan-400/10 border-cyan-400/30",
+      baseUrl: "https://api.perplexity.ai",
+      model: "sonar-pro",
+      hint: "Sonar Pro (busca + IA)",
+    },
+  },
+  {
     match: (k) => k.startsWith("sk-or-"),
     provider: {
       name: "OpenRouter",
@@ -450,6 +460,7 @@ export default function SettingsPage() {
                 {/* Providers quick guide */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
                   {[
+                    { name: "Perplexity", prefix: "pplx-…", color: "text-cyan-400" },
                     { name: "OpenAI", prefix: "sk-…", color: "text-emerald-400" },
                     { name: "Anthropic", prefix: "sk-ant-…", color: "text-orange-400" },
                     { name: "Gemini", prefix: "AIzaSy…", color: "text-blue-400" },
