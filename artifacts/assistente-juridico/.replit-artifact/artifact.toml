@@ -12,7 +12,7 @@ localPort = 5000
 run = "cd /home/runner/workspace/artifacts/assistente-juridico && PORT=5000 BASE_PATH=/app npm run dev"
 
 [services.production]
-build = "cd /home/runner/workspace/artifacts/assistente-juridico && npm run build"
+build = "cd /home/runner/workspace/artifacts/assistente-juridico && BASE_PATH=/app npm run build"
 run = "cd /home/runner/workspace/artifacts/assistente-juridico && PORT=5000 BASE_PATH=/app npm run start"
 
 [services.env]
