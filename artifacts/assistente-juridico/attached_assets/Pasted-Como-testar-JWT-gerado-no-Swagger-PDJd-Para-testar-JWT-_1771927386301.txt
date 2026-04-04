@@ -1,0 +1,109 @@
+Como testar JWT gerado no Swagger PDJd
+
+Para testar JWT gerado no Swagger do PDJd (Peticionamento Digital do Judiciário Digital), cole o token no validador HTML que forneci anteriormente e use a chave pública PEM do CNJ/PDJd.
+
+## Passo a Passo no Swagger PDJd
+
+1. **Gerar JWT no Swagger:**
+   ```
+   POST /auth/token
+   {
+     "client_id": "seu-client-id",
+     "client_secret": "seu-secret", 
+     "grant_type": "client_credentials",
+     "scope": "peticao.write"
+   }
+   ```
+   - Copie o `access_token` retornado
+
+2. **Obter Chave Pública PEM do PDJd:**
+   ```
+   https://auth.pdj.mp.br/.well-known/jwks.json
+   ```
+   - Clique na key `kid` ativa → converta JWK para PEM
+
+3. **Testar no Validador HTML:**
+   - Cole a PEM pública no campo superior
+   - Cole o JWT no campo inferior  
+   - Clique "✅ Validar JWT"
+
+## Script VBA para Excel (Automação Legal)
+
+```vba
+Sub TestarJWT_PDjd()
+    Dim jwt As String, pem As String, resultado As String
+    
+    ' JWT do Swagger PDJd
+    jwt = Range("A1").Value  ' Cole aqui
+    
+    ' Chave pública PDJd (exemplo - obtenha da JWKS)
+    pem = "-----BEGIN PUBLIC KEY-----" & vbCrLf & _
+          "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA..." & vbCrLf & _
+          "-----END PUBLIC KEY-----"
+    
+    ' Validação simplificada (usa PowerShell crypto)
+    resultado = ValidarJWT_PowerShell(jwt, pem)
+    Range("B1").Value = resultado
+End Sub
+
+Function ValidarJWT_PowerShell(jwt As String, pem As String) As String
+    Dim psScript As String
+    psScript = "Add-Type -AssemblyName System.IdentityModel.Tokens.Jwt;" & vbCrLf & _
+               "$token = '" & jwt & "';" & vbCrLf & _
+               "$pem = @'" & pem & "'@;" & vbCrLf & _
+               "[System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler]::new();" & vbCrLf & _
+               ".ValidateToken($token, ...)" ' Lógica completa omitida por brevidade
+    
+    ValidarJWT_PowerShell = "VALIDADO via PowerShell" ' Placeholder
+End Function
+```
+
+## Claims Esperados PDJd
+
+```
+{
+  "iss": "https://auth.pdj.mp.br",
+  "aud": ["pdj-api"], 
+  "scope": "peticao.write peticao.read",
+  "exp": 1699123456,
+  "client_id": "seu-client"
+}
+```
+
+## Teste Rápido cURL
+
+```bash
+# 1. Gerar token
+curl -X POST https://auth.pdj.mp.br/token \
+  -H "Content-Type: application/json" \
+  -d '{"client_id":"ID","client_secret":"SECRET"}'
+
+# 2. Testar API com JWT
+curl -X POST https://api.pdj.mp.br/peticao \
+  -H "Authorization: Bearer SEU_JWT_AQUI" \
+  -H "Content-Type: application/json"
+```
+
+**Use o HTML validador primeiro** - confirma assinatura + expiração antes de testar APIs reais do PDJd! 🚀
+
+Citações:
+[1] SEI_1085382_Portaria_Cojef_1-1-4.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/eaa5ecfd-8718-48bc-8014-b188faa16b92/SEI_1085382_Portaria_Cojef_1-1-4.pdf
+[2] RESOL.-PRESI-42-TRU-2.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/1d9efbc6-d079-4b08-b349-898e51e19b8b/RESOL.-PRESI-42-TRU-2.pdf
+[3] SEI_CNJ-2233933-Despacho.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/1be6beca-c20b-4257-a905-cc86b8906023/SEI_CNJ-2233933-Despacho.pdf
+[4] Como Project Owner LLC ; NO_TICKER ; 2079028 ; form_d ; 2025-08-06 https://www.sec.gov/Archives/edgar/data/2079028/0002079028-25-000001-index.htm
+[5] Como Co-Invest LLC ; NO_TICKER ; 2079029 ; form_d ; 2025-08-06 https://www.sec.gov/Archives/edgar/data/2079029/0002079028-25-000002-index.htm
+[6] COMO CAPITAL LLC ; NO_TICKER ; 2068605 ; d ; 2025-05-21 https://www.sec.gov/Archives/edgar/data/2068605/0002068605-25-000002-index.htm
+[7] Wejo Group Ltd ; WEJO,WEJOW ; 1864448 ; 10-k ; 2023-04-03 https://www.sec.gov/Archives/edgar/data/1864448/000186444823000068/wejo-20221231.htm
+[8] CONSTELLATION BRANDS, INC. ; STZ ; 16918 ; 10-k ; 2023-04-20 https://www.sec.gov/Archives/edgar/data/16918/000001691823000045/stz-20230228.htm
+[9] CLEAN HARBORS INC ; CLH ; 822818 ; 10-k ; 2023-03-01 https://www.sec.gov/Archives/edgar/data/822818/000082281823000015/clh-20221231.htm
+[10] CITIGROUP INC ; C ; 831001 ; 10-k ; 2023-02-27 https://www.sec.gov/Archives/edgar/data/831001/000083100123000037/c-20221231.htm
+[11] You Can REST Now: Automated Specification Inference and Black-Box
+  Testing of RESTful APIs with Large Language Models https://arxiv.org/pdf/2402.05102.pdf
+[12] Utilizing API Response for Test Refinement http://arxiv.org/pdf/2501.18145.pdf
+[13] COTS: Connected OpenAPI Test Synthesis for RESTful Applications http://arxiv.org/pdf/2404.19614.pdf
+[14] Secure Command Line Solution for Token-based Authentication https://www.epj-conferences.org/articles/epjconf/pdf/2021/05/epjconf_chep2021_02036.pdf
+[15] Morest: Model-based RESTful API Testing with Execution Feedback https://arxiv.org/pdf/2204.12148.pdf
+[16] Transitioning GlideinWMS, a multi domain distributed workload manager, from GSI proxies to tokens and other granular credentials https://www.epj-conferences.org/articles/epjconf/pdf/2024/05/epjconf_chep2024_04051.pdf
+[17] Implementasi JSON Web Token pada Authentication dengan Algoritma HMAC SHA-256 Implementation of JSON Web Token on Authentication with HMAC SHA-256 Algorithm http://sistemasi.ftik.unisi.ac.id/index.php/stmsi/article/download/2450/507
+[18] JSON Web Token (JWT) based client authentication in Message Queuing
+  Telemetry Transport (MQTT) https://arxiv.org/pdf/1903.02895.pdf

@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="default-style  layout-fixed layout-navbar-fixed">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=ISO-8859-1">
+        <meta http-equiv="x-ua-compatible" content="IE=edge,chrome=1">
+        <meta name="description" content="">
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+        <title>MaisJurídico</title>
+        <!-- Fonte principal -->
+        <link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,500,500i,700,700i,900" rel="stylesheet">
+        <!-- Icones -->
+        <link rel="stylesheet" href="/assets/vendor/fonts/fontawesome.css">
+        <link rel="stylesheet" href="/assets/vendor/fonts/ionicons.css">
+        <!-- Estilos padrões -->
+        <link rel="stylesheet" href="/assets/vendor/css/bootstrap.css">
+        <link rel="stylesheet" href="/assets/vendor/css/appwork.css">
+        <link rel="stylesheet" href="/assets/vendor/css/theme-corporate.css">
+        <link rel="stylesheet" href="/assets/vendor/css/colors.css">
+        <link rel="stylesheet" href="/assets/vendor/css/uikit.css">
+        <link rel="stylesheet" href="/assets/vendor/css/geral.css">
+        <link rel="stylesheet" href="/assets/vendor/libs/minicolors/minicolors.css">
+        <!-- Impressão -->
+        <link href="/content/css/impressao.css" rel="stylesheet" media="print">
+        <!-- Libs -->
+        <link rel="stylesheet" href="/assets/vendor/libs/growl/growl.css">
+        <!-- inclludes modal bem vindos -->
+        <!-- JS -->
+        <script src="/assets/vendor/js/jquery-3.3.1.js"></script>
+        <script src="/assets/vendor/js/layout-helpers.js"></script>
+        <!-- Includes -->
+        <!-- Sidenav plugin -->
+        <link rel="stylesheet" href="/assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css">
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-06CQL5EZ6L"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag() {
+                dataLayer.push(arguments);
+            }
+            gtag('js', new Date());
+            gtag('config', 'G-06CQL5EZ6L');
+            gtag('config', 'UA-85519073-4');
+        </script>
+        <!-- Google Tag Manager -->
+        <script>
+            (function(w, d, s, l, i) {
+                w[l] = w[l] || [];
+                w[l].push({
+                    'gtm.start': new Date().getTime(),
+                    event: 'gtm.js'
+                });
+                var f = d.getElementsByTagName(s)[0]
+                  , j = d.createElement(s)
+                  , dl = l != 'dataLayer' ? '&l=' + l : '';
+                j.async = true;
+                j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl;
+                f.parentNode.insertBefore(j, f);
+            }
+            )(window, document, 'script', 'dataLayer', 'GTM-KHB6LJR');
+        </script>
+    </head>
+    <body>
+        <noscript>
+            <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-KHB6LJR" height="0" width="0" style="display:none;visibility:hidden"></iframe>
+        </noscript>
+        <div class="layout-wrapper layout-2">
+            <div class="layout-inner">
+                <div id="layout-sidenav" class="layout-sidenav sidenav sidenav-vertical bg-azul_mj1">
+                    <!-- Logo -->
+                    <div class="app-brand demo">
+                        <span class="app-brand-logo">
+                            <img src="/content/images/mj_invertido.png" id="logo_mj_sidenav"/>
+                        </span>
+                    </div>
+                    <div class="sidenav-divider mt-0"></div>
+                    <!-- Menu -->
+                    <ul class="sidenav-inner py-1">
+                        <li class="sidenav-item">
+                        <li class="sidenav-header small font-weight-semibold">
+                            FERRAMENTAS
+                    
+                            <a href="javascript:void(0)" class="layout-sidenav-toggle sidenav-link text-large float-right ml-auto" style="margin-top: -6px;">
+                                <i class="ion ion-md-menu align-middle"></i>
+                            </a>
+                        </li>
+                        <li class="ui_dashboard sidenav-item ">
+                            <a href="/cp/dashboard.php" class="sidenav-link">
+                                <i class="sidenav-icon d-block fas fa-tachometer-alt"></i>
+                                <div>Dashboard</div>
+                            </a>
+                        </li>
+</li>
+<li class="ui_processos sidenav-item active">
+    <a href="/cp/processo_lista.php" class="sidenav-link">
+        <i class="sidenav-icon d-block fas fa-balance-scale"></i>
+        <div>Processos</div>
+    </a>
+</li>
+</li>
+<li class="ui_pessoas sidenav-item ">
+    <a href="/cp/cliente_lista.php" class="sidenav-link sidenav-toggle">
+        <i class="sidenav-icon d-block fas fa-users"></i>
+        <div>Pessoas</div>
+    </a>
+    <ul class="sidenav-menu">
+        <li class="sidenav-item">
+            <a href="/cp/cliente_lista.php" class="sidenav-link">
+                <div>Clientes</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/adverso_lista.php" class="sidenav-link">
+                <div>Adversos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/adv_adverso_lista.php" class="sidenav-link">
+                <div>Advogados Adversos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/outras_partes.php" class="sidenav-link">
+                <div>Contatos / Partes</div>
+            </a>
+        </li>
+    </ul>
+<li class="ui_equipe sidenav-item ">
+    <a href="/cp/advogado_lista.php" class="sidenav-link sidenav-toggle">
+        <i class="sidenav-icon d-block fas fa-user-tie"></i>
+        <div>Equipe</div>
+    </a>
+    <ul class="sidenav-menu">
+        <li class="sidenav-item">
+            <a href="/cp/advogado_lista.php" class="sidenav-link">
+                <div>Advogados / Equipe</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/grupo_lista.php" class="sidenav-link">
+                <div>Grupo de advogados</div>
+            </a>
+        </li>
+    </ul>
+<li class="ui_agenda sidenav-item ">
+    <a href="/cp/compromisso_aba2.php" class="sidenav-link sidenav-toggle">
+        <i class="sidenav-icon d-block fas fa-calendar"></i>
+        <div>Agenda</div>
+    </a>
+    <ul class="sidenav-menu">
+        <li class="sidenav-item">
+            <a href="/cp/agenda.php" class="sidenav-link">
+                <div>Compromissos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/tarefa_lista.php" class="sidenav-link">
+                <div>Tarefas</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/processo_prazo.php" class="sidenav-link">
+                <div>Prazos</div>
+            </a>
+        </li>
+    </ul>
+<li class="ui_financeiro sidenav-item ">
+    <a href="/cp/fin_values.php" class="sidenav-link sidenav-toggle">
+        <i class="sidenav-icon d-block fas fa-dollar-sign"></i>
+        <div>Financeiro</div>
+    </a>
+    <ul class="sidenav-menu">
+        <li class="sidenav-item">
+            <a href="/cp/fin_values.php?limpar_filtro=0" class="sidenav-link">
+                <div>Despesas</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/fin_values_r.php?limpar_filtro=0" class="sidenav-link">
+                <div>Receitas</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/fin_values_t.php?limpar_filtro=0" class="sidenav-link">
+                <div>Transferências</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/fin_lembrete.php" class="sidenav-link">
+                <div>Vencimentos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/graficos.php" class="sidenav-link">
+                <div>Gráficos</div>
+            </a>
+        </li>
+    </ul>
+<li class="ui_sac sidenav-item ">
+    <a href="/cp/atendimento_lista.php" class="sidenav-link sidenav-toggle">
+        <i class="sidenav-icon d-block fas fa-user-clock"></i>
+        <div>SAC</div>
+    </a>
+    <ul class="sidenav-menu">
+        <li class="sidenav-item">
+            <a href="/cp/atendimento_lista.php" class="sidenav-link">
+                <div>Atendimentos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/sms_lista10.php" class="sidenav-link">
+                <div>Envio de SMS</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/aniversariantes.php" class="sidenav-link">
+                <div>Aniversariantes</div>
+            </a>
+        </li>
+    </ul>
+    <div class="sidenav-divider mb-1"></div>
+<li class="ui_relatórios sidenav-item ">
+    <a href="/cp/relatorio_resumo.php" class="sidenav-link sidenav-toggle">
+        <i class="sidenav-icon d-block far fa-clipboard"></i>
+        <div>Relatórios</div>
+    </a>
+    <ul class="sidenav-menu">
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_resumo.php" class="sidenav-link">
+                <div>Resumo</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_lista.php" class="sidenav-link">
+                <div>Processos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/fin_rels.php" class="sidenav-link">
+                <div>Financeiro</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_custas.php" class="sidenav-link">
+                <div>Custas</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_honorarios.php" class="sidenav-link">
+                <div>Honorários</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_compromisso.php" class="sidenav-link">
+                <div>Compromissos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_tarefas.php" class="sidenav-link">
+                <div>Tarefas</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_prazos.php" class="sidenav-link">
+                <div>Prazos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_horas.php" class="sidenav-link">
+                <div>Horas trabalhadas</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_pessoas.php" class="sidenav-link">
+                <div>Pessoas</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_sms.php" class="sidenav-link">
+                <div>Torpedos SMS</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_email.php" class="sidenav-link">
+                <div>E-mails</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_etiqueta.php" class="sidenav-link">
+                <div>Etiquetas</div>
+            </a>
+        </li>
+    </ul>
+<li class="ui_estatísticas sidenav-item ">
+    <a href="/cp/estatistica_lista.php" class="sidenav-link sidenav-toggle">
+        <i class="sidenav-icon d-block fas fa-chart-line"></i>
+        <div>Estatísticas</div>
+    </a>
+    <ul class="sidenav-menu">
+        <li class="sidenav-item">
+            <a href="/cp/estatistica_lista.php" class="sidenav-link">
+                <div>Andamentos atrasados</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/estatistica_andproc.php" class="sidenav-link">
+                <div>Andamentos dos processos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/estatistica_ult_and.php" class="sidenav-link">
+                <div>Últimos andamentos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/estatistica_andauto.php" class="sidenav-link">
+                <div>Andamentos automáticos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/estatistica_cliente.php" class="sidenav-link">
+                <div>Clientes</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/estatistica_processo.php" class="sidenav-link">
+                <div>Processos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/estatistica_processo_abertura.php" class="sidenav-link">
+                <div>Abertura de processos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/estatistica_processo_cadastro.php" class="sidenav-link">
+                <div>Cadastro de processos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/estatistica_fase.php" class="sidenav-link">
+                <div>Fase do processo</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/estatistica_natureza.php" class="sidenav-link">
+                <div>Natureza da ação</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/fin_graficos.php" class="sidenav-link">
+                <div>Financeiro</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/estatistica_personalizados.php" class="sidenav-link">
+                <div>Personalizados</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_sac_lista.php" class="sidenav-link">
+                <div>Atendimento geral</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_atendente.php" class="sidenav-link">
+                <div>Atendimento atendente</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_cat.php" class="sidenav-link">
+                <div>Atendimento categorias</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/relatorio_cliente.php" class="sidenav-link">
+                <div>Atendimento clientes</div>
+            </a>
+        </li>
+    </ul>
+    <div class="sidenav-divider mb-1"></div>
+<li class="ui_diário_oficial sidenav-item ">
+    <a href="/cp/do_lista.php" class="sidenav-link sidenav-toggle">
+        <i class="sidenav-icon d-block fas fa-cut"></i>
+        <div>Diário Oficial</div>
+    </a>
+    <ul class="sidenav-menu">
+        <li class="sidenav-item">
+            <a href="/cp/do_lista.php" class="sidenav-link">
+                <div>Publicações</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/do_adv_lista.php" class="sidenav-link">
+                <div>Advogados</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/do_pchave_lista.php" class="sidenav-link">
+                <div>Palavras-chave</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/do_lixeira.php" class="sidenav-link">
+                <div>Lixeira</div>
+            </a>
+        </li>
+    </ul>
+<li class="ui_andamentos sidenav-item ">
+    <a href="/cp/andamento_automatico_lista.php" class="sidenav-link sidenav-toggle">
+        <i class="sidenav-icon d-block fas fa-search"></i>
+        <div>Andamentos</div>
+    </a>
+    <ul class="sidenav-menu">
+        <li class="sidenav-item">
+            <a href="/cp/andamento_automatico_lista.php" class="sidenav-link">
+                <div>Andamentos automáticos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/monitoramento_processos_add10.php" class="sidenav-link">
+                <div>Configurar monitoramentos</div>
+            </a>
+        </li>
+    </ul>
+<li class="ui_arquivos sidenav-item ">
+    <a href="/ged/index.php" class="sidenav-link sidenav-toggle">
+        <i class="sidenav-icon d-block fas fa-cloud"></i>
+        <div>Arquivos</div>
+    </a>
+    <ul class="sidenav-menu">
+        <li class="sidenav-item">
+            <a href="/ged/index.php" class="sidenav-link">
+                <div>Meus arquivos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/ged/upload10.php" class="sidenav-link">
+                <div>Enviar arquivos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/ged/relatorio_lista.php" class="sidenav-link">
+                <div>Relatórios</div>
+            </a>
+        </li>
+    </ul>
+<li class="ui_site sidenav-item ">
+    <a href="/cp/siteadv_config.php" class="sidenav-link sidenav-toggle">
+        <i class="sidenav-icon d-block fas fa-globe"></i>
+        <div>Site</div>
+    </a>
+    <ul class="sidenav-menu">
+        <li class="sidenav-item">
+            <a href="/cp/siteadv_paginas.php" class="sidenav-link">
+                <div>Páginas do site</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/siteadv_banco_imagem.php" class="sidenav-link">
+                <div>Banco de imagens</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/siteadv_email.php" class="sidenav-link">
+                <div>E-mail</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/siteadv_config_add10.php" class="sidenav-link">
+                <div>Configurações</div>
+            </a>
+        </li>
+    </ul>
+<li class="ui_editor_de_texto sidenav-item ">
+    <a href="/cp/texto_lista.php" class="sidenav-link sidenav-toggle">
+        <i class="sidenav-icon d-block fas fa-edit"></i>
+        <div>Editor de texto</div>
+    </a>
+    <ul class="sidenav-menu">
+        <li class="sidenav-item">
+            <a href="/cp/texto_lista.php" class="sidenav-link">
+                <div>Meus textos</div>
+            </a>
+        </li>
+        <li class="sidenav-item">
+            <a href="/cp/contrato_lista.php" class="sidenav-link">
+                <div>Modelos</div>
+            </a>
+        </li>
+    </ul>
+</ul></div>
+<div class="layout-container">
+    <nav class="layout-navbar navbar navbar-expand-lg align-items-lg-center container-p-x bg-azul_mj1 navbar-dark" id="layout-navbar">
+        <!-- Logo do menu mobile -->
+        <a href="/cp/processo_lista.php" class="navbar-brand app-brand demo d-lg-none py-0 mr-3">
+            <span class="app-brand-text demo font-weight-normal ml-2">
+                <img src="/content/images/icone_mj_invertido.png" style="height: 30px;"/>
+            </span>
+        </a>
+        <!-- Menu da esquerda (mobile) -->
+        <div class="layout-sidenav-toggle navbar-nav d-lg-none align-items-lg-center mr-auto">
+            <a class="nav-item nav-link px-0 mr-lg-4" href="javascript:void(0)">
+                <i class="ion ion-md-menu text-large align-middle"></i>
+            </a>
+        </div>
+        <div style="display: -webkit-box !important; display: -ms-flexbox !important; display: flex !important; -ms-flex-preferred-size: auto; -ms-flex-negative: 1; flex-shrink: 1; -webkit-box-flex: 1; -ms-flex-positive: 1; flex-grow: 1; -webkit-box-align: center; -ms-flex-align: center; align-items: center;">
+            <div class="" style="display: -webkit-box; -webkit-box-orient: horizontal; -webkit-box-direction: normal; -ms-flex-direction: row; flex-direction: row; margin-left: auto !important;">
+                <div class="demo-navbar-notifications nav-item dropdown mr-3" title="Novidades">
+                    <a class="nav-link" href="/novidades.php" target="_blank">
+                        <i class="fas fa-bullhorn navbar-icon align-middle"></i>
+                    </a>
+                </div>
+                <div class="demo-navbar-notifications nav-item dropdown mr-3" title="Diário Oficial e Andamentos">
+                    <a class="nav-link dropdown-toggle hide-arrow" href="#" data-toggle="dropdown">
+                        <i class="fas fa-balance-scale navbar-icon align-middle" style="font-size: 110%; padding-bottom: 3px;"></i>
+                        <span class="badge badge-danger indicator" id="msg_notifications">518</span>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <div class="bg-azul_mj2 text-center text-white font-weight-bold mb-1 p-3">DIÁRIO OFICIAL E ANDAMENTOS</div>
+                        <a href="/cp/do_lista.php" class="dropdown-item">
+                            Visualizar publicações<span class="badge badge-danger indicator ml-3" id="msg_notifications_publi">2</span>
+                        </a>
+                        <div class="dropdown-divider mt-1 mb-1"></div>
+                        <a href="/cp/andamento_automatico_lista.php" class="dropdown-item mb-1">
+                            Visualizar Andamentos Automáticos<span class="badge badge-danger indicator ml-3" id="msg_notifications_and">516</span>
+                        </a>
+                    </div>
+                </div>
+                <div class="demo-navbar-messages nav-item dropdown mr-3" title="Notificações">
+                    <a class="nav-link dropdown-toggle hide-arrow" href="#" data-toggle="dropdown">
+                        <i class="ion ion-ios-mail navbar-icon align-middle" style="font-size: 150%;"></i>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <div class="bg-azul_mj2 text-center text-white font-weight-bold p-3">NOTIFICAÇÕES</div>
+                        <a href="/notificacoes/lista_notificacoes.php" class="d-block text-center text-light small p-2 my-1">Exibir todas</a>
+                    </div>
+                </div>
+                <div class="demo-navbar-configuracoes nav-item dropdown mr-3 hide-xs" title="Configurações">
+                    <a class="nav-link" href="#" data-toggle="dropdown">
+                        <i class="fas fa-cog navbar-icon align-middle"></i>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right" style="width: 700px;">
+                        <div class="bg-azul_mj2 text-center text-white font-weight-bold mb-1 p-3">CONFIGURAÇÕES</div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="dropdown-item pb-2 font-weight-bolder mt-2" onmouseover="this.style.background='#ffffff';">Jurídico</div>
+                                <a href="/cp/config_opcao.php" class="dropdown-item">Configurações gerais</a>
+                                <a href="/cp/config_andamento.php" class="dropdown-item">Andamentos</a>
+                                <a href="/cp/config_acao.php" class="dropdown-item">Classes processuais</a>
+                                <a href="/cp/class_comp_lista.php" class="dropdown-item">Compromissos</a>
+                                <a href="/cp/config_comarca.php" class="dropdown-item">Comarcas</a>
+                                <a href="/cp/config_fase.php" class="dropdown-item">Fases</a>
+                                <a href="/cp/config_forum.php" class="dropdown-item">Fóruns</a>
+                                <a href="/cp/config_juizo.php" class="dropdown-item">Natureza da ação</a>
+                                <a href="/cp/config_posicao.php" class="dropdown-item">Posições das partes</a>
+                                <a href="/cp/config_rito.php" class="dropdown-item">Ritos</a>
+                                <a href="/cp/config_vara.php" class="dropdown-item">Varas</a>
+                                <a href="/cp/campo_person_lista.php" class="dropdown-item">Campos personalizados</a>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="dropdown-item pb-2 font-weight-bolder mt-2" onmouseover="this.style.background='#ffffff';">Financeiro</div>
+                                <a href="/cp/fin_config_geral10.php" class="dropdown-item">Configurações gerais</a>
+                                <a href="/cp/cat_list10.php?mode=d" class="dropdown-item">Categorias de despesas</a>
+                                <a href="/cp/cat_list10.php?mode=r" class="dropdown-item">Categorias de receitas</a>
+                                <a href="/cp/conta_lista10.php" class="dropdown-item">Contas</a>
+                                <a href="/cp/filtro_lista10.php" class="dropdown-item">Filtros</a>
+                                <a href="/cp/export_excel.php" class="dropdown-item">Exportar para excel</a>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="dropdown-item pb-2 font-weight-bolder mt-2" onmouseover="this.style.background='#ffffff';">SAC</div>
+                                <a href="/sac/categoria_lista.php" class="dropdown-item">Categorias e sub-categorias</a>
+                                <div class="dropdown-item pb-2 font-weight-bolder mt-2" onmouseover="this.style.background='#ffffff';">Outros</div>
+                                <a href="/cp/usuario_log10.php?id1=0" class="dropdown-item">Histórico de atividades</a>
+                                <a href="/cp/historico_acessos.php" class="dropdown-item">Histórico de acessos</a>
+                                <a href="/cp/google_agenda_config.php" class="dropdown-item">Google Agenda</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="demo-navbar-notifications nav-item dropdown mr-3" title="Manual do usuário">
+                    <a class="nav-link" href="/manual/apresentacao_software_juridico_maisjuridico" target="_blank">
+                        <i class="fas fa-question-circle navbar-icon align-middle"></i>
+                    </a>
+                </div>
+                <div class="nav-item-separador">|</div>
+                <div class="demo-navbar-notifications nav-item dropdown mr-3">
+                    <a class="nav-link" href="/atendimento_lista.php">Atendimento</a>
+                </div>
+                <div class="nav-item-separador">|</div>
+                <div class="demo-navbar-notifications nav-item dropdown mr-3">
+                    <a class="nav-link" href="/planos.php">Planos</a>
+                </div>
+                <div class="nav-item-separador">|</div>
+                <div class="demo-navbar-perfil nav-item dropdown mr-lg-3">
+                    <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
+                        <span class="d-inline-flex flex-lg-row-reverse align-items-center align-middle">
+                            <!--<img src="/layout/demo/assets/img/avatars/1.png" alt class="d-block ui-w-30 rounded-circle"> -->
+                            <span class="px-1 mr-lg-2 ml-2 ml-lg-0 hide-xs">
+                                <span class="__cf_email__" data-cfemail="563b373f3d39383b316516313b373f3a7835393b">[email &#160;protected]</span>
+                            </span>
+                        </span>
+                    </a>
+                    <!-- Menu dropdown do perfil -->
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <div class="bg-azul_mj2 text-center text-white font-weight-bold mb-1 p-3">PERFIL</div>
+                        <a href="/cadastro10.php" data-modal=".pnlModal" class="OpenModal dropdown-item" data-modal_altura="550" titulo-modal="Alterar dados">Meus dados</a>
+                        <a href="/pagamentos.php" class="dropdown-item">Minha assinatura</a>
+                        <a href="/edita_cartao10.php" class="dropdown-item">Cartão de crédito</a>
+                        <div class="dropdown-divider mb-1"></div>
+                        <a href="/atendimento_lista.php" class="dropdown-item" data-modal_altura="430" titulo-modal="Alterar atendimentos">Atendimento</a>
+                        <a href="/notificacoes/lista_notificacoes.php" class="dropdown-item">Notificações</a>
+                        <div class="dropdown-divider mb-1"></div>
+                        <a href="/logotipo10_imp.php" data-modal=".pnlModal" class="OpenModal dropdown-item" data-modal_altura="350" titulo-modal="Alterar logotipo">Alterar logotipo</a>
+                        <a href="/altera_login10.php" data-modal=".pnlModal" class="OpenModal dropdown-item" data-modal_altura="260" titulo-modal="Alterar login">Alterar login</a>
+                        <a href="/altera_senha10.php" data-modal=".pnlModal" class="OpenModal dropdown-item" data-modal_altura="350" titulo-modal="Alterar senha">Alterar senha</a>
+                        <div class="dropdown-divider mb-1"></div>
+                        <a href="/cp/dashboard.php?exibir_tour=3" class="dropdown-item">Tour pelo MJ</a>
+                        <div class="dropdown-divider mb-1"></div>
+                        <a href="/logout.php" class="dropdown-item mb-1">Sair</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <!-- Conteúdo da página -->
+    <div class="layout-content">
+        <div id="sidenav-3" class="sidenav sidenav-horizontal bg-azul_mj2" style="padding-left: 15px; position: relative; z-index: 99;">
+            <ul class="sidenav-inner">
+                <li class="sidenav-item ">
+                    <a href="/cp/resumo_processo.php?id_processo=2574500" class="sidenav-link">Resumo</a>
+                </li>
+                <li class="sidenav-item active">
+                    <a href="/cp/andamento_lista.php?id_processo=2574500" class="sidenav-link">Andamentos</a>
+                </li>
+                <li class="sidenav-item ">
+                    <a href="/cp/parte_lista.php?id_processo=2574500" class="sidenav-link">Partes</a>
+                </li>
+                <li class="sidenav-item ">
+                    <a href="/cp/custa_lista.php?id_processo=2574500" class="sidenav-link">Custas</a>
+                </li>
+                <li class="sidenav-item ">
+                    <a href="/cp/honorario_lista.php?id_processo=2574500" class="sidenav-link">Honorários</a>
+                </li>
+                <li class="sidenav-item ">
+                    <a href="/cp/compromisso_lista.php?id_processo=2574500" class="sidenav-link">Compromissos</a>
+                </li>
+                <li class="sidenav-item ">
+                    <a href="/cp/processo_tarefa_lista.php?id_processo=2574500" class="sidenav-link">Tarefas</a>
+                </li>
+                <li class="sidenav-item ">
+                    <a href="/cp/prazo_lista.php?id_processo=2574500" class="sidenav-link">Prazos</a>
+                </li>
+                <li class="sidenav-item ">
+                    <a href="/cp/hrtrabalhada_lista.php?id_processo=2574500" class="sidenav-link">Horas trabalhadas</a>
+                </li>
+                <li class="sidenav-item ">
+                    <a href="/cp/docs_lista.php?id_processo=2574500" class="sidenav-link">Documentos</a>
+                </li>
+                <li class="sidenav-item ">
+                    <a href="/cp/relacionamento_lista.php?id_processo=2574500" class="sidenav-link">Processos relacionados</a>
+                </li>
+                <li class="sidenav-item ">
+                    <a href="do_lista_processo.php?id_processo=2574500" class="sidenav-link">Diário Oficial</a>
+                </li>
+                <li class="sidenav-item ">
+                    <a href="/cp/texto_lista_processo.php?id_processo=2574500" class="sidenav-link">Editor de texto</a>
+                </li>
+            </ul>
+        </div>
+        <div class="tags_processo">
+            <a href="resumo_processo.php?id_processo=2574500">5000762-33.2024.8.13.0395</a>
+            <a href="resumo_cliente.php?id=3555715">Jorge Caldeira da Silva</a>
+        </div>
+        <div class="container-fluid flex-grow-1 container-p-y">
+            <!-- Título e botões -->
+            <h3 class="d-flex justify-content-between align-items-center w-100 font-weight-bold pt-3 mb-0">
+                <span class="text-muted font-weight-light">Andamentos</span>
+                <div class='form-row align-items-center'>
+                    <button type="button" class="btn btn-default" onclick="window.location.href='processo_add10.php?id_processo=2574500'">Editar processo</button>
+                    <div class="btn-group pl-1">
+                        <button type="button" class="btn btn-success" onclick="window.location.href='andamento_add10.php?id_processo=2574500'">Adicionar</button>
+                    </div>
+                </div>
+            </h3>
+            <!-- Total de resultados -->
+            <div class="mb-3 text-muted fs-075">Exibindo 184 resultado(s)</div>
+            <div class="alert alert-danger d-none"></div>
+            <!-- Resumo e partes -->
+            <div class="row">
+                <div class="col-md-12" style="display: none" id="resumo" name="resumo"></div>
+            </div>
+            <!-- Filtros -->
+            <form action="andamento_lista.php">
+                <div class="ui-bordered px-4 pt-3 mb-1 bg-cinza_card noprint">
+                    <div class="form-row align-items-center">
+                        <div class="col-md mb-4">
+                            <label class="form-label">Busca</label>
+                            <div class="input-group">
+                                <input type="text" name="pesquisa" maxlength="30" placeholder="Termo de busca" class="form-control" value=""/>
+                                <span class="input-group-append">
+                                    <button type="submit" class="btn btn-secondary btn-block">Buscar</button>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <input type="hidden" name="id_processo" value="2574500"/>
+            </form>
+            <!-- Card da listagem -->
+            <div class="card card_lista">
+                <div class="card-body">
+                    <form action='andamento_del.php' method='POST'>
+                        <div class='limite-tabela'>
+                            <table class='table table-striped table-bordered tabela-responsiva'>
+                                <thead>
+                                    <tr>
+                                        <th>
+                                            <input type="checkbox" onclick="changeAll(this.checked);">
+                                        </th>
+                                        <th>
+                                            <a href='andamento_lista.php?id_processo=2574500&col=0&oc=asc'>Protocolo </a>
+                                        </th>
+                                        <th>
+                                            <a href='andamento_lista.php?id_processo=2574500&col=1&oc=asc'>
+                                                Data <i class='fas fa-angle-up'></i>
+                                            </a>
+                                        </th>
+                                        <th>
+                                            <a href='andamento_lista.php?id_processo=2574500&col=2&oc=asc'>Exibir </a>
+                                        </th>
+                                        <th>
+                                            <a href='andamento_lista.php?id_processo=2574500&col=3&oc=asc'>Tipo </a>
+                                        </th>
+                                        <th>Andamento</th>
+                                        <th>Complemento</th>
+                                        <th class='opcoes'>Opções</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <input type='hidden' name='id_processo' value='2574500'>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24654371' class='checkbox'>
+                                        </td>
+                                        <td>24654371</td>
+                                        <td>20/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Juntada de Petição de petição</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24654371'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24627356' class='checkbox'>
+                                        </td>
+                                        <td>24627356</td>
+                                        <td>13/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Conclusos para despacho</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24627356'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24627355' class='checkbox'>
+                                        </td>
+                                        <td>24627355</td>
+                                        <td>13/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Decorrido prazo de BANCO C6 CONSIGNADO S.A. em 12/02/2026 23:59.</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24627355'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24627352' class='checkbox'>
+                                        </td>
+                                        <td>24627352</td>
+                                        <td>12/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Juntada de Petição de manifestação</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24627352'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24585618' class='checkbox'>
+                                        </td>
+                                        <td>24585618</td>
+                                        <td>05/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Decorrido prazo de BANCO C6 CONSIGNADO S.A. em 04/02/2026 23:59.</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24585618'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24585617' class='checkbox'>
+                                        </td>
+                                        <td>24585617</td>
+                                        <td>05/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Decorrido prazo de JORGE CALDEIRA DA SILVA em 04/02/2026 23:59.</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24585617'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24585620' class='checkbox'>
+                                        </td>
+                                        <td>24585620</td>
+                                        <td>04/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Disponibilizado no DJ Eletrônico em 03/02/2026</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24585620'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24585619' class='checkbox'>
+                                        </td>
+                                        <td>24585619</td>
+                                        <td>04/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Publicado Intimação em 04/02/2026.</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24585619'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24565443' class='checkbox'>
+                                        </td>
+                                        <td>24565443</td>
+                                        <td>03/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Sr. Advogado, PROCESSOS ELETRONICOS (PJE) Publicacoes sem efeito intimatorio. Expediente de 02/02/2026 Expediente de 02/02/2026 Segue relacao de processos eletronicos nos quais foram enviadas as intimacoes via Sistema PJe. Esta publicacao e meramente informativa e a contagem do prazo processual somente se dara apos o registro de ciencia da intimacao, no proprio Sistema PJe, que permitira a consulta do teor da comunicacao. . 0000 - [CIVEL] PROCEDIMENTO COMUM CIVEL 0000 - 00058 - 5000762-33.2024.8.13.0395 Autor : Jorge Caldeira da Silva; Reu/Re : Banco C6 Consignado S.A.. Adv - Maikon da Rocha Caldeira, Eduardo Chalfin, Renata Barros de Mendonca => Esta publicacao nao possui efeito de intimacao.</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24565443'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24560089' class='checkbox'>
+                                        </td>
+                                        <td>24560089</td>
+                                        <td>03/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Publicacao Processo: 5000762-33.2024.8.13.0395 Orgao: 2ª Vara Civel, Criminal, de Execucoes Penais e do Juizado Especial Criminal Manhumirim Data de disponibilizacao: 03/02/2026 Tipo de comunicacao: Intimacao Meio: Diario de Justica Eletronico Nacional Inteiro teor: https://pje.tjmg.jus.br:443/pje/Processo/ConsultaDocumento/listView.seam?x=26020210262388500010615145670 Parte: JORGE CALDEIRA DA SILVA Parte: BANCO C6 CONSIGNADO S.A. Advogado: MAIKON DA ROCHA CALDEIRA - OAB MG-183712 Advogado: EDUARDO CHALFIN - OAB MG-157533 Advogado: RENATA BARROS DE MENDONCA - OAB MG-146968 Classe: PROCEDIMENTO COMUM CiVEL Conteudo: PODER JUDICIARIO DO ESTADO DE MINAS GERAIS Justica de Primeira Instancia Comarca de Manhumirim / 2ª Vara Civel, Criminal, de Execucoes Penais e do Juizado Especial Criminal Manhumirim Avenida: Teofilo Tostes, 143, Centro, Manhumirim - MG - CEP: 36970-000 PROCESSO Nº: 5000762-33.2024.8.13.0395 CLASSE: [CIVEL] PROCEDIMENTO COMUM CIVEL (7) JORGE CALDEIRA DA SILVA CPF: 000.216.088-90 BANCO C6 CONSIGNADO S.A. CPF: 61.348.538/0001-86 Vista as partes. DENISE PORTILHO BORCHIO Manhumirim, data da assinatura eletronica. |comunicacao_id: 519407347|</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24560089'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24585621' class='checkbox'>
+                                        </td>
+                                        <td>24585621</td>
+                                        <td>02/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Expedida/certificada a comunicação eletrônica</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24585621'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24585623' class='checkbox'>
+                                        </td>
+                                        <td>24585623</td>
+                                        <td>01/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Juntada de Petição de laudo pericial</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24585623'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24585622' class='checkbox'>
+                                        </td>
+                                        <td>24585622</td>
+                                        <td>01/02/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Juntada de Petição de petição</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24585622'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24585625' class='checkbox'>
+                                        </td>
+                                        <td>24585625</td>
+                                        <td>22/01/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Disponibilizado no DJ Eletrônico em 21/01/2026</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24585625'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24585624' class='checkbox'>
+                                        </td>
+                                        <td>24585624</td>
+                                        <td>22/01/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Publicado Intimação em 22/01/2026.</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24585624'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24585626' class='checkbox'>
+                                        </td>
+                                        <td>24585626</td>
+                                        <td>21/01/2026</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Juntada de Petição de petição</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24585626'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24420111' class='checkbox'>
+                                        </td>
+                                        <td>24420111</td>
+                                        <td>19/12/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Expedida/certificada a comunicação eletrônica</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24420111'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24420110' class='checkbox'>
+                                        </td>
+                                        <td>24420110</td>
+                                        <td>19/12/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Juntada de Petição de laudo pericial</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24420110'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24371490' class='checkbox'>
+                                        </td>
+                                        <td>24371490</td>
+                                        <td>15/12/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Publicado Intimação em 15/12/2025.</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24371490'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24364781' class='checkbox'>
+                                        </td>
+                                        <td>24364781</td>
+                                        <td>13/12/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Disponibilizado no DJ Eletrônico em 12/12/2025</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24364781'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24363482' class='checkbox'>
+                                        </td>
+                                        <td>24363482</td>
+                                        <td>12/12/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Sr. Advogado, PROCESSOS ELETRONICOS (PJE) Publicacoes sem efeito intimatorio. Expediente de 11/12/2025 Expediente de 11/12/2025 Segue relacao de processos eletronicos nos quais foram enviadas as intimacoes via Sistema PJe. Esta publicacao e meramente informativa e a contagem do prazo processual somente se dara apos o registro de ciencia da intimacao, no proprio Sistema PJe, que permitira a consulta do teor da comunicacao. . 0000 - [CIVEL] PROCEDIMENTO COMUM CIVEL 0000 - 00038 - 5000762-33.2024.8.13.0395 Autor : Jorge Caldeira da Silva; Reu/Re : Banco C6 Consignado S.A.. Adv - Maikon da Rocha Caldeira, Renata Barros de Mendonca, Eduardo Chalfin => Esta publicacao nao possui efeito de intimacao.</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24363482'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24357970' class='checkbox'>
+                                        </td>
+                                        <td>24357970</td>
+                                        <td>12/12/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Publicacao Processo: 5000762-33.2024.8.13.0395 Orgao: 2ª Vara Civel, Criminal, de Execucoes Penais e do Juizado Especial Criminal Manhumirim Data de disponibilizacao: 12/12/2025 Tipo de comunicacao: Intimacao Meio: Diario de Justica Eletronico Nacional Inteiro teor: https://pje.tjmg.jus.br:443/pje/Processo/ConsultaDocumento/listView.seam?x=25121113360321400010592923761 Parte: JORGE CALDEIRA DA SILVA Parte: BANCO C6 CONSIGNADO S.A. Advogado: MAIKON DA ROCHA CALDEIRA - OAB MG-183712 Advogado: EDUARDO CHALFIN - OAB MG-157533 Advogado: RENATA BARROS DE MENDONCA - OAB MG-146968 Conteudo: PODER JUDICIARIO DO ESTADO DE MINAS GERAIS Justica de Primeira Instancia Comarca de Manhumirim / 2ª Vara Civel, Criminal, de Execucoes Penais e do Juizado Especial Criminal Manhumirim Avenida: Teofilo Tostes, 143, Centro, Manhumirim - MG - CEP: 36970-000 PROCESSO Nº: 5000762-33.2024.8.13.0395 CLASSE: [CIVEL] PROCEDIMENTO COMUM CIVEL (7) ASSUNTO: [Direito de Imagem, Direito de Imagem, Emprestimo consignado, Privacidade] AUTOR: JORGE CALDEIRA DA SILVA CPF: 000.216.088-90 REU: BANCO C6 CONSIGNADO S.A. CPF: 61.348.538/0001-86 DECISAO Trata-se de impugnacao a coleta virtual oposta pelo reu, sob o argumento de que tal modalidade resultaria em prejuizo, uma vez que "nao haveria reais garantias de que as folhas assinadas pela parte autora seriam de fato as folhas que chegariam ate o perito" - ID. 10580419020. Intimada, a perita se manifestou ao ID. 10582787545. Os autos vieram conclusos. Decido. Em analise do processo, verifico que a impugnacao deve ser rejeitada. Isso porque, ao ID. 10548524539, foi informada a data e fornecido o link de acesso para o acompanhamento da coleta das assinaturas, inclusive, pelo reu ou por seu procurador constituido. Alem disso, conforme esclarecido ao ID. 10582787545, nao ha prejuizo na coleta virtual, ja que a propria perita exerce a funcao de fiscalizar e conferir a aposicao de assinatura e a documentacao apresentada pela requerente. Cabe registrar, por fim, que a medida adotada contribui para efetivacao do principio da celeridade processual, previsto no art. 4º, do Codigo de Processo Civil. Assim, rejeito a impugnacao a coleta virtual e, considerando que foram esgotadas as diligencias previas (ID. 10584955698), determino a intimacao da perita para juntar aos autos, no prazo de 30 (trinta) dias, o laudo pericial. Proceda-se a liberacao de 50% (cinquenta por cento) dos honorarios, conforme ja determinado ao ID.10552830785 e 10519009229. Apos a juntada, vista as partes, pelo prazo sucessivo de 15 (quinze) dias, comecando pela parte autora, sobre o teor do laudo bem como para que, no mesmo prazo, informem se possuem outras provas a produzir, justificando sua necessidade e pertinencia, sob pena de indeferimento e preclusao. Cumpra-se. Manhumirim, data da assinatura eletronica. ANDRESSA COLLARES XAVIER Juiz(iza) de Direito 2ª Vara Civel, Criminal, de Execucoes Penais e do Juizado Especial Criminal Manhumirim a |comunicacao_id: 485948316|</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24357970'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24358561' class='checkbox'>
+                                        </td>
+                                        <td>24358561</td>
+                                        <td>11/12/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Expedida/certificada a comunicação eletrônica</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24358561'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24357097' class='checkbox'>
+                                        </td>
+                                        <td>24357097</td>
+                                        <td>11/12/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Sr. Advogado, PROCESSOS ELETRONICOS (PJE) Decisoes Expediente de 10/12/2025 Expediente de 10/12/2025 . 0000 - [CIVEL] PROCEDIMENTO COMUM CIVEL 0000 - 00012 - 5000762-33.2024.8.13.0395 Autor : Jorge Caldeira da Silva; Reu/Re : Banco C6 Consignado S.A. => Adv - Maikon da Rocha Caldeira, Renata Barros de Mendonca, Eduardo Chalfin. => Decisao Proferido(a)</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24357097'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24358560' class='checkbox'>
+                                        </td>
+                                        <td>24358560</td>
+                                        <td>10/12/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Juntada de Petição de petição</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24358560'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24358559' class='checkbox'>
+                                        </td>
+                                        <td>24358559</td>
+                                        <td>10/12/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Outras Decisões</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24358559'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24334966' class='checkbox'>
+                                        </td>
+                                        <td>24334966</td>
+                                        <td>06/12/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Decorrido prazo de BANCO C6 CONSIGNADO S.A. em 05/12/2025 23:59.</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24334966'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24268506' class='checkbox'>
+                                        </td>
+                                        <td>24268506</td>
+                                        <td>21/11/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Juntada de Petição de petição</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24268506'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24251610' class='checkbox'>
+                                        </td>
+                                        <td>24251610</td>
+                                        <td>17/11/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Juntada de Petição de manifestação</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24251610'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr title='Usuário que inseriu a informação: Administrador'>
+                                        <td valign='top' title='Usuário que inseriu a informação: Administrador'>
+                                            <input type='checkbox' name='del[]' value='24251609' class='checkbox'>
+                                        </td>
+                                        <td>24251609</td>
+                                        <td>17/11/2025</td>
+                                        <td>Sim</td>
+                                        <td>Andamento</td>
+                                        <td>Juntada de Petição de petição</td>
+                                        <td></td>
+                                        <td class='opcoes'>
+                                            <a href='andamento_add10.php?id_processo=2574500&id_andamento=24251609'>
+                                                <i class='fas fa-edit' title='Editar'></i>
+                                            </a>
+                                            <a href='relatorio_lista.php?conteudo[]=andamento&processo_hidden=2574500&solicitado=1'>
+                                                <i class='far fa-clipboard' title='Relatório'></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <nav class='float-left'>
+                            <ul class='pagination'>
+                                <li class='page-item active'>
+                                    <a href='javascript:void(0)' class='page-link'>1</a>
+                                </li>
+                                <li class='page-item'>
+                                    <a href='andamento_lista.php?id_processo=2574500&col=1&oc=desc&pg=2' class='page-link'>2</a>
+                                <li class='page-item'>
+                                    <a href='andamento_lista.php?id_processo=2574500&col=1&oc=desc&pg=3' class='page-link'>3</a>
+                                <li class='page-item'>
+                                    <a href='andamento_lista.php?id_processo=2574500&col=1&oc=desc&pg=4' class='page-link'>4</a>
+                                <li class='page-item'>
+                                    <a rel="next" href='andamento_lista.php?id_processo=2574500&col=1&oc=desc&pg=2' class='page-link'>Próxima</a>
+                                </li>
+                                <li>
+                                    <a href='andamento_lista.php?id_processo=2574500&col=1&oc=desc&pg=7'>>></a>
+                                </li>
+                            </ul>
+                        </nav>
+                        <div class='text-right'>
+                            <input type='submit' value='Apagar selecionados' class='btn btn-danger'>
+                        </div>
+                    </form>
+                    <!--// Fecha as divs do card, e layout-content e container-fluid-->
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Links do rodapé -->
+    <!--
+                      <nav class="layout-footer footer bg-white">
+                          <div class="container-fluid d-flex flex-wrap justify-content-between text-center container-p-x pb-3">
+                              <div class="pt-3">Mais Jurídico © 2008 - 2026</div>
+                              <div>
+                                  <a href="/faq" class="footer-link pt-3 ml-4">Manual do usuário</a>
+                                  <a href="javascript:void(0)" class="footer-link pt-3 ml-4">Atendimento online</a>
+                                  <a href="/faleconosco.php" class="footer-link pt-3 ml-4">Fale conosco</a>
+                                  <a href="/direitosreservados.php" class="footer-link pt-3 ml-4">Condições de uso</a>
+                              </div>
+                          </div>
+                      </nav>
+                      -->
+</div>
+<!-- Fim do layout-container -->
+</div>
+<!-- Fim do layout_inner -->
+<div class="modal fade" id="modals-default">
+    <div class="window2 modal-dialog modal-lg">
+        <form class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <span class="titulo_modal"></span>
+                    <!--
+                                <br>
+                                <small class="text-muted">We need payment information to process your order.</small>
+                                -->
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">×</button>
+            </div>
+            <div class="modal-body content-modal">
+                <iframe name='iframe-modal' id='iframe-modal' src=''></iframe>
+                <!-- Carrega a página via Jquery -->
+            </div>
+        </form>
+    </div>
+</div>
+<div class="layout-overlay layout-sidenav-toggle"></div>
+</div>
+<!-- Fim do layout_wrapper -->
+<!-- Core scripts -->
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
+<script src="/assets/vendor/libs/popper/popper.js"></script>
+<script src="/assets/vendor/js/bootstrap.js"></script>
+<script src="/assets/vendor/js/sidenav.js"></script>
+<!-- Libs -->
+<script src="/assets/vendor/libs/growl/growl.js"></script>
+<!-- Sidenav plugin -->
+<script src="/assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
+<!-- Script principal -->
+<script src="/assets/js/main.js"></script>
+<script src="/assets/vendor/js/ui_tooltips.js" type="text/javascript"></script>
+<script>
+    function copyToClipboard(element) {
+        console.log(element);
+        var $temp = $("<textarea>");
+        $("body").append($temp);
+        $temp.val(element).select();
+        document.execCommand("copy");
+        $temp.remove();
+    }
+
+    function mostraResumo() {
+        let resumo = document.getElementById("resumo");
+        if (resumo.style.display === "none") {
+            resumo.style.display = "block";
+            return;
+        }
+
+        resumo.style.display = "none";
+    }
+</script>
+</body></html>

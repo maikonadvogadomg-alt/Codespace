@@ -1,0 +1,94 @@
+async function geminiStream(
+  res: any,
+  systemPrompt: string,
+  userContent: string,
+  model: string,
+  maxOutputTokens: number,
+  customKey?: string,
+  customUrl?: string,
+  customModel?: string
+) {
+  // Se for uma API Customizada estilo OpenAI (ex: Perplexity)
+  if (customKey && customUrl) {
+    const customOpenAI = new OpenAI({ apiKey: customKey, baseURL: customUrl });
+    const stream = await customOpenAI.chat.completions.create({
+      model: customModel || model || "gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent }
+      ],
+      stream: true,
+      max_tokens: maxOutputTokens,
+      temperature: 0.7
+    });
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+    }
+    return;
+  }
+
+  // Se for a chave gratuita da Gemini do Google
+  let client = gemini;
+  if (customKey && !customUrl) {
+    client = new GoogleGenAI({ apiKey: customKey });
+  }
+
+  const fullPrompt = `${systemPrompt}\n\n${userContent}`;
+  const stream = await client.models.generateContentStream({
+    model,
+    contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+    config: { maxOutputTokens, temperature: 0.7 },
+  });
+  for await (const chunk of stream) {
+    const content = chunk.text || "";
+    if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+  }
+}
+
+async function geminiStreamMessages(
+  res: any,
+  messages: Array<{ role: "user" | "model"; parts: [{ text: string }] }>,
+  model: string,
+  maxOutputTokens: number,
+  customKey?: string,
+  customUrl?: string,
+  customModel?: string
+) {
+  // Se for uma API Customizada (ex: Perplexity)
+  if (customKey && customUrl) {
+    const customOpenAI = new OpenAI({ apiKey: customKey, baseURL: customUrl });
+    const openAiMessages = messages.map(m => ({
+      role: m.role === "model" ? "assistant" : "user",
+      content: m.parts[0].text
+    }));
+    const stream = await customOpenAI.chat.completions.create({
+      model: customModel || model || "gpt-3.5-turbo",
+      messages: openAiMessages as any,
+      stream: true,
+      max_tokens: maxOutputTokens,
+      temperature: 0.7
+    });
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+    }
+    return;
+  }
+
+  // Se for a chave gratuita da Gemini do Google
+  let client = gemini;
+  if (customKey && !customUrl) {
+    client = new GoogleGenAI({ apiKey: customKey });
+  }
+
+  const stream = await client.models.generateContentStream({
+    model,
+    contents: messages,
+    config: { maxOutputTokens, temperature: 0.7 },
+  });
+  for await (const chunk of stream) {
+    const content = chunk.text || "";
+    if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+  }
+}

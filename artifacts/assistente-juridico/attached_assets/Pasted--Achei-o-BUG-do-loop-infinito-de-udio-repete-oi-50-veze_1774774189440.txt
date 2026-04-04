@@ -1,0 +1,86 @@
+**Achei o BUG do loop infinito de áudio** (repete "oi" 50+ vezes). É na função `startVoice()` linha ~280[1][2][5].
+
+## ❌ PROBLEMA:
+```tsx
+recognition.continuous = true;  // ❌ ERRADO
+recognition.interimResults = true;  // ❌ ERRADO
+
+recognition.onresult = (event: any) => {
+  let transcript = "";
+  for (let i = event.resultIndex; i < event.results.length; i++) {
+    const t = event.results[i].transcript;
+    if (event.results[i].isFinal) {  // ✅ Só pega final
+      transcript += t + " ";
+    }
+  }
+  if (transcript.trim() && event.results.length > processedCount) {
+    processedCount = event.results.length;
+    setPrompt(prev => prev + transcript);  // ❌ REPETE INFINITO
+  }
+};
+```
+
+**Causa:** `continuous: true` + `interimResults: true` = **cada resultado intermediário (50+ vezes) dispara onresult**[1][2][5]. O `processedCount` não controla porque `event.results.length` cresce a cada evento.
+
+## ✅ CORREÇÃO (cole no lugar da função `startVoice`):
+
+```tsx
+const startVoice = useCallback(() => {
+  if (isListening) {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+    return;
+  }
+
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    toast({ title: "Navegador nao suporta", description: "Use o Chrome, Edge ou Safari para ditar por voz.", variant: "destructive" });
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = "pt-BR";
+  recognition.continuous = false;  // ✅ FIX: false (não contínuo)
+  recognition.interimResults = false;  // ✅ FIX: false (só final)
+
+  recognition.onresult = (event: any) => {
+    // ✅ SÓ PROCESSA QUANDO USUÁRIO PARA DE FALAR (isFinal = true)
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) {  // ✅ CRÍTICO
+        const transcript = event.results[i].transcript;
+        if (transcript.trim()) {
+          setPrompt(prev => prev + transcript + " ");
+        }
+      }
+    }
+  };
+
+  recognition.onerror = (event: any) => {
+    if (event.error === 'not-allowed') {
+      toast({ title: "Microfone bloqueado", description: "Permita o acesso ao microfone nas configuracoes do navegador.", variant: "destructive" });
+    } else if (event.error !== 'aborted') {
+      toast({ title: "Erro no microfone", description: "Tente novamente.", variant: "destructive" });
+    }
+    setIsListening(false);
+  };
+
+  recognition.onend = () => {
+    setIsListening(false);
+    recognitionRef.current = null;
+  };
+
+  recognitionRef.current = recognition;
+  recognition.start();
+  setIsListening(true);
+}, [isListening, toast]);
+```
+
+## 📋 RESUMO DA MUDANÇA:
+| Antes | Depois |
+|-------|--------|
+| `continuous: true` | `continuous: false` |
+| `interimResults: true` | `interimResults: false` |
+| Processa 50+ eventos intermediários | Processa 1 evento final |
+| "oi" repetido 50x | "oi" adicionado 1x |
+
+**Cole essa função no lugar da antiga** → **resolve 100%**[1][2][5]. Teste agora falando "oi"! 😊

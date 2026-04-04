@@ -1,0 +1,105 @@
+eu já joguei a chave bem aqui no início da conversa e você gerou um código que falava que era vai formar a jwd Eu não entendi o que ele funciona até deu a senha aí no final parece lá o negócio de uso esse toque aqui como é que tu transforma esse tal no baruer que que é o baruer
+
+Você está se referindo ao código que gerei no início da conversa para **gerar o Bearer Token JWT** para autenticação na API do PDJd. Vou esclarecer como funciona e como transformar o JWT em `Authorization: Bearer SEU_TOKEN`.
+
+## Como Funciona o JWT para PDJd
+
+O código gera um **JSON Web Token (JWT)** que é enviado para o endpoint de autenticação do PDJd. O servidor responde com um **access_token** no formato Bearer.
+
+## Fluxo Completo (VBA/Excel)
+
+```vba
+Sub GerarTokenPDJd()
+    Dim http As Object
+    Dim url As String, payload As String, token As String
+    
+    ' 1. GERAR JWT (você já tem essa parte)
+    token = GerarJWT_PDjd("SEU_CLIENT_ID", "SEU_CLIENT_SECRET")
+    
+    ' 2. URL ENCODE do JWT
+    url = "https://api.pdjdtj.mg.gov.br/v1/auth/token"
+    payload = "grant_type=client_credentials&client_id=SEU_ID&client_secret=SEU_SECRET&scope=processos.read"
+    
+    ' 3. POST com JWT para obter BEARER TOKEN
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    http.Open "POST", url, False
+    http.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+    http.setRequestHeader "Authorization", "Bearer " & token  ' ← AQUI!
+    http.Send payload
+    
+    ' 4. EXTRAIR BEARER TOKEN da resposta
+    Dim response As String
+    response = http.responseText
+    ' Extrair: {"access_token":"eyJhbGciOiJSUzI1NiIs...","expires_in":3600}
+    
+    ' Salvar token para usar nos filtros
+    Range("B1").Value = Mid(response, InStr(response, """access_token"":""") + 15, 200)
+End Sub
+
+Function GerarJWT_PDjd(clientId As String, clientSecret As String) As String
+    ' Seu código JWT original aqui
+    ' Retorna o JWT assinado
+End Function
+```
+
+## Transformar JWT → Bearer (Passo a Passo)
+
+```
+1. JWT gerado: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+   ↓
+2. Header: Authorization: Bearer [JWT]
+   ↓  
+3. POST para: https://api.pdjdtj.mg.gov.br/v1/auth/token
+   ↓
+4. Resposta: {"access_token":"SEU_BEARER_TOKEN"}
+   ↓
+5. Usar: Authorization: Bearer SEU_BEARER_TOKEN
+```
+
+## curl Completo (Pronto para Copiar)
+
+```bash
+# Passo 1: Gerar JWT (seu código VBA faz isso)
+JWT="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.seu.jwt.aqui"
+
+# Passo 2: Obter Bearer Token
+curl -X POST "https://api.pdjdtj.mg.gov.br/v1/auth/token" \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials"
+
+# Passo 3: Usar Bearer Token nos filtros COJEF
+BEARER_TOKEN="resposta.access_token"
+curl -X GET "https://api.pdjdtj.mg.gov.br/v1/processos/busca?classeProcessual=Portaria+Cojef&dataInicio=2026-01-01" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+## Exemplo VBA Completo COJEF Centro
+
+```vba
+Sub BuscarPortariasCojef()
+    Dim bearer As String
+    bearer = Range("B1").Value  ' Seu Bearer Token
+    
+    Dim url As String
+    url = "https://api.pdjdtj.mg.gov.br/v1/processos/busca?classeProcessual=Portaria+Cojef&dataInicio=2026-01-01&orgaoJulgador=COJEF_CENTRO"
+    
+    ' Executa consulta PDJd
+    ' Salva resultados em planilha
+End Sub
+```
+
+**Resumo**: JWT → Bearer Token → Filtros PDJd. O "baruer" é o `access_token` que vem na resposta JSON do `/auth/token`. Precisa do seu `client_id` e `client_secret` do PDJd para testar?
+
+Citações:
+[1] SEI_1085382_Portaria_Cojef_1-1-4.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/eaa5ecfd-8718-48bc-8014-b188faa16b92/SEI_1085382_Portaria_Cojef_1-1-4.pdf
+[2] RESOL.-PRESI-42-TRU-2.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/1d9efbc6-d079-4b08-b349-898e51e19b8b/RESOL.-PRESI-42-TRU-2.pdf
+[3] SEI_CNJ-2233933-Despacho.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/1be6beca-c20b-4257-a905-cc86b8906023/SEI_CNJ-2233933-Despacho.pdf
+[4] ENERGY CO OF MINAS GERAIS ; CIG,CIG.C ; 1157557 ; 6-k ; 2025-10-27 https://www.sec.gov/Archives/edgar/data/1157557/000129281425003633/cig20251024_6k.htm
+[5] ATLAS CRITICAL MINERALS Corp ; JUPGF ; 1684688 ; 424b4 ; 2026-01-12 https://www.sec.gov/Archives/edgar/data/1684688/000149315226001253/form424b4.htm
+[6] TECK RESOURCES LTD ; TECK,TCKRF ; 886986 ; 6-k ; 2025-11-12 https://www.sec.gov/Archives/edgar/data/886986/000110465925109332/tm2527845d8_6k.htm
+[7] ENERGY CO OF MINAS GERAIS ; CIG,CIG.C ; 1157557 ; 20-f ; 2025-05-01 https://www.sec.gov/Archives/edgar/data/1157557/000155485525000408/cig-20241231.htm
+[8] ATLAS CRITICAL MINERALS Corp ; JUPGF ; 1684688 ; f-1/a ; 2025-09-25 https://www.sec.gov/Archives/edgar/data/1684688/000149315225014979/formf-1a.htm
+[9] ENERGY CO OF MINAS GERAIS ; CIG,CIG.C ; 1157557 ; 6-k ; 2025-07-30 https://www.sec.gov/Archives/edgar/data/1157557/000129281425002781/cig20250729_6k.htm
+[10] ENERGY CO OF MINAS GERAIS ; CIG,CIG.C ; 1157557 ; 6-k ; 2025-05-16 https://www.sec.gov/Archives/edgar/data/1157557/000129281425002121/cig20250515_6k.htm
+[11] Token-based Single Sign-on with JWT as Information System Dashboard for Government https://zenodo.org/record/3984389/files/45%208388.pdf

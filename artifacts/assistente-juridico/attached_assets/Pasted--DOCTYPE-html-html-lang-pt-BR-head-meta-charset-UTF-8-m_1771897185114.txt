@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gerador de Peças Processuais — TRF6</title>
+
+<!-- Bibliotecas para exportação -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+<style>
+/* ====== RESET E GERAL ====== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { 
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: "Times New Roman", serif;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+/* ====== CONTAINER PRINCIPAL ====== */
+.container {
+  display: grid;
+  grid-template-columns: 450px 1fr;
+  gap: 20px;
+  max-width: 1800px;
+  margin: 0 auto;
+  height: calc(100vh - 40px);
+}
+
+/* ====== PAINEL LATERAL ====== */
+.painel {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  overflow-y: auto;
+  padding: 25px;
+}
+
+.painel h2 {
+  color: #2c3e50;
+  font-size: 16px;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin: 20px 0 15px 0;
+  padding-bottom: 8px;
+  border-bottom: 3px solid #667eea;
+}
+
+.painel h2:first-child { margin-top: 0; }
+
+/* ====== CAMPOS DE ENTRADA ====== */
+label {
+  display: block;
+  font-size: 12px;
+  font-weight: bold;
+  color: #555;
+  margin-bottom: 5px;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+input, textarea, select {
+  width: 100%;
+  padding: 10px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: "Segoe UI", Arial, sans-serif;
+  margin-bottom: 15px;
+  transition: border-color 0.3s;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+textarea { 
+  resize: vertical; 
+  min-height: 80px;
+  font-family: "Times New Roman", serif;
+  line-height: 1.5;
+}
+
+/* ====== BOTÕES ====== */
+button {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-export {
+  background: #2c3e50;
+  color: white;
+  margin-right: 10px;
+}
+
+.btn-export:hover {
+  background: #1a252f;
+}
+
+.btn-danger {
+  background: #e74c3c;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #c0392b;
+}
+
+.btn-remove {
+  background: transparent;
+  color: #e74c3c;
+  font-size: 20px;
+  padding: 0 5px;
+  margin-left: 10px;
+}
+
+.btn-remove:hover {
+  color: #c0392b;
+}
+
+/* ====== ÁREA DE PREVIEW ====== */
+.preview-area {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  overflow-y: auto;
+  padding: 30px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+/* ====== FOLHA A4 ====== */
+.folha {
+  background: white;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 25mm 30mm;
+  margin: 0 auto;
+  box-shadow: 0 0 20px rgba(0,0,0,0.1);
+  font-family: "Times New Roman", serif;
+}
+
+.preview-content {
+  font-size: 12pt;
+  line-height: 1.5;
+  text-align: justify;
+  color: #000;
+}
+
+.preview-content p {
+  text-indent: 2cm;
+  margin-bottom: 10px;
+}
+
+.preview-content h1 {
+  text-align: center;
+  font-weight: bold;
+  text-indent: 0;
+  margin-bottom: 20px;
+  font-size: 14pt;
+  text-transform: uppercase;
+}
+
+.preview-content h2 {
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-top: 20px;
+  margin-bottom: 10px;
+  font-size: 12pt;
+  text-indent: 0;
+}
+
+.preview-content h3 {
+  font-weight: bold;
+  margin-top: 15px;
+  margin-bottom: 8px;
+  font-size: 12pt;
+  text-indent: 0;
+  text-transform: none;
+}
+
+.preview-content .no-indent {
+  text-indent: 0;
+}
+
+.preview-content .center {
+  text-align: center;
+  text-indent: 0;
+}
+
+/* ====== CITAÇÕES JURÍDICAS (4CM DE RECUO) ====== */
+.citacao {
+  margin-left: 4cm;
+  margin-right: 0;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  font-size: 11pt;
+  line-height: 1.3;
+  text-indent: 0 !important;
+  text-align: justify;
+  font-style: italic;
+  color: #333;
+}
+
+/* ====== CAMPOS EXTRAS (TÓPICOS DINÂMICOS) ====== */
+.topico-extra {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+  border-left: 4px solid #667eea;
+}
+
+.topico-extra-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+/* ====== IMPRESSÃO ====== */
+@media print {
+  body { 
+    background: white; 
+    padding: 0;
+  }
+  .painel, .toolbar { 
+    display: none !important; 
+  }
+  .preview-area {
+    box-shadow: none;
+    padding: 0;
+  }
+  .folha {
+    box-shadow: none;
+    margin: 0;
+    padding: 20mm 25mm;
+  }
+  @page { 
+    margin: 0;
+    size: A4 portrait; 
+  }
+}
+
+/* ====== SCROLLBAR CUSTOMIZADA ====== */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #667eea;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #764ba2;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- ====== PAINEL LATERAL ====== -->
+  <div class="painel">
+    <h2>📋 Tipo de Peça</h2>
+    <label>Selecione o tipo:</label>
+    <select id="tipoPeca" onchange="updateDoc()">
+      <option value="embargos">Embargos de Declaração</option>
+      <option value="recurso">Recurso Inominado</option>
+      <option value="agravo">Agravo Interno</option>
+      <option value="peticao">Petição Intermediária</option>
+      <option value="contestacao">Contestação</option>
+      <option value="inicial">Petição Inicial</option>
+    </select>
+
+    <h2>🏛️ Endereçamento</h2>
+    <label>Destinatário (juiz/desembargador):</label>
+    <textarea id="destinatario" oninput="updateDoc()" placeholder="Ex: EXCELENTÍSSIMO SENHOR DOUTOR JUIZ FEDERAL DA 1ª VARA FEDERAL DE JUIZ DE FORA/MG"></textarea>
+
+    <h2>⚖️ Dados Processuais</h2>
+    <label>Número do Processo:</label>
+    <input type="text" id="processo" placeholder="Ex: 6002755-35.2024.4.06.3819" oninput="updateDoc()">
+
+    <label>Nome da Parte (Autor/Embargante/Recorrente):</label>
+    <input type="text" id="parte" placeholder="Ex: Theo Pyerre Dias de Oliveira" oninput="updateDoc()">
+
+    <label>Qualificação Completa:</label>
+    <textarea id="qualificacao" oninput="updateDoc()" placeholder="Ex: menor impúbere, representado por sua genitora JENICE DIAS DA SILVA, brasileira, portadora do RG nº..."></textarea>
+
+    <label>Parte Contrária (Réu/Embargado/Recorrido):</label>
+    <input type="text" id="parteContraria" placeholder="Ex: Instituto Nacional do Seguro Social - INSS" oninput="updateDoc()">
+
+    <h2>📝 Síntese Fática</h2>
+    <label>Resumo dos fatos relevantes:</label>
+    <textarea id="sintese" oninput="updateDoc()" style="min-height: 120px;" placeholder="Descreva de forma objetiva os fatos que fundamentam a peça..."></textarea>
+
+    <h2>⚖️ Fundamentação Jurídica</h2>
+    <label>Fundamentos principais:</label>
+    <textarea id="fundamento" oninput="updateDoc()" style="min-height: 150px;" placeholder="Desenvolva a argumentação jurídica, citando leis, jurisprudência, doutrina..."></textarea>
+
+    <h2>➕ Tópicos Adicionais</h2>
+    <button class="btn-primary" onclick="adicionarTopico()">➕ Adicionar Subtópico</button>
+    <div id="topicosExtras"></div>
+
+    <h2>📌 Pedidos</h2>
+    <label>Pedidos finais:</label>
+    <textarea id="pedidos" oninput="updateDoc()" style="min-height: 100px;" placeholder="Liste os pedidos de forma clara e objetiva..."></textarea>
+
+    <h2>✍️ Assinatura</h2>
+    <label>Local e Data:</label>
+    <input type="text" id="localData" placeholder="Ex: Manhumirim/MG, 23 de janeiro de 2025" oninput="updateDoc()">
+
+    <label>Advogado(a) / OAB:</label>
+    <input type="text" id="advogado" placeholder="Ex: Maikon da Rocha Caldeira - OAB/MG 183.712" oninput="updateDoc()">
+  </div>
+
+  <!-- ====== ÁREA DE PREVIEW ====== -->
+  <div class="preview-area">
+    <div class="toolbar">
+      <button class="btn-export" onclick="exportarWord()">📄 Exportar Word</button>
+      <button class="btn-export" onclick="window.print()">🖨️ Salvar PDF</button>
+      <button class="btn-danger" onclick="limparTudo()">🗑️ Limpar Tudo</button>
+    </div>
+
+    <div class="folha" id="documento">
+      <div class="preview-content">
+        <!-- Cabeçalho -->
+        <p class="center no-indent"><strong id="v_destinatario">EXCELENTÍSSIMO SENHOR DOUTOR JUIZ FEDERAL</strong></p>
+        
+        <p class="no-indent" style="margin-top: 20px;">
+          <strong>PROCESSO Nº:</strong> <span id="v_processo"></span>
+        </p>
+        <p class="no-indent">
+          <strong><span id="v_tipoParte">EMBARGANTE</span>:</strong> <span id="v_parte"></span>
+        </p>
+        <p class="no-indent">
+          <strong><span id="v_tipoParteContraria">EMBARGADO</span>:</strong> <span id="v_parteContraria"></span>
+        </p>
+
+        <!-- Preâmbulo -->
+        <p style="margin-top: 20px;">
+          <span id="v_parte2"></span>, <span id="v_qualificacao"></span>, 
+          por intermédio de seu advogado que esta subscreve, vem, respeitosamente, 
+          à presença de Vossa Excelência, apresentar 
+          <strong id="v_nomePeca">EMBARGOS DE DECLARAÇÃO</strong>, 
+          com fundamento no art. 1.022 do Código de Processo Civil, 
+          pelos motivos de fato e de direito a seguir expostos.
+        </p>
+
+        <!-- Síntese Fática -->
+        <h2>I – SÍNTESE FÁTICA</h2>
+        <p id="v_sintese"></p>
+
+        <!-- Fundamentação -->
+        <h2>II – FUNDAMENTAÇÃO JURÍDICA</h2>
+        <p id="v_fundamento"></p>
+
+        <!-- Tópicos Extras -->
+        <div id="v_topicosExtras"></div>
+
+        <!-- Pedidos -->
+        <h2>III – PEDIDOS</h2>
+        <p id="v_pedidos"></p>
+
+        <!-- Encerramento -->
+        <p class="center" style="margin-top: 30px;">
+          Termos em que,<br>
+          Pede deferimento.
+        </p>
+
+        <p class="center" style="margin-top: 30px;" id="v_localData"></p>
+        <p class="center" style="margin-top: 30px;"><strong id="v_advogado"></strong></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== VARIÁVEIS GLOBAIS ======
+let contadorTopicos = 0;
+const topicos = [];
+
+// ====== MAPEAMENTO DE TIPOS DE PEÇA ======
+const tiposPeca = {
+  embargos: {
+    nome: "EMBARGOS DE DECLARAÇÃO",
+    parte: "EMBARGANTE",
+    parteContraria: "EMBARGADO"
+  },
+  recurso: {
+    nome: "RECURSO INOMINADO",
+    parte: "RECORRENTE",
+    parteContraria: "RECORRIDO"
+  },
+  agravo: {
+    nome: "AGRAVO INTERNO",
+    parte: "AGRAVANTE",
+    parteContraria: "AGRAVADO"
+  },
+  peticao: {
+    nome: "PETIÇÃO INTERMEDIÁRIA",
+    parte: "REQUERENTE",
+    parteContraria: "REQUERIDO"
+  },
+  contestacao: {
+    nome: "CONTESTAÇÃO",
+    parte: "RÉU",
+    parteContraria: "AUTOR"
+  },
+  inicial: {
+    nome: "PETIÇÃO INICIAL",
+    parte: "AUTOR",
+    parteContraria: "RÉU"
+  }
+};
+
+// ====== FUNÇÕES AUXILIARES ======
+function id(x) { return document.getElementById(x); }
+
+function escapeHtml(text) {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+function nl2br(text) {
+  return escapeHtml(text).replace(/\n/g, '<br>');
+}
+
+// ====== ATUALIZAR DOCUMENTO ======
+function updateDoc() {
+  // Tipo de peça
+  const tipo = id('tipoPeca').value;
+  const config = tiposPeca[tipo];
+  
+  id('v_nomePeca').innerText = config.nome;
+  id('v_tipoParte').innerText = config.parte;
+  id('v_tipoParteContraria').innerText = config.parteContraria;
+
+  // Campos básicos
+  id('v_destinatario').innerText = id('destinatario').value || 'EXCELENTÍSSIMO SENHOR DOUTOR JUIZ FEDERAL';
+  id('v_processo').innerText = id('processo').value || '[Nº do processo]';
+  id('v_parte').innerText = id('parte').value || '[Nome da parte]';
+  id('v_parte2').innerText = id('parte').value || '[Nome da parte]';
+  id('v_qualificacao').innerText = id('qualificacao').value || '[qualificação completa]';
+  id('v_parteContraria').innerText = id('parteContraria').value || '[Parte contrária]';
+  
+  // Conteúdo
+  id('v_sintese').innerHTML = nl2br(id('sintese').value) || '<em>[Descreva a síntese fática]</em>';
+  id('v_fundamento').innerHTML = nl2br(id('fundamento').value) || '<em>[Desenvolva a fundamentação jurídica]</em>';
+  id('v_pedidos').innerHTML = nl2br(id('pedidos').value) || '<em>[Liste os pedidos]</em>';
+  
+  // Assinatura
+  id('v_localData').innerText = id('localData').value || '[Local e data]';
+  id('v_advogado').innerText = id('advogado').value || '[Advogado - OAB]';
+
+  // Tópicos extras
+  renderTopicosExtras();
+}
+
+// ====== ADICIONAR TÓPICO EXTRA ======
+function adicionarTopico() {
+  contadorTopicos++;
+  const topicoId = `topico_${contadorTopicos}`;
+  
+  topicos.push({
+    id: topicoId,
+    numero: contadorTopicos
+  });
+
+  const container = id('topicosExtras');
+  const div = document.createElement('div');
+  div.className = 'topico-extra';
+  div.id = topicoId;
+  
+  div.innerHTML = `
+    <div class="topico-extra-header">
+      <strong>Tópico ${contadorTopicos}</strong>
+      <button class="btn-remove" onclick="removerTopico('${topicoId}')" title="Remover tópico">×</button>
+    </div>
+    
+    <label>Tipo de conteúdo:</label>
+    <select id="${topicoId}_tipo" onchange="updateDoc()">
+      <option value="subtitulo">Subtítulo (h3)</option>
+      <option value="paragrafo">Parágrafo normal</option>
+      <option value="citacao">Citação jurídica (4cm)</option>
+    </select>
+    
+    <label>Título/Subtítulo:</label>
+    <input type="text" id="${topicoId}_titulo" placeholder="Ex: 2.1. Da omissão quanto à DIB" oninput="updateDoc()">
+    
+    <label>Conteúdo:</label>
+    <textarea id="${topicoId}_conteudo" oninput="updateDoc()" style="min-height: 100px;" 
+              placeholder="Digite o conteúdo deste tópico..."></textarea>
+  `;
+  
+  container.appendChild(div);
+  updateDoc();
+}
+
+// ====== REMOVER TÓPICO ======
+function removerTopico(topicoId) {
+  const index = topicos.findIndex(t => t.id === topicoId);
+  if (index > -1) {
+    topicos.splice(index, 1);
+  }
+  
+  const elemento = id(topicoId);
+  if (elemento) {
+    elemento.remove();
+  }
+  
+  updateDoc();
+}
+
+// ====== RENDERIZAR TÓPICOS EXTRAS NO PREVIEW ======
+function renderTopicosExtras() {
+  const container = id('v_topicosExtras');
+  let html = '';
+  
+  topicos.forEach(topico => {
+    const tipo = id(`${topico.id}_tipo`)?.value || 'paragrafo';
+    const titulo = id(`${topico.id}_titulo`)?.value || '';
+    const conteudo = id(`${topico.id}_conteudo`)?.value || '';
+    
+    if (!titulo && !conteudo) return;
+    
+    if (tipo === 'subtitulo') {
+      html += `<h3>${escapeHtml(titulo)}</h3>`;
+      if (conteudo) {
+        html += `<p>${nl2br(conteudo)}</p>`;
+      }
+    } else if (tipo === 'citacao') {
+      if (titulo) {
+        html += `<h3>${escapeHtml(titulo)}</h3>`;
+      }
+      html += `<div class="citacao">${nl2br(conteudo)}</div>`;
+    } else {
+      if (titulo) {
+        html += `<h3>${escapeHtml(titulo)}</h3>`;
+      }
+      html += `<p>${nl2br(conteudo)}</p>`;
+    }
+  });
+  
+  container.innerHTML = html;
+}
+
+// ====== EXPORTAR PARA WORD ======
+async function exportarWord() {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+  
+  const children = [];
+  
+  // Cabeçalho
+  children.push(
+    new Paragraph({
+      text: id('v_destinatario').innerText,
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 200 }
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: 'PROCESSO Nº: ', bold: true }),
+        new TextRun(id('v_processo').innerText)
+      ],
+      spacing: { after: 100 }
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: id('v_tipoParte').innerText + ': ', bold: true }),
+        new TextRun(id('v_parte').innerText)
+      ],
+      spacing: { after: 100 }
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: id('v_tipoParteContraria').innerText + ': ', bold: true }),
+        new TextRun(id('v_parteContraria').innerText)
+      ],
+      spacing: { after: 200 }
+    })
+  );
+  
+  // Preâmbulo
+  const preambulo = `${id('parte').value}, ${id('qualificacao').value}, por intermédio de seu advogado que esta subscreve, vem, respeitosamente, à presença de Vossa Excelência, apresentar ${id('v_nomePeca').innerText}, com fundamento no art. 1.022 do Código de Processo Civil, pelos motivos de fato e de direito a seguir expostos.`;
+  
+  children.push(
+    new Paragraph({
+      text: preambulo,
+      alignment: AlignmentType.JUSTIFIED,
+      indent: { firstLine: 1134 },
+      spacing: { after: 200 }
+    })
+  );
+  
+  // Síntese Fática
+  children.push(
+    new Paragraph({
+      text: 'I – SÍNTESE FÁTICA',
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 200, after: 100 }
+    }),
+    new Paragraph({
+      text: id('sintese').value,
+      alignment: AlignmentType.JUSTIFIED,
+      indent: { firstLine: 1134 },
+      spacing: { after: 200 }
+    })
+  );
+  
+  // Fundamentação
+  children.push(
+    new Paragraph({
+      text: 'II – FUNDAMENTAÇÃO JURÍDICA',
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 200, after: 100 }
+    }),
+    new Paragraph({
+      text: id('fundamento').value,
+      alignment: AlignmentType.JUSTIFIED,
+      indent: { firstLine: 1134 },
+      spacing: { after: 200 }
+    })
+  );
+  
+  // Tópicos extras
+  topicos.forEach(topico => {
+    const tipo = id(`${topico.id}_tipo`)?.value;
+    const titulo = id(`${topico.id}_titulo`)?.value;
+    const conteudo = id(`${topico.id}_conteudo`)?.value;
+    
+    if (titulo) {
+      children.push(
+        new Paragraph({
+          text: titulo,
+          heading: HeadingLevel.HEADING_3,
+          spacing: { before: 150, after: 100 }
+        })
+      );
+    }
+    
+    if (conteudo) {
+      const indent = tipo === 'citacao' ? { left: 2268 } : { firstLine: 1134 };
+      children.push(
+        new Paragraph({
+          text: conteudo,
+          alignment: AlignmentType.JUSTIFIED,
+          indent: indent,
+          spacing: { after: 200 }
+        })
+      );
+    }
+  });
+  
+  // Pedidos
+  children.push(
+    new Paragraph({
+      text: 'III – PEDIDOS',
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 200, after: 100 }
+    }),
+    new Paragraph({
+      text: id('pedidos').value,
+      alignment: AlignmentType.JUSTIFIED,
+      indent: { firstLine: 1134 },
+      spacing: { after: 200 }
+    })
+  );
+  
+  // Encerramento
+  children.push(
+    new Paragraph({
+      text: 'Termos em que,',
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 300, after: 100 }
+    }),
+    new Paragraph({
+      text: 'Pede deferimento.',
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 300 }
+    }),
+    new Paragraph({
+      text: id('localData').value,
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 200 }
+    }),
+    new Paragraph({
+      text: id('advogado').value,
+      alignment: AlignmentType.CENTER,
+      bold: true
+    })
+  );
+  
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          margin: {
+            top: 1134,
+            right: 1134,
+            bottom: 1134,
+            left: 1134
+          }
+        }
+      },
+      children: children
+    }]
+  });
+  
+  const blob = await Packer.toBlob(doc);
+  saveAs(blob, `${id('tipoPeca').value}_${id('processo').value || 'documento'}.docx`);
+}
+
+// ====== LIMPAR TUDO ======
+function limparTudo() {
+  if (!confirm('Tem certeza que deseja limpar todos os campos?')) return;
+  
+  id('destinatario').value = '';
+  id('processo').value = '';
+  id('parte').value = '';
+  id('qualificacao').value = '';
+  id('parteContraria').value = '';
+  id('sintese').value = '';
+  id('fundamento').value = '';
+  id('pedidos').value = '';
+  id('localData').value = '';
+  id('advogado').value = '';
+  
+  topicos.length = 0;
+  contadorTopicos = 0;
+  id('topicosExtras').innerHTML = '';
+  
+  updateDoc();
+}
+
+// ====== INICIALIZAÇÃO ======
+window.onload = updateDoc;
+</script>
+
+</body>
+</html>

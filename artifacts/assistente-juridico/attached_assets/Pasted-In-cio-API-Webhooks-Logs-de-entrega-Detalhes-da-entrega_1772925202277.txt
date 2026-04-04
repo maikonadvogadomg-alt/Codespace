@@ -1,0 +1,138 @@
+Início API Webhooks Logs de entrega Detalhes da entrega #13dacca4-f429-4c47-a4cf-d9d474b361c7
+Detalhes da entrega de webhook
+Informações da entrega
+ID do evento (idempotency_key):
+ed240561-5c32-412a-bb63-e51b446e2f68
+ID da entrega:
+13dacca4-f429-4c47-a4cf-d9d474b361c7
+Evento:
+publications.created
+Endpoint:
+MAIKON
+https://live-code-runner.replit.app
+Status:
+✓ Sucesso
+Criado em:
+06 de Março de 2026, 01:23
+Entregue em:
+06 de Março de 2026, 01:23
+Tentativas:
+0 / 10
+Payload enviado
+{
+  "event_type": "publications.created",
+  "idempotency_key": "ed240561-5c32-412a-bb63-e51b446e2f68",
+  "timestamp": "2026-03-06T01:23:50.488-03:00",
+  "timestamp_epoch": 1772771030,
+  "payload": {
+    "publications": [
+      {
+        "id": 28,
+        "link": "https://pje.tjmg.jus.br:443/pje/Processo/ConsultaDocumento/listView.seam?x=26030316463751800010633202233",
+        "uuid": "23900e57-3ad7-4a22-981b-68ac1797145e",
+        "texto": "PODER JUDICIÁRIO DO ESTADO DE MINAS GERAIS Justiça de Primeira Instância Comarca de Manhuaçu / 1ª Vara Cível da Comarca de Manhuaçu Rua Centenário, 280, Fórum Desembargador Alonso Starling, Bom Pastor, Manhuaçu - MG - CEP: 36902-272 PROCESSO Nº: 5001777-50.2018.8.13.0394 CLASSE: [CÍVEL] EMBARGOS À EXECUÇÃO (172) ASSUNTO: [Espécies de Contratos, Efeito Suspensivo / Impugnação / Embargos à Execução] AUTOR: MARINHO MULTIMARCAS LTDA - ME CPF: 20.608.296/0001-35 e outros RÉU: COOPERATIVA DE CREDITO CREDILIVRE LTDA. - SICOOB CREDILIVRE CPF: 41.697.103/0001-30 SENTENÇA Vistos etc. Trata-se de EMBARGOS À EXECUÇÃO opostos por MARINHO MULTIMARCA LTDA – ME e outros em face de COOPERATIVA DE CRÉDITO DE LIVRE ADMISSÃO DA ZONA DA MATA DE MINAS LTDA – SICOOB CREDILIVRE, relativamente à execução nº 5000267-02.2018.8.13.0394, fundada na Cédula de Crédito Bancário nº 163.033. Os embargantes sustentaram, em síntese, a inexequibilidade do título por ausência de liquidez, irregularidade nas planilhas, cobrança de valores a maior, aplicação indevida de juros compostos, direito à repetição em dobro, além de arguição de inconstitucionalidade formal da Lei nº 10.931/04. A embargada apresentou impugnação defendendo a regularidade da CCB, a suficiência das planilhas e a constitucionalidade da legislação de regência. Foi realizada prova pericial contábil. O laudo pericial oficial concluiu que: os juros remuneratórios pactuados (2,23% ao mês e 2,29% em um borderô específico) foram efetivamente aplicados; a taxa praticada encontrava-se abaixo da média do BACEN à época da contratação; os cálculos apresentados pela embargada correspondem à aplicação de juros compostos; os demonstrativos são claros e compatíveis com os encargos pactuados; caso aplicados juros simples, haveria diferença de R$ 318,09. É o necessário. Decido. I – DA INCONSTITUCIONALIDADE FORMAL DA LEI 10.931/04 A tese de inconstitucionalidade formal da Lei nº 10.931/04 não merece prosperar. O entendimento consolidado nos tribunais superiores e no próprio Tribunal de Justiça de Minas Gerais é no sentido de que a disciplina da Cédula de Crédito Bancário não configura regulamentação estrutural do Sistema Financeiro Nacional, não se exigindo lei complementar para tal finalidade. Não havendo declaração de inconstitucionalidade pelo Supremo Tribunal Federal, tampouco decisão vinculante nesse sentido, afasta-se a arguição. II – DA EXEQUIBILIDADE DA CÉDULA DE CRÉDITO BANCÁRIO A CCB é título executivo extrajudicial, nos termos do art. 28 da Lei nº 10.931/04, desde que acompanhada de planilha demonstrativa do saldo devedor. O laudo pericial foi categórico ao afirmar que os demonstrativos apresentados pela embargada refletem os parâmetros pactuados na cédula. Restou comprovado que: os juros contratados foram efetivamente aplicados; a capitalização ocorreu conforme demonstrativos; a taxa estava abaixo da média de mercado; a multa foi corretamente calculada. Não há vício apto a retirar do título sua liquidez, certeza ou exigibilidade. III – DA CAPITALIZAÇÃO DE JUROS A perícia confirmou que os juros foram aplicados sob regime composto. Entretanto, a Cédula de Crédito Bancário admite capitalização quando expressamente pactuada, sendo entendimento pacífico do Superior Tribunal de Justiça que é válida a capitalização mensal nos contratos celebrados após a MP 1.963-17/2000 (convertida na Lei nº 10.931/04), desde que prevista. No caso concreto, a perícia constatou a aplicação dos juros conforme os parâmetros descritos nos borderôs. Todavia, ao recalcular sob regime simples, apurou diferença de R$ 318,09. Embora não tenha sido constatada irregularidade estrutural no título, a diferença técnica identificada pela perícia revela excesso pontual no montante executado. IV – DO EXCESSO DE EXECUÇÃO Diante da conclusão pericial, reconhece-se excesso de execução no valor de R$ 318,09 (trezentos e dezoito reais e nove centavos). Tal diferença não compromete a higidez do título executivo, tampouco enseja extinção da execução, mas impõe adequação do valor executado. V – DA REPETIÇÃO EM DOBRO A repetição em dobro prevista no art. 42, parágrafo único, do CDC exige demonstração de cobrança indevida com má-fé. No caso concreto, a diferença decorre de critério técnico de capitalização, não havendo demonstração de conduta dolosa ou cobrança abusiva deliberada. Afasto, portanto, o pedido de repetição em dobro. Ante o exposto, JULGO PARCIALMENTE PROCEDENTES os embargos à execução, nos termos do art. 487, I, do Código de Processo Civil, para: a) reconhecer o excesso de execução no valor de R$ 318,09 (trezentos e dezoito reais e nove centavos); b) determinar a adequação do valor executado na ação nº 5000267-02.2018.8.13.0394, com a exclusão da referida quantia; c) manter hígida a execução quanto ao saldo remanescente. Rejeitam-se os demais pedidos. Considerando a sucumbência mínima da parte embargante, condeno-a ao pagamento de honorários advocatícios, que fixo em 10% sobre o valor atualizado da execução, nos termos do art. 85, §2º, do CPC, observada eventual gratuidade deferida. Após o trânsito em julgado, certifique-se nos autos da execução e prossiga-se com a cobrança do saldo remanescente. Publique-se. Registre-se. Intimem-se. Serve o presente despacho/decisão, se necessário, como ofício/carta precatória, mandado/carta de citação/intimação, facultando ao advogado ou a parte se encarregar do ato, em homenagem ao princípio da cooperação, art. 5º, inciso LXXVIII, da CF/88. Manhuaçu, data da assinatura eletrônica. WALTEIR JOSE DA SILVA Juiz(íza) de Direito 1ª Vara Cível da Comarca de Manhuaçu",
+        "nomeOrgao": "1ª Vara Cível da Comarca de Manhuaçu",
+        "created_at": "2026-03-06T01:23:50.474-03:00",
+        "nomeClasse": "EMBARGOS à EXECUçãO",
+        "destinatarios": [
+          {
+            "nome": "COOPERATIVA DE CREDITO CREDILIVRE LTDA. - SICOOB CREDILIVRE",
+            "polo": "P"
+          },
+          {
+            "nome": "MARINHO MULTIMARCAS LTDA - ME",
+            "polo": "A"
+          },
+          {
+            "nome": "MARIO FERREIRA MARTINS",
+            "polo": "A"
+          },
+          {
+            "nome": "MARIO JUNIOR FRANCHINI MARTINS",
+            "polo": "A"
+          },
+          {
+            "nome": "SEBASTIAO MARIO MARTINS",
+            "polo": "A"
+          }
+        ],
+        "siglaTribunal": "TJMG",
+        "link_tramitacao": "https://planilha.tramitacaointeligente.com.br/publicacoes/28",
+        "numero_processo": "50017775020188130394",
+        "publication_date": "2026-03-05",
+        "inicio_do_prazo_date": "2026-03-06",
+        "disponibilizacao_date": "2026-03-04",
+        "destinatario_advogados": [
+          {
+            "nome": "ELI VANDER TAVARES",
+            "uf_oab": "MG",
+            "numero_oab": "43419"
+          },
+          {
+            "nome": "MAIKON DA ROCHA CALDEIRA",
+            "uf_oab": "MG",
+            "numero_oab": "183712"
+          },
+          {
+            "nome": "HELON DEMETRIOS HERINGER DA COSTA",
+            "uf_oab": "MG",
+            "numero_oab": "119124"
+          },
+          {
+            "nome": "LUIZ GUILHERME GONCALVES DO PRADO",
+            "uf_oab": "MG",
+            "numero_oab": "176070"
+          }
+        ],
+        "numero_processo_com_mascara": "5001777-50.2018.8.13.0394"
+      }
+    ]
+  }
+}
+Resposta HTTP
+Código HTTP:
+200
+Headers:
+{
+  "via": "1.1 google",
+  "date": "Fri, 06 Mar 2026 04:23:57 GMT",
+  "etag": "W/\"a0b-19c9cc291f8\"",
+  "server": "Google Frontend",
+  "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+  "expires": "Fri, 06 Mar 2026 04:23:57 GMT",
+  "set-cookie": "GAESA=CpwBMDBkYTZjZDJjNDAyZWQ2MGMwNDFkMDJkMzBlMDQ0NjExYjUxNDJhZmE1YzEyYjEyYjMyZDBiNjBhMjEyZDMzMjNjMTMxYzk1YjgzNzMyYzc4Mzk4ZGE4MWRlZWE1MDRhMDdjYTdjNzg4OTQ2NWMyNTdhNzdkODQ2YWVkMzlkNjhiYThiODY4Njc4MGJiODg3NmQ2ZjExODE1Y2QzEOWljYvMMw; expires=Sun, 05-Apr-2026 04:23:57 GMT; path=/",
+  "content-type": "text/html; charset=utf-8",
+  "x-powered-by": "Express",
+  "accept-ranges": "bytes",
+  "cache-control": "private, max-age=0",
+  "last-modified": "Fri, 27 Feb 2026 01:42:03 GMT",
+  "content-length": "2571",
+  "x-cloud-trace-context": "ae379cc487a1467c4400a220dc9fe803;o=1",
+  "strict-transport-security": "max-age=63072000; includeSubDomains"
+}
+Corpo da resposta:
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>HTML Playground - Editor de Codigo ao Vivo</title>
+    <meta name="description" content="Cole seu codigo HTML, CSS e JavaScript e veja o resultado ao vivo. Editor de codigo online gratuito.">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Playground">
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Fira+Code:wght@300..700&family=Geist+Mono:wght@100..900&family=Geist:wght@100..900&family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=IBM+Plex+Sans:ital,wght@0,100..700;1,100..700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400..700;1,400..700&family=Merriweather:ital,opsz,wght@0,18..144,300..900;1,18..144,300..900&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Outfit:wght@100..900&family=Oxanium:wght@200..800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Roboto:ital,wght@0,100..900;1,100..900&family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="/assets/index-hpEHBFRM.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-I6fk3f5Z.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+ 

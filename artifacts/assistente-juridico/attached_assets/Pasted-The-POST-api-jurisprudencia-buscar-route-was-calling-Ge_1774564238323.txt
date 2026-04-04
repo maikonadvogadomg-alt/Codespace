@@ -1,0 +1,1823 @@
+The POST /api/jurisprudencia/buscar route was calling Gemini to generate jurisprudência results — incurring real costs and producing hallucinated case numbers, relators, and dates. This replaces it entirely with a direct call to the public CNJ DataJud Elasticsearch API.
+
+Changes
+server/routes.ts
+
+Removed all Gemini prompt construction and generateContent call from /api/jurisprudencia/buscar
+Added fetch POST to https://api-publica.datajud.cnj.jus.br/api_publica_jurisprudencia/_search with query_string query and size: 10
+API key sourced from DATAJUD_API_KEY env var, falling back to the user-provided public key
+Maps hits.hits[]._source fields (siglaTribunal, classeProcessual, numeroProcesso, relator, dataJulgamento, ementa, etc.) to the existing frontend contract — missing fields default to "Não informado"
+Returns HTTP 500 with a DataJud-specific error message on failure; no AI fallback
+const payload = {
+size: 10,
+query: { query_string: { query: q } },
+};
+const cnjRes = await fetch(DATAJUD_URL, {
+method: "POST",
+headers: { Authorization: DATAJUD_KEY, "Content-Type": "application/json" },
+body: JSON.stringify(payload),
+});
+Original prompt
+O usuário forneceu uma chave de API pública do DataJud (CNJ) e deseja substituir a busca de jurisprudência atual (que usa a IA Gemini e gera custos/alucinações) por uma busca real na API do DataJud.
+
+A chave de API fornecida pelo usuário é:
+cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=
+
+Por favor, faça as seguintes alterações:
+
+No arquivo server/routes.ts, localize a rota POST /api/jurisprudencia/buscar.
+Remova completamente a chamada ao gemini.models.generateContent (IA) dessa rota para zerar os custos.
+Implemente uma requisição HTTP (usando fetch nativo) para a API do DataJud. O endpoint de busca unificada pública do CNJ é tipicamente https://api-publica.datajud.cnj.jus.br/api_publica_jurisprudencia/_search.
+Envie a requisição com o método POST. O cabeçalho deve conter:
+"Authorization": "APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw="
+"Content-Type": "application/json"
+O corpo (payload) da requisição para o Elasticsearch do DataJud deve fazer uma busca pelo termo req.body.q (ex: {"query": {"match": {"texto_ementa": q}}} ou {"query": {"query_string": {"query": q}}}). Configure para retornar cerca de 10 resultados ("size": 10).
+Extraia os dados da resposta do CNJ (que vem no formato do Elasticsearch: hits.hits[]._[source]) e mapeie para o formato que o frontend já espera:
+{
+"results": [
+{
+"tribunal": "Sigla do Tribunal",
+"tipo": "Acórdão/Sentença",
+"processo": "Número do Processo",
+"relator": "Nome do Relator",
+"data": "Data",
+"ementa": "Texto da ementa...",
+"tese": "Resumo ou N/A"
+}
+]
+}
+(Adapte os nomes dos campos de acordo com os metadados devolvidos pelo DataJud, preenchendo com "Não informado" os campos que não existirem).
+Se a requisição ao CNJ falhar, retorne um erro 500 informando que houve falha na comunicação com o DataJud. NUNCA faça fallback para a IA. O objetivo é remover o custo.
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+User: Ok nesse é nessa página aí também que tenha a possibilidade de modificar para que ela possa ter acesso a dentro da mesma conversa acesso aos históricos todos para é um problema também que que tá tendo lá e eu não sei como é que faz se nesse arquivo também tem como eu incluir e em qual página também teria que mudar para poder no histórico ficar também a minha conversa não só conversa daí a.
+
+Assistant: O robô já começou a trabalhar no seu pedido para abrir um Pull Request corrigindo aquele erro que estava quebrando o código, e também tentando alinhar os textos à esquerda para corrigir aquela bagunça do negrito e do texto centralizado.
+
+Vou te explicar detalhadamente cada uma das suas dúvidas:
+
+1. Por que existem dois arquivos (legal-assistant.tsx e teste.tsx)?
+Você provavelmente duplicou a página legal-assistant.tsx original e colou como teste.tsx para fazer testes com medo de quebrar a página principal.
+O ideal é você manter e consertar apenas um deles (o legal-assistant.tsx que é a rota oficial do seu sistema) e apagar o outro para não gerar confusão de onde você está alterando o código.
+
+2. O problema da formatação (metade em negrito e centralizado)
+Isso geralmente acontece por dois motivos:
+
+Alinhamento: O container onde a resposta aparece estava herdando um alinhamento centralizado (text-center). No Pull Request que pedi para a IA criar, solicitei que ela force o alinhamento à esquerda (text-left).
+Limites de Texto (Tokens): O que causa o texto ficar "metade em negrito até o final" é que a Inteligência Artificial usa **texto** para fazer negrito. Se ela atinge o limite máximo de palavras da API antes de terminar de escrever a resposta, ela para de escrever do nada e não "fecha" o **. Isso faz com que todo o resto da página fique em negrito para sempre. Pedimos para a IA revisar os limites também.
+3. Sobre salvar o histórico da conversa toda (não só a última resposta)
+Atualmente, olhei o banco de dados do seu projeto (no arquivo shared/schema.ts). Ele foi programado para ter apenas duas colunas sobre o histórico:
+
+inputPreview: Uma prévia da sua primeira pergunta.
+result: O texto final gerado pela IA.
+Para que o sistema passe a salvar o "bate-papo" (vai-e-vem) inteiro da conversa no histórico:
+Não basta apenas mudar a página teste.tsx. Nós precisamos modificar o Banco de Dados para criar uma nova coluna chamada chatHistory (histórico de chat) que suporte guardar múltiplas mensagens, e depois alterar o servidor (server/routes.ts) para salvar e carregar essa informação.
+
+O que faremos agora:
+Assim que a IA do GitHub finalizar o Pull Request atual corrigindo o erro crítico da tela e do alinhamento, você aprova e testa.
+Se voltar a funcionar sem quebrar, nós podemos fazer um **segundo Pull Request focado apenas em alterar o banco de da...
+
+This pull request was created from Copilot chat.
+
+💬 Send tasks to Copilot coding agent from Slack and Teams to turn conversations into code. Copilot posts an update in your thread when it's finished.
+
+
+The POST /api/jurisprudencia/buscar route was calling Gemini to generate jurisprudência results — incurring real costs and producing hallucinated case numbers, relators, and dates. This replaces it entirely with a direct call to the public CNJ DataJud Elasticsearch API.
+
+Changes
+server/routes.ts
+Removed all Gemini prompt construction and generateContent call from /api/jurisprudencia/buscar
+Added fetch POST to https://api-publica.datajud.cnj.jus.br/api_publica_jurisprudencia/_search with query_string query and size: 10
+API key sourced from DATAJUD_API_KEY env var, falling back to the user-provided public key
+Maps hits.hits[]._source fields (siglaTribunal, classeProcessual, numeroProcesso, relator, dataJulgamento, ementa, etc.) to the existing frontend contract — missing fields default to "Não informado"
+Returns HTTP 500 with a DataJud-specific error message on failure; no AI fallback
+const payload = {
+size: 10,
+query: { query_string: { query: q } },
+};
+const cnjRes = await fetch(DATAJUD_URL, {
+method: "POST",
+headers: { Authorization: DATAJUD_KEY, "Content-Type": "application/json" },
+body: JSON.stringify(payload),
+});
+Original prompt
+O usuário forneceu uma chave de API pública do DataJud (CNJ) e deseja substituir a busca de jurisprudência atual (que usa a IA Gemini e gera custos/alucinações) por uma busca real na API do DataJud.
+A chave de API fornecida pelo usuário é: cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=
+
+Por favor, faça as seguintes alterações:
+
+No arquivo server/routes.ts, localize a rota POST /api/jurisprudencia/buscar.
+Remova completamente a chamada ao gemini.models.generateContent (IA) dessa rota para zerar os custos.
+Implemente uma requisição HTTP (usando fetch nativo) para a API do DataJud. O endpoint de busca unificada pública do CNJ é tipicamente https://api-publica.datajud.cnj.jus.br/api_publica_jurisprudencia/_search.
+Envie a requisição com o método POST. O cabeçalho deve conter:
+"Authorization": "APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw="
+"Content-Type": "application/json"
+O corpo (payload) da requisição para o Elasticsearch do DataJud deve fazer uma busca pelo termo req.body.q (ex: {"query": {"match": {"texto_ementa": q}}} ou {"query": {"query_string": {"query": q}}}). Configure para retornar cerca de 10 resultados ("size": 10).
+Extraia os dados da resposta do CNJ (que vem no formato do Elasticsearch: hits.hits[]._[source]) e mapeie para o formato que o frontend já espera:
+{
+"results": [
+{
+"tribunal": "Sigla do Tribunal",
+"tipo": "Acórdão/Sentença",
+"processo": "Número do Processo",
+"relator": "Nome do Relator",
+"data": "Data",
+"ementa": "Texto da ementa...",
+"tese": "Resumo ou N/A"
+}
+]
+}
+(Adapte os nomes dos campos de acordo com os metadados devolvidos pelo DataJud, preenchendo com "Não informado" os campos que não existirem).
+Se a requisição ao CNJ falhar, retorne um erro 500 informando que houve falha na comunicação com o DataJud. NUNCA faça fallback para a IA. O objetivo é remover o custo.
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+User: Ok nesse é nessa página aí também que tenha a possibilidade de modificar para que ela possa ter acesso a dentro da mesma conversa acesso aos históricos todos para é um problema também que que tá tendo lá e eu não sei como é que faz se nesse arquivo também tem como eu incluir e em qual página também teria que mudar para poder no histórico ficar também a minha conversa não só conversa daí a.
+
+Assistant: O robô já começou a trabalhar no seu pedido para abrir um Pull Request corrigindo aquele erro que estava quebrando o código, e também tentando alinhar os textos à esquerda para corrigir aquela bagunça do negrito e do texto centralizado.
+
+Vou te explicar detalhadamente cada uma das suas dúvidas:
+
+1. Por que existem dois arquivos (legal-assistant.tsx e teste.tsx)?
+Você provavelmente duplicou a página legal-assistant.tsx original e colou como teste.tsx para fazer testes com medo de quebrar a página principal.
+O ideal é você manter e consertar apenas um deles (o legal-assistant.tsx que é a rota oficial do seu sistema) e apagar o outro para não gerar confusão de onde você está alterando o código.
+
+2. O problema da formatação (metade em negrito e centralizado)
+Isso geralmente acontece por dois motivos:
+
+Alinhamento: O container onde a resposta aparece estava herdando um alinhamento centralizado (text-center). No Pull Request que pedi para a IA criar, solicitei que ela force o alinhamento à esquerda (text-left).
+Limites de Texto (Tokens): O que causa o texto ficar "metade em negrito até o final" é que a Inteligência Artificial usa **texto** para fazer negrito. Se ela atinge o limite máximo de palavras da API antes de terminar de escrever a resposta, ela para de escrever do nada e não "fecha" o **. Isso faz com que todo o resto da página fique em negrito para sempre. Pedimos para a IA revisar os limites também.
+3. Sobre salvar o histórico da conversa toda (não só a última resposta)
+Atualmente, olhei o banco de dados do seu projeto (no arquivo shared/schema.ts). Ele foi programado para ter apenas duas colunas sobre o histórico:
+
+inputPreview: Uma prévia da sua primeira pergunta.
+result: O texto final gerado pela IA.
+Para que o sistema passe a salvar o "bate-papo" (vai-e-vem) inteiro da conversa no histórico:
+Não basta apenas mudar a página teste.tsx. Nós precisamos modificar o Banco de Dados para criar uma nova coluna chamada chatHistory (histórico de chat) que suporte guardar múltiplas mensagens, e depois alterar o servidor (server/routes.ts) para salvar e carregar essa informação.
+
+O que faremos agora:
+Assim que a IA do GitHub finalizar o Pull Request atual corrigindo o erro crítico da tela e do alinhamento, você aprova e testa.
+Se voltar a funcionar sem quebrar, nós podemos fazer um **segundo Pull Request focado apenas em alterar o banco de da...
+
+This pull request was created from Copilot chat.
+
+💬 Send tasks to Copilot coding agent from Slack and Teams to turn conversations into code. Copilot posts an update in your thread when it's finished.
+
+
+AI responses in the Legal Assistant were generating long, unreadable text blocks ("embolados") — even on the economy model. Formatting instructions were absent from both the action and refinement system prompts.
+
+Changes
+New FORMATTING_RULES constant — single source of truth extracted to avoid duplication:
+const FORMATTING_RULES = `FORMATACAO OBRIGATORIA: Use paragrafos CURTOS, com no maximo 3 a 4 linhas cada. Sempre pule uma linha em branco entre cada paragrafo. Nao crie blocos de texto longos ou embolados. Formate a resposta de forma limpa, com topicos e espacamento adequado.`;
+SYSTEM_PROMPT_BASE — appended FORMATTING_RULES as rule Replace Gemini AI with DataJud CNJ API for jurisprudence search #7, covering all /api/ai/process action routes (resumir, revisar, minuta, etc.)
+refineSystemPrompt — appended FORMATTING_RULES to the /api/ai/refine prompt, ensuring chat/refinement turns follow the same layout rules
+Original prompt
+O usuário relatou que as respostas geradas pela IA no Assistente Legal estão com parágrafos muito longos e o texto está "embolado" (junto/confuso), mesmo na versão econômica.
+
+Por favor, faça as seguintes alterações:
+
+Localize onde os prompts de sistema/instruções da IA são definidos (provavelmente em server/routes.ts nas rotas /api/ai/action, /api/ai/refine, etc.).
+Adicione instruções claras e estritas no prompt do sistema para a IA:
+"Use parágrafos curtos, com no máximo 3 a 4 linhas."
+"Sempre pule uma linha em branco entre cada parágrafo para facilitar a leitura."
+"Não crie blocos de texto longos ou 'embolados'."
+"Formate a resposta de forma limpa, com tópicos e espaçamento adequado."
+Certifique-se de que essas regras sejam aplicadas tanto nas ações normais quanto na rota de refinamento (/api/ai/refine).
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+Assistant: Entendi! O "25" pode se referir ao código de saída do erro (Exit Code 25) ou a alguma mensagem específica vinda do ambiente (talvez você esteja usando o Replit, certo?).
+
+Como você enviou as alterações direto de lá e editou o package.json, muitos erros nesse cenário estão ligados a conflitos de versão do Node, falta de pacotes instalados ou problemas com o Vite/TSX na hora de iniciar o servidor.
+
+Para que eu te dê a solução exata sem você precisar migrar de plataforma agora:
+Você poderia copiar e colar a mensagem de erro inteira que aparece para você?
+
+Assim eu identifico na hora se é um problema de script no package.json, alguma dependência faltando (npm i), ou um erro de build/execução.
+
+User: Está dando erro em tal nome decre... Alguma coisa.
+
+Assistant: Pelo que vejo, a sua última alteração há pouco tempo foi no arquivo playground-python.tsx (Commit Atualizar o playground-python.tsx).
+
+Sobre o erro "em tal nome decre...", isso normalmente pode estar ligado a:
+
+deprecated: Quando você roda npm install, às vezes aparecem mensagens laranjas de WARN deprecated .... Isso não é um erro impeditivo, são apenas avisos de bibliotecas antigas que o sistema usa por baixo dos panos. O projeto deveria rodar mesmo com esses avisos.
+drizzle-kit ou drizzle-orm (onde há o prefixo 'dr...'): O banco de dados ou algum comando do migrate pode estar acusando erro se você alterou uma tipagem lá do Replit.
+Dependência ausente ou de tipagem: Em projetos Vite + React (tsx), às vezes algum pacote não exporta mais uma variável ou interface ("declaration...").
+Como você rodou ou enviou a partir do Replit, é bem comum as dependências do package.json entrarem em conflito.
+
+Para a gente matar isso de vez:
+
+O erro te impede de ver o site/aplicação rodando?
+O erro aparece na janela do Console/Terminal ou na Página da web do seu projeto?
+Se você conseguir apenas copiar e colar o pedaço do erro que está no seu terminal ou na tela pra mim, ou me confirmar em qual comando ele trava (ex: ao digitar npm run dev), eu já te mando o conserto!
+
+User: Npm
+
+Assistant: Entendi! Como você mencionou "Npm" e antes falou de um erro com o nome "decre... alguma coisa", é muito provável que você esteja vendo mensagens de "deprecated" (obsoleto) ao rodar o comando npm install.
+
+Quando você roda npm install, é super comum o NPM avisar que alguns pacotes estão "deprecated" (obsoletos). Na maioria das vezes, esses são apenas avisos (warnings) e não erros reais. Eles não impedem o projeto de funcionar.
+
+No entanto, se o processo está falhando de verdade e quebrando (como o erro 25 que você mencionou), geralmente é um problema de conflito no cache do NPM ou dependências desatualizadas no package-lock.json.
+
+Aqui está o passo a passo para limpar e reinstalar tudo do zero (muito útil em ambientes como Replit):
+
+1. Limpe o ambiente antigo:
+No terminal do seu projeto, rode os seguintes comandos um por um:
+
+rm -rf node_modules
+rm package-lock.json
+npm cache clean --force
+2. Instale as dependências novamente:
+
+npm install
+(Não se preocupe se aparecerem mensagens em amarelo dizendo "deprecated" durante este processo, apenas deixe terminar).
+
+3. Inicie o projeto:
+
+npm run dev
+Se mesmo após fazer isso o erro 25 persistir, o Replit pode estar usando uma versão do Node.js incompatível com algum pacote (seu package.json pede bibliotecas bem recentes como Vite 4+ e React 18).
+
+Tente rodar isso e me diga se o servidor subiu ou se o erro que começa com "decre..." apareceu em vermelho parando a execução!
+
+User: Vc já corrigiu?
+
+Assistant: Eu ainda não fiz nenhuma correção no seu repositório. Como sou um assistente virtual, eu não modifico o seu código automaticamente; até agora eu apenas li os arquivos para tentar identificar o problema.
+
+Para que eu possa corrigir isso diretamente no seu GitHub, você precisa me dar o comando para criar um Pull Request com a solução.
+
+Porém,...
+
+This pull request was created from Copilot chat.
+
+📍 Connect Copilot coding agent with Jira, Azure Boards or Linear to delegate work to Copilot in one click without leaving your project management tool.
+
+AI responses in the Legal Assistant were generating long, unreadable text blocks ("embolados") — even on the economy model. Formatting instructions were absent from both the action and refinement system prompts.
+
+Changes
+New FORMATTING_RULES constant — single source of truth extracted to avoid duplication:
+const FORMATTING_RULES = `FORMATACAO OBRIGATORIA: Use paragrafos CURTOS, com no maximo 3 a 4 linhas cada. Sempre pule uma linha em branco entre cada paragrafo. Nao crie blocos de texto longos ou embolados. Formate a resposta de forma limpa, com topicos e espacamento adequado.`;
+SYSTEM_PROMPT_BASE — appended FORMATTING_RULES as rule Replace Gemini AI with DataJud CNJ API for jurisprudence search #7, covering all /api/ai/process action routes (resumir, revisar, minuta, etc.)
+refineSystemPrompt — appended FORMATTING_RULES to the /api/ai/refine prompt, ensuring chat/refinement turns follow the same layout rules
+Original prompt
+O usuário relatou que as respostas geradas pela IA no Assistente Legal estão com parágrafos muito longos e o texto está "embolado" (junto/confuso), mesmo na versão econômica.
+
+Por favor, faça as seguintes alterações:
+
+Localize onde os prompts de sistema/instruções da IA são definidos (provavelmente em server/routes.ts nas rotas /api/ai/action, /api/ai/refine, etc.).
+Adicione instruções claras e estritas no prompt do sistema para a IA:
+"Use parágrafos curtos, com no máximo 3 a 4 linhas."
+"Sempre pule uma linha em branco entre cada parágrafo para facilitar a leitura."
+"Não crie blocos de texto longos ou 'embolados'."
+"Formate a resposta de forma limpa, com tópicos e espaçamento adequado."
+Certifique-se de que essas regras sejam aplicadas tanto nas ações normais quanto na rota de refinamento (/api/ai/refine).
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+Assistant: Entendi! O "25" pode se referir ao código de saída do erro (Exit Code 25) ou a alguma mensagem específica vinda do ambiente (talvez você esteja usando o Replit, certo?).
+
+Como você enviou as alterações direto de lá e editou o package.json, muitos erros nesse cenário estão ligados a conflitos de versão do Node, falta de pacotes instalados ou problemas com o Vite/TSX na hora de iniciar o servidor.
+
+Para que eu te dê a solução exata sem você precisar migrar de plataforma agora:
+Você poderia copiar e colar a mensagem de erro inteira que aparece para você?
+
+Assim eu identifico na hora se é um problema de script no package.json, alguma dependência faltando (npm i), ou um erro de build/execução.
+
+User: Está dando erro em tal nome decre... Alguma coisa.
+
+Assistant: Pelo que vejo, a sua última alteração há pouco tempo foi no arquivo playground-python.tsx (Commit Atualizar o playground-python.tsx).
+
+Sobre o erro "em tal nome decre...", isso normalmente pode estar ligado a:
+
+deprecated: Quando você roda npm install, às vezes aparecem mensagens laranjas de WARN deprecated .... Isso não é um erro impeditivo, são apenas avisos de bibliotecas antigas que o sistema usa por baixo dos panos. O projeto deveria rodar mesmo com esses avisos.
+drizzle-kit ou drizzle-orm (onde há o prefixo 'dr...'): O banco de dados ou algum comando do migrate pode estar acusando erro se você alterou uma tipagem lá do Replit.
+Dependência ausente ou de tipagem: Em projetos Vite + React (tsx), às vezes algum pacote não exporta mais uma variável ou interface ("declaration...").
+Como você rodou ou enviou a partir do Replit, é bem comum as dependências do package.json entrarem em conflito.
+
+Para a gente matar isso de vez:
+
+O erro te impede de ver o site/aplicação rodando?
+O erro aparece na janela do Console/Terminal ou na Página da web do seu projeto?
+Se você conseguir apenas copiar e colar o pedaço do erro que está no seu terminal ou na tela pra mim, ou me confirmar em qual comando ele trava (ex: ao digitar npm run dev), eu já te mando o conserto!
+
+User: Npm
+
+Assistant: Entendi! Como você mencionou "Npm" e antes falou de um erro com o nome "decre... alguma coisa", é muito provável que você esteja vendo mensagens de "deprecated" (obsoleto) ao rodar o comando npm install.
+
+Quando você roda npm install, é super comum o NPM avisar que alguns pacotes estão "deprecated" (obsoletos). Na maioria das vezes, esses são apenas avisos (warnings) e não erros reais. Eles não impedem o projeto de funcionar.
+
+No entanto, se o processo está falhando de verdade e quebrando (como o erro 25 que você mencionou), geralmente é um problema de conflito no cache do NPM ou dependências desatualizadas no package-lock.json.
+
+Aqui está o passo a passo para limpar e reinstalar tudo do zero (muito útil em ambientes como Replit):
+
+1. Limpe o ambiente antigo:
+No terminal do seu projeto, rode os seguintes comandos um por um:
+
+rm -rf node_modules
+rm package-lock.json
+npm cache clean --force
+2. Instale as dependências novamente:
+
+npm install
+(Não se preocupe se aparecerem mensagens em amarelo dizendo "deprecated" durante este processo, apenas deixe terminar).
+
+3. Inicie o projeto:
+
+npm run dev
+Se mesmo após fazer isso o erro 25 persistir, o Replit pode estar usando uma versão do Node.js incompatível com algum pacote (seu package.json pede bibliotecas bem recentes como Vite 4+ e React 18).
+
+Tente rodar isso e me diga se o servidor subiu ou se o erro que começa com "decre..." apareceu em vermelho parando a execução!
+
+User: Vc já corrigiu?
+
+Assistant: Eu ainda não fiz nenhuma correção no seu repositório. Como sou um assistente virtual, eu não modifico o seu código automaticamente; até agora eu apenas li os arquivos para tentar identificar o problema.
+
+Para que eu possa corrigir isso diretamente no seu GitHub, você precisa me dar o comando para criar um Pull Request com a solução.
+
+Porém,...
+
+This pull request was created from Copilot chat.
+
+📍 Connect Copilot coding agent with Jira, Azure Boards or Linear to delegate work to Copilot in one click without leaving your project management tool.
+
+
+AI responses in the Legal Assistant were generating long, unreadable text blocks ("embolados") — even on the economy model. Formatting instructions were absent from both the action and refinement system prompts.
+
+Changes
+New FORMATTING_RULES constant — single source of truth extracted to avoid duplication:
+const FORMATTING_RULES = `FORMATACAO OBRIGATORIA: Use paragrafos CURTOS, com no maximo 3 a 4 linhas cada. Sempre pule uma linha em branco entre cada paragrafo. Nao crie blocos de texto longos ou embolados. Formate a resposta de forma limpa, com topicos e espacamento adequado.`;
+SYSTEM_PROMPT_BASE — appended FORMATTING_RULES as rule Replace Gemini AI with DataJud CNJ API for jurisprudence search #7, covering all /api/ai/process action routes (resumir, revisar, minuta, etc.)
+refineSystemPrompt — appended FORMATTING_RULES to the /api/ai/refine prompt, ensuring chat/refinement turns follow the same layout rules
+Original prompt
+O usuário relatou que as respostas geradas pela IA no Assistente Legal estão com parágrafos muito longos e o texto está "embolado" (junto/confuso), mesmo na versão econômica.
+
+Por favor, faça as seguintes alterações:
+
+Localize onde os prompts de sistema/instruções da IA são definidos (provavelmente em server/routes.ts nas rotas /api/ai/action, /api/ai/refine, etc.).
+Adicione instruções claras e estritas no prompt do sistema para a IA:
+"Use parágrafos curtos, com no máximo 3 a 4 linhas."
+"Sempre pule uma linha em branco entre cada parágrafo para facilitar a leitura."
+"Não crie blocos de texto longos ou 'embolados'."
+"Formate a resposta de forma limpa, com tópicos e espaçamento adequado."
+Certifique-se de que essas regras sejam aplicadas tanto nas ações normais quanto na rota de refinamento (/api/ai/refine).
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+Assistant: Entendi! O "25" pode se referir ao código de saída do erro (Exit Code 25) ou a alguma mensagem específica vinda do ambiente (talvez você esteja usando o Replit, certo?).
+
+Como você enviou as alterações direto de lá e editou o package.json, muitos erros nesse cenário estão ligados a conflitos de versão do Node, falta de pacotes instalados ou problemas com o Vite/TSX na hora de iniciar o servidor.
+
+Para que eu te dê a solução exata sem você precisar migrar de plataforma agora:
+Você poderia copiar e colar a mensagem de erro inteira que aparece para você?
+
+Assim eu identifico na hora se é um problema de script no package.json, alguma dependência faltando (npm i), ou um erro de build/execução.
+
+User: Está dando erro em tal nome decre... Alguma coisa.
+
+Assistant: Pelo que vejo, a sua última alteração há pouco tempo foi no arquivo playground-python.tsx (Commit Atualizar o playground-python.tsx).
+
+Sobre o erro "em tal nome decre...", isso normalmente pode estar ligado a:
+
+deprecated: Quando você roda npm install, às vezes aparecem mensagens laranjas de WARN deprecated .... Isso não é um erro impeditivo, são apenas avisos de bibliotecas antigas que o sistema usa por baixo dos panos. O projeto deveria rodar mesmo com esses avisos.
+drizzle-kit ou drizzle-orm (onde há o prefixo 'dr...'): O banco de dados ou algum comando do migrate pode estar acusando erro se você alterou uma tipagem lá do Replit.
+Dependência ausente ou de tipagem: Em projetos Vite + React (tsx), às vezes algum pacote não exporta mais uma variável ou interface ("declaration...").
+Como você rodou ou enviou a partir do Replit, é bem comum as dependências do package.json entrarem em conflito.
+
+Para a gente matar isso de vez:
+
+O erro te impede de ver o site/aplicação rodando?
+O erro aparece na janela do Console/Terminal ou na Página da web do seu projeto?
+Se você conseguir apenas copiar e colar o pedaço do erro que está no seu terminal ou na tela pra mim, ou me confirmar em qual comando ele trava (ex: ao digitar npm run dev), eu já te mando o conserto!
+
+User: Npm
+
+Assistant: Entendi! Como você mencionou "Npm" e antes falou de um erro com o nome "decre... alguma coisa", é muito provável que você esteja vendo mensagens de "deprecated" (obsoleto) ao rodar o comando npm install.
+
+Quando você roda npm install, é super comum o NPM avisar que alguns pacotes estão "deprecated" (obsoletos). Na maioria das vezes, esses são apenas avisos (warnings) e não erros reais. Eles não impedem o projeto de funcionar.
+
+No entanto, se o processo está falhando de verdade e quebrando (como o erro 25 que você mencionou), geralmente é um problema de conflito no cache do NPM ou dependências desatualizadas no package-lock.json.
+
+Aqui está o passo a passo para limpar e reinstalar tudo do zero (muito útil em ambientes como Replit):
+
+1. Limpe o ambiente antigo:
+No terminal do seu projeto, rode os seguintes comandos um por um:
+
+rm -rf node_modules
+rm package-lock.json
+npm cache clean --force
+2. Instale as dependências novamente:
+
+npm install
+(Não se preocupe se aparecerem mensagens em amarelo dizendo "deprecated" durante este processo, apenas deixe terminar).
+
+3. Inicie o projeto:
+
+npm run dev
+Se mesmo após fazer isso o erro 25 persistir, o Replit pode estar usando uma versão do Node.js incompatível com algum pacote (seu package.json pede bibliotecas bem recentes como Vite 4+ e React 18).
+
+Tente rodar isso e me diga se o servidor subiu ou se o erro que começa com "decre..." apareceu em vermelho parando a execução!
+
+User: Vc já corrigiu?
+
+Assistant: Eu ainda não fiz nenhuma correção no seu repositório. Como sou um assistente virtual, eu não modifico o seu código automaticamente; até agora eu apenas li os arquivos para tentar identificar o problema.
+
+Para que eu possa corrigir isso diretamente no seu GitHub, você precisa me dar o comando para criar um Pull Request com a solução.
+
+Porém,...
+
+This pull request was created from Copilot chat.
+
+📍 Connect Copilot coding agent with Jira, Azure Boards or Linear to delegate work to Copilot in one click without leaving your project management tool.
+
+
+The AI history was only saving the final result text, making it impossible to restore a prior conversation context and continue refining from history. This adds a chat_history JSONB column to ai_history and wires it through all layers.
+
+Schema (shared/schema.ts)
+Added chatHistory: jsonb("chat_history") column to ai_history table (nullable — backward compatible)
+Added chatHistory to insertAiHistorySchema
+Server (server/routes.ts)
+No changes needed; insertAiHistorySchema.safeParse now passes chatHistory through automatically
+Client (legal-assistant.tsx + teste.tsx)
+All three POST /api/ai-history calls now include the current chatHistory array
+loadFromHistory now calls setChatHistory(entry.chatHistory || []) to fully restore conversation state
+In doRefine, updatedHistory is computed before setChatHistory so the complete conversation (including the new assistant turn) is persisted atomically:
+const updatedHistory = [...newHistory, { role: 'assistant' as const, content: fullText }];
+setChatHistory(updatedHistory);
+await apiRequest("POST", "/api/ai-history", {
+action: "ajuste",
+inputPreview: "Pergunta: " + instruction.substring(0, 200),
+result: fullText,
+chatHistory: updatedHistory,
+});
+Bug fix (teste.tsx)
+Fixed pre-existing syntax error (stray 1 literal) inside the apiRequest call in confirmStreamResponse that was breaking the page at runtime
+Note: Requires npm run db:push (drizzle-kit push) to apply the new column to the database.
+
+Original prompt
+Por favor, implemente a funcionalidade de salvar e carregar o histórico completo de conversas (chat history) no Assistente Legal, em vez de salvar apenas a última resposta.
+
+Para isso, faça as seguintes alterações:
+
+Atualizar o Banco de Dados (shared/schema.ts):
+
+Adicione uma nova coluna chatHistory (tipo JSON) na tabela ai_history.
+No Drizzle, pode ser feito usando json("chat_history") ou jsonb("chat_history").
+Atualize o insertAiHistorySchema para aceitar essa nova propriedade como um array opcional ou obrigatório de objetos (ex: { role: string, content: string }[]).
+Atualizar o Servidor (server/routes.ts):
+
+Verifique se a rota POST /api/ai-history está repassando corretamente o campo chatHistory para o banco de dados quando os dados forem recebidos.
+Atualizar a Interface (client/src/pages/legal-assistant.tsx e client/src/pages/teste.tsx, se existir):
+
+Procure os locais onde a API POST /api/ai-history é chamada (geralmente dentro das funções doAction e doRefine).
+Atualmente ela envia action, inputPreview e result. Adicione o envio do estado atual da conversa (chatHistory).
+Na função loadFromHistory(entry: AiHistory), modifique para que, além de restaurar o result, ela também restaure o estado do chatHistory na tela (provavelmente com setChatHistory(entry.chatHistory || [])), para que o usuário veja toda a linha de mensagens anterior e possa continuar refinando o texto a partir do histórico completo.
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+Assistant: Que excelente notícia! 🎉
+
+Como posso ajudar você com essa correção no repositório maikonadvogadomg-alt/Live-Code-Runner?
+
+Você gostaria que eu:
+
+Revisasse as alterações que você fez?
+Ajudasse a criar um Pull Request para enviar a correção ao projeto original?
+Explicasse ou documentasse o código que você alterou?
+Por favor, me diga qual é o próximo passo que você deseja dar!
+
+User: Amanhã eu a germine do Studio irá revisar para mim. Mas queria ver se consigo fazer funcionar o projeto original. Até troquei o Parker JSON do que funcionou aqui mas está dando erro. Corrigi só para ver se vai dar certo ou vou migrar para o raykand.
+
+Assistant: Pude verificar o package.json do seu repositório maikonadvogadomg-alt/Live-Code-Runner e vi que se trata do projeto playground-assistente-juridico usando Vite, React, Express e Drizzle.
+
+Para que eu possa te ajudar a fazer o projeto original funcionar perfeitamente antes da revisão da Germine, você poderia me dar um pouco mais de detalhes sobre o erro que está acontecendo?
+
+O erro ocorre ao rodar npm install (ou npm i)?
+Ou ocorre ao tentar iniciar o servidor com npm run dev?
+Qual é a mensagem de erro que aparece no seu terminal ou no navegador?
+Se puder colar a mensagem de erro aqui, consigo identificar rapidamente o que está faltando (pode ser uma variável de ambiente no .env, versão do Node, ou alguma dependência) para resolvermos isso juntos!
+
+User: Ele termina 25 enviei direto da repkit5
+
+Assistant: Entendi! O "25" pode se referir ao código de saída do erro (Exit Code 25) ou a alguma mensagem específica vinda do ambiente (talvez você esteja usando o Replit, certo?).
+
+Como você enviou as alterações direto de lá e editou o package.json, muitos erros nesse cenário estão ligados a conflitos de versão do Node, falta de pacotes instalados ou problemas com o Vite/TSX na hora de iniciar o servidor.
+
+Para que eu te dê a solução exata sem você precisar migrar de plataforma agora:
+Você poderia copiar e colar a mensagem de erro inteira que aparece para você?
+
+Assim eu identifico na hora se é um problema de script no package.json, alguma dependência faltando (npm i), ou um erro de build/execução.
+
+User: Está dando erro em tal nome decre... Alguma coisa.
+
+Assistant: Pelo que vejo, a sua última alteração há pouco tempo foi no arquivo playground-python.tsx (Commit Atualizar o playground-python.tsx).
+
+Sobre o erro "em tal nome decre...", isso normalmente pode estar ligado a:
+
+deprecated: Quando você roda npm install, às vezes aparecem mensagens laranjas de WARN deprecated .... Isso não é um erro impeditivo, são apenas avisos de bibliotecas antigas que o sistema usa por baixo dos panos. O projeto deveria rodar mesmo com esses avisos.
+drizzle-kit ou drizzle-orm (onde há o prefixo 'dr...'): O banco de dados ou algum comando do migrate pode estar acusando erro se você alterou uma tipagem lá do Replit.
+Dependência ausente ou de tipagem: Em projetos Vite + React (tsx), às vezes algum pacote não exporta mais uma variável ou interface ("declaration...").
+Como você rodou ou enviou a partir do Replit, é bem comum as dependências do package.json entrarem em conflito.
+
+Para a gente matar isso de vez:
+
+O erro te impede de ver o site/aplicação rodando?
+O erro aparece na janela do **Console/Te...
+This pull request was created from Copilot chat.
+
+⚡ Quickly spin up Copilot coding agent tasks from anywhere on your macOS or Windows machine with Raycast.
+
+The AI was injecting raw, full ementa text directly into legal documents and had no guardrail preventing it from paraphrasing or truncating official court reference data (process number, date, rapporteur, tribunal, etc.).
+
+Changes — server/routes.ts
+Two identical rule blocks added to both ementa context strings: ementasForSystem (/api/ai/action) and ementasForRefine (/api/ai/refine).
+
+Summary rule: AI must summarize the ementa body and integrate it cohesively into the argument — no raw bulk text dumps mid-document
+Source preservation rule (critical/inviolable): The trailing citation block (tribunal, process no., date, rapporteur, source ref) must be reproduced verbatim — no paraphrasing, summarizing, or modification of any kind
+REGRAS OBRIGATÓRIAS PARA USO DAS EMENTAS:
+1. RESUMO DO CONTEÚDO: ...resuma de forma inteligente e conecte ao argumento pertinente.
+2. PRESERVAÇÃO DA FONTE (REGRA CRÍTICA E INVIOLÁVEL): ...DEVE ser reproduzida EXATAMENTE
+como fornecida, sem nenhuma alteração, resumo, paráfrase ou modificação de qualquer tipo.
+Esses são dados oficiais que não podem ser corrompidos em hipótese alguma.
+The closing IMPORTANTE: reinforcement line in both prompt strings was updated to echo both rules.
+
+Original prompt
+O usuário solicitou uma melhoria na forma como a IA processa e formata as "Ementas" (jurisprudências/decisões judiciais) no Assistente Legal.
+
+Por favor, faça as seguintes alterações nos prompts do sistema (system prompts) localizados em server/routes.ts (especificamente nas rotas que processam texto com IA, como /api/ai/action, /api/ai/refine, ou onde o conteúdo das ementas é injetado no prompt para a IA):
+
+Instrução de Resumo de Ementas: Adicione uma diretriz clara instruindo a IA a ler as ementas fornecidas e resumir o corpo/conteúdo da ementa para que se conecte de forma coesa com o texto principal do usuário. Não é necessário jogar o texto gigante e cru da ementa no meio da peça se ele puder ser resumido de forma inteligente.
+Preservação da Fonte (Regra Crítica): A IA DEVE ser expressamente proibida de alterar, resumir ou modificar a parte final da ementa (a fonte, referência, dados do tribunal, número do processo, data, relator, etc.). Essa parte deve ser mantida EXATAMENTE como foi fornecida, pois é um dado oficial que não pode ser corrompido.
+Garanta que essas instruções de formatação de ementas estejam presentes sempre que ementas forem passadas como contexto para o modelo Gemini.
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+User: Vc já corrigiu?
+
+Assistant: Eu ainda não fiz nenhuma correção no seu repositório. Como sou um assistente virtual, eu não modifico o seu código automaticamente; até agora eu apenas li os arquivos para tentar identificar o problema.
+
+Para que eu possa corrigir isso diretamente no seu GitHub, você precisa me dar o comando para criar um Pull Request com a solução.
+
+Porém, para que a correção seja certeira, seria muito importante saber a mensagem exata do erro (se o erro começa com "decre...", pode ser um aviso de deprecated no NPM, um erro de declaration no TypeScript, ou algo na sintaxe).
+
+Você gostaria que eu analisasse o código em busca de erros comuns e abrisse um Pull Request com uma tentativa de correção para você revisar amanhã? Se sim, me confirme solicitando a criação do PR!
+
+User: Entendi ok vlw
+
+Assistant: Por nada! Fico à disposição.
+
+Se amanhã você ou a Germine precisarem de ajuda durante a revisão, ou se quiserem que eu crie um Pull Request com alguma correção específica, é só me chamar.
+
+Boa sorte com o projeto Live Code Runner e um ótimo descanso! 🚀
+
+User: Eu meio que voltei para replit para terminar uns trabalhos. Porém ela não corrige de jeito algum o editor. Considerando o projeto run live 25 o projeto original. Embora já feito mudanças hoje. O editor ainda permanece ruim. Aí tem duas assistentes é legal tem um assistente legal original e tem um aí que com nome esquisito agora eu coloquei um teste esse teste que eu coloquei que é o último arquivo aí assistente é uma correção feita pela germine só que aí eu fui colar lá sem precisar da robozinho tá dando problema lá de erro de log você consegue consertar para mim ou preciso de outra coisa.
+
+Assistant: Encontrei o erro exato! 🎉
+
+O problema está no arquivo client/src/pages/teste.tsx que você colou, bem na linha 1364. Houve um erro de digitação na hora de colar o código onde ficou o número 1 perdido no meio do código, quebrando toda a sintaxe do arquivo.
+
+Como consertar aí no seu Replit agora mesmo:
+Abra o arquivo client/src/pages/teste.tsx
+Vá até a linha 1360 (aproximadamente). Você verá este bloco de código:
+try {
+await apiRequest("POST", "/api/ai-history", {
+action: actionName,
+inputPreview: preview,
+result: fullText,
+1
+queryClient.invalidateQueries({ queryKey: ["/api/ai-history"] });
+} catch {}
+Apague esse número 1 e troque por }); para fechar a requisição corretamente. O código deve ficar exatamente assim:
+try {
+await apiRequest("POST", "/api/ai-history", {
+action: actionName,
+inputPreview: preview,
+result: fullText,
+});
+queryClient.invalidateQueries({ queryKey: ["/api/ai-history"] });
+} catch {}
+Isso vai remover a "tela de erro de log" na hora e o seu editor voltará a funcionar e carregar a página normalmente! Pode fazer essa alteração e testar?
+
+User: Sim por favor. E se puder já faz para mim a correção porque lá não consegue fazer a correção Eu nem sei porque tem dois arquivos é de assistente legal eu só sei que eu coloquei a cópia a mesma cópia é que você fez nos dois um era menor outro era maior eu nem sei se faz diferença aí outra coisa que queria ver aí se ela se tem alguma coisa assim de prejudicial em questão de limite de valor porque eu não entendo nada disso eu peguei a outra parte e se tem como você incluir aí nesse código além da formatação é porque a formatação lá tá saindo é metade da parte de baixo estava saindo negrito e tava saindo negrito e tava saindo para um lado e os t...
+
+This pull request was created from Copilot chat.
+
+💡 You can make Copilot smarter by setting up custom instructions, customizing its development environment and configuring Model Context Protocol (MCP) servers. Learn more Copilot coding agent tips in the docs.
+
+
+legal-assistant.tsx was broken at runtime — applyInlineMarkdown was called in 5 places inside formatMarkdown but never defined. Separately, a stray 1 in teste.tsx corrupted an apiRequest call, and the result display div had no explicit left-alignment, causing unintended centered output.
+
+Changes
+legal-assistant.tsx — Add missing applyInlineMarkdown definition (bold, italic, strikethrough, inline code, links → HTML); add text-left class to result display <div>
+  teste.tsx — Fix syntax error: replace stray 1 with }); to properly close the apiRequest object
+  Both files — Sanitize link URLs in applyInlineMarkdown to block javascript: / data: XSS vectors:
+  // Before
+  .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+  
+  // After
+  .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, linkText, url) => {
+  const safeUrl = /^(https?:\/\/|\/|mailto:)/i.test(url) ? url : '#';
+  return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${linkText}</a>`;
+  })
+  Repo hygiene — Remove legal-assistant.tsx.recovered (backup artifact) from tracking; add .gitignore covering *.recovered, node_modules/, dist/, .env
+  Original prompt
+  Por favor, faça as seguintes correções no projeto:
+  
+  Correção de Sintaxe em client/src/pages/teste.tsx: Existe um erro de sintaxe na linha ~1360, onde um 1 solto quebrou a requisição. Corrija o bloco de código de:
+  
+  try {
+  await apiRequest("POST", "/api/ai-history", {
+  action: actionName,
+  inputPreview: preview,
+  result: fullText,
+  1
+  queryClient.invalidateQueries({ queryKey: ["/api/ai-history"] });
+  } catch {}
+  para:
+  
+  try {
+  await apiRequest("POST", "/api/ai-history", {
+  action: actionName,
+  inputPreview: preview,
+  result: fullText,
+  });
+  queryClient.invalidateQueries({ queryKey: ["/api/ai-history"] });
+  } catch {}
+  Arquivos Duplicados: O usuário relatou que pode haver dois arquivos de "assistente legal" (possivelmente teste.tsx e outro similar) com código copiado, causando confusão. Verifique os arquivos na pasta de páginas para garantir que não haja conflitos.
+  
+  Formatação do Texto de Saída: O usuário relatou que o texto gerado pela IA no assistente está saindo desformatado (metade do texto em negrito sem querer, tópicos centralizados quando não deveriam). Ajuste a renderização do texto/markdown (provavelmente onde o ReactMarkdown ou a div de resposta está sendo estilizada) para garantir que:
+  
+  O texto fique alinhado à esquerda por padrão.
+  Não haja problemas de tags de negrito (**) não fechadas.
+  O design da resposta gerada seja limpo, com tópicos bem formatados e sem centralização forçada no corpo do texto.
+  Revisão de Limites (Opcional): Revise a chamada de API de IA no arquivo corrigido para garantir que o max_tokens (se houver) esteja em um valor seguro e adequado, evitando cortes abruptos na resposta que causam quebra na formatação do Markdown (o que explica o texto ficar em negrito até o final).
+  
+  The following is the prior conversation context from the user's chat exploration (may be truncated):
+  
+  User: Corrigi o problema do projeto original live code runner 25
+  
+  Assistant: Que excelente notícia! 🎉
+  
+  Como posso ajudar você com essa correção no repositório maikonadvogadomg-alt/Live-Code-Runner?
+  
+  Você gostaria que eu:
+  
+  Revisasse as alterações que você fez?
+  Ajudasse a criar um Pull Request para enviar a correção ao projeto original?
+  Explicasse ou documentasse o código que você alterou?
+  Por favor, me diga qual é o próximo passo que você deseja dar!
+  
+  User: Amanhã eu a germine do Studio irá revisar para mim. Mas queria ver se consigo fazer funcionar o projeto original. Até troquei o Parker JSON do que funcionou aqui mas está dando erro. Corrigi só para ver se vai dar certo ou vou migrar para o raykand.
+  
+  Assistant: Pude verificar o package.json do seu repositório maikonadvogadomg-alt/Live-Code-Runner e vi que se trata do projeto playground-assistente-juridico usando Vite, React, Express e Drizzle.
+  
+  Para que eu possa te ajudar a fazer o projeto original funcionar perfeitamente antes da revisão da Germine, você poderia me dar um pouco mais de detalhes sobre o erro que está acontecendo?
+  
+  O erro ocorre ao rodar npm install (ou npm i)?
+  Ou ocorre ao tentar iniciar o servidor com npm run dev?
+  Qual é a mensagem de erro que aparece no seu terminal ou no navegador?
+  Se puder colar a mensagem de erro aqui, consigo identificar rapidamente o que está faltando (pode ser uma variável de ambiente no .env, versão do Node, ou alguma dependência) para resolvermos isso juntos!
+  
+  User: Ele termina 25 enviei direto da repkit5
+  
+  Assistant: Entendi! O "25" pode se referir ao código de saída do erro (Exit Code 25) ou a alguma mensagem específica vinda do ambiente (talvez você esteja usando o Replit, certo?).
+  
+  Como você enviou as alterações direto de lá e editou o package.json, muitos erros nesse cenário estão ligados a conflitos de versão do Node, falta de pacotes instalados ou problemas com o Vite/TSX na hora de iniciar o servidor.
+  
+  Para que eu te dê a solução exata sem você precisar migrar de plataforma agora:
+  Você poderia copiar e colar a mensagem de erro inteira que aparece para você?
+  
+  Assim eu identifico na hora se é um problema de script no package.json, alguma dependência faltando (npm i), ou um erro de build/execução.
+  
+  User: Está dando erro em tal nome decre... Alguma coisa.
+  
+  Assistant: Pelo que vejo, a sua última alteração há pouco tempo foi no arquivo playground-python.tsx (Commit Atualizar o playground-python.tsx).
+  
+  Sobre o erro "em tal nome decre...", isso normalmente pode estar ligado a:
+  
+  deprecated: Quando você roda npm install, às vezes aparecem mensagens laranjas de WARN deprecated .... Isso não é um erro impeditivo, são apenas avisos de bibliotecas antigas que o sistema usa por baixo dos panos. O projeto deveria rodar mesmo com esses avisos.
+  drizzle-kit ou drizzle-orm (onde há o prefixo 'dr...'): O banco de dados ou algum comando do migrate pode estar acusando erro se você alterou uma t...
+  This pull request was created from Copilot chat.
+  
+  💡 You can make Copilot smarter by setting up custom instructions, customizing its development environment and configuring Model Context Protocol (MCP) servers. Learn more Copilot coding agent tips in the docs.
+  
+  
+  Pull request overview
+This PR fixes runtime and rendering issues in the legal assistant pages by restoring a missing inline-markdown helper, correcting a syntax break in an API call, enforcing left alignment for the result display, and adding basic URL allowlisting for markdown links. It also improves repo hygiene by removing a tracked backup artifact and introducing a root .gitignore.
+
+Changes:
+
+Fix broken apiRequest call in teste.tsx by removing a stray token and correctly closing the request payload.
+Add applyInlineMarkdown to legal-assistant.tsx, update link rendering to allowlist URL schemes/paths, and force left alignment in the result display.
+Remove legal-assistant.tsx.recovered from tracking and add a root .gitignore to ignore common artifacts (including *.recovered).
+Reviewed changes
+Copilot reviewed 2 out of 4 changed files in this pull request and generated 3 comments.
+
+File Description
+client/src/pages/teste.tsx Fixes a syntax error in an apiRequest payload and updates markdown-link replacement to use an allowlisted URL.
+client/src/pages/legal-assistant.tsx.recovered Removes a tracked recovery/backup artifact from the repository.
+client/src/pages/legal-assistant.tsx Adds missing applyInlineMarkdown, allowlists link URLs, and forces left alignment for rendered results.
+.gitignore Introduces ignore rules for node build artifacts, env files, and recovery files.
+💡 Add Copilot custom instructions for smarter, more guided reviews. Learn how to get started.
+
+The POST /api/jurisprudencia/buscar route was calling Gemini to generate jurisprudência results — incurring real costs and producing hallucinated case numbers, relators, and dates. This replaces it entirely with a direct call to the public CNJ DataJud Elasticsearch API.
+
+Changes
+server/routes.ts
+Removed all Gemini prompt construction and generateContent call from /api/jurisprudencia/buscar
+Added fetch POST to https://api-publica.datajud.cnj.jus.br/api_publica_jurisprudencia/_search with query_string query and size: 10
+API key sourced from DATAJUD_API_KEY env var, falling back to the user-provided public key
+Maps hits.hits[]._source fields (siglaTribunal, classeProcessual, numeroProcesso, relator, dataJulgamento, ementa, etc.) to the existing frontend contract — missing fields default to "Não informado"
+Returns HTTP 500 with a DataJud-specific error message on failure; no AI fallback
+const payload = {
+size: 10,
+query: { query_string: { query: q } },
+};
+const cnjRes = await fetch(DATAJUD_URL, {
+method: "POST",
+headers: { Authorization: DATAJUD_KEY, "Content-Type": "application/json" },
+body: JSON.stringify(payload),
+});
+Original prompt
+O usuário forneceu uma chave de API pública do DataJud (CNJ) e deseja substituir a busca de jurisprudência atual (que usa a IA Gemini e gera custos/alucinações) por uma busca real na API do DataJud.
+A chave de API fornecida pelo usuário é: cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=
+
+Por favor, faça as seguintes alterações:
+
+No arquivo server/routes.ts, localize a rota POST /api/jurisprudencia/buscar.
+Remova completamente a chamada ao gemini.models.generateContent (IA) dessa rota para zerar os custos.
+Implemente uma requisição HTTP (usando fetch nativo) para a API do DataJud. O endpoint de busca unificada pública do CNJ é tipicamente https://api-publica.datajud.cnj.jus.br/api_publica_jurisprudencia/_search.
+Envie a requisição com o método POST. O cabeçalho deve conter:
+"Authorization": "APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw="
+"Content-Type": "application/json"
+O corpo (payload) da requisição para o Elasticsearch do DataJud deve fazer uma busca pelo termo req.body.q (ex: {"query": {"match": {"texto_ementa": q}}} ou {"query": {"query_string": {"query": q}}}). Configure para retornar cerca de 10 resultados ("size": 10).
+Extraia os dados da resposta do CNJ (que vem no formato do Elasticsearch: hits.hits[]._[source]) e mapeie para o formato que o frontend já espera:
+{
+"results": [
+{
+"tribunal": "Sigla do Tribunal",
+"tipo": "Acórdão/Sentença",
+"processo": "Número do Processo",
+"relator": "Nome do Relator",
+"data": "Data",
+"ementa": "Texto da ementa...",
+"tese": "Resumo ou N/A"
+}
+]
+}
+(Adapte os nomes dos campos de acordo com os metadados devolvidos pelo DataJud, preenchendo com "Não informado" os campos que não existirem).
+Se a requisição ao CNJ falhar, retorne um erro 500 informando que houve falha na comunicação com o DataJud. NUNCA faça fallback para a IA. O objetivo é remover o custo.
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+User: Ok nesse é nessa página aí também que tenha a possibilidade de modificar para que ela possa ter acesso a dentro da mesma conversa acesso aos históricos todos para é um problema também que que tá tendo lá e eu não sei como é que faz se nesse arquivo também tem como eu incluir e em qual página também teria que mudar para poder no histórico ficar também a minha conversa não só conversa daí a.
+
+Assistant: O robô já começou a trabalhar no seu pedido para abrir um Pull Request corrigindo aquele erro que estava quebrando o código, e também tentando alinhar os textos à esquerda para corrigir aquela bagunça do negrito e do texto centralizado.
+
+Vou te explicar detalhadamente cada uma das suas dúvidas:
+
+1. Por que existem dois arquivos (legal-assistant.tsx e teste.tsx)?
+Você provavelmente duplicou a página legal-assistant.tsx original e colou como teste.tsx para fazer testes com medo de quebrar a página principal.
+O ideal é você manter e consertar apenas um deles (o legal-assistant.tsx que é a rota oficial do seu sistema) e apagar o outro para não gerar confusão de onde você está alterando o código.
+
+2. O problema da formatação (metade em negrito e centralizado)
+Isso geralmente acontece por dois motivos:
+
+Alinhamento: O container onde a resposta aparece estava herdando um alinhamento centralizado (text-center). No Pull Request que pedi para a IA criar, solicitei que ela force o alinhamento à esquerda (text-left).
+Limites de Texto (Tokens): O que causa o texto ficar "metade em negrito até o final" é que a Inteligência Artificial usa **texto** para fazer negrito. Se ela atinge o limite máximo de palavras da API antes de terminar de escrever a resposta, ela para de escrever do nada e não "fecha" o **. Isso faz com que todo o resto da página fique em negrito para sempre. Pedimos para a IA revisar os limites também.
+3. Sobre salvar o histórico da conversa toda (não só a última resposta)
+Atualmente, olhei o banco de dados do seu projeto (no arquivo shared/schema.ts). Ele foi programado para ter apenas duas colunas sobre o histórico:
+
+inputPreview: Uma prévia da sua primeira pergunta.
+result: O texto final gerado pela IA.
+Para que o sistema passe a salvar o "bate-papo" (vai-e-vem) inteiro da conversa no histórico:
+Não basta apenas mudar a página teste.tsx. Nós precisamos modificar o Banco de Dados para criar uma nova coluna chamada chatHistory (histórico de chat) que suporte guardar múltiplas mensagens, e depois alterar o servidor (server/routes.ts) para salvar e carregar essa informação.
+
+O que faremos agora:
+Assim que a IA do GitHub finalizar o Pull Request atual corrigindo o erro crítico da tela e do alinhamento, você aprova e testa.
+Se voltar a funcionar sem quebrar, nós podemos fazer um **segundo Pull Request focado apenas em alterar o banco de da...
+
+This pull request was created from Copilot chat.
+
+💬 Send tasks to Copilot coding agent from Slack and Teams to turn conversations into code. Copilot posts an update in your thread when it's finished.
+
+
+
+The POST /api/jurisprudencia/buscar route was calling Gemini to generate jurisprudência results — incurring real costs and producing hallucinated case numbers, relators, and dates. This replaces it entirely with a direct call to the public CNJ DataJud Elasticsearch API.
+
+Changes
+server/routes.ts
+Removed all Gemini prompt construction and generateContent call from /api/jurisprudencia/buscar
+Added fetch POST to https://api-publica.datajud.cnj.jus.br/api_publica_jurisprudencia/_search with query_string query and size: 10
+API key sourced from DATAJUD_API_KEY env var, falling back to the user-provided public key
+Maps hits.hits[]._source fields (siglaTribunal, classeProcessual, numeroProcesso, relator, dataJulgamento, ementa, etc.) to the existing frontend contract — missing fields default to "Não informado"
+Returns HTTP 500 with a DataJud-specific error message on failure; no AI fallback
+const payload = {
+size: 10,
+query: { query_string: { query: q } },
+};
+const cnjRes = await fetch(DATAJUD_URL, {
+method: "POST",
+headers: { Authorization: DATAJUD_KEY, "Content-Type": "application/json" },
+body: JSON.stringify(payload),
+});
+Original prompt
+O usuário forneceu uma chave de API pública do DataJud (CNJ) e deseja substituir a busca de jurisprudência atual (que usa a IA Gemini e gera custos/alucinações) por uma busca real na API do DataJud.
+A chave de API fornecida pelo usuário é: cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=
+
+Por favor, faça as seguintes alterações:
+
+No arquivo server/routes.ts, localize a rota POST /api/jurisprudencia/buscar.
+Remova completamente a chamada ao gemini.models.generateContent (IA) dessa rota para zerar os custos.
+Implemente uma requisição HTTP (usando fetch nativo) para a API do DataJud. O endpoint de busca unificada pública do CNJ é tipicamente https://api-publica.datajud.cnj.jus.br/api_publica_jurisprudencia/_search.
+Envie a requisição com o método POST. O cabeçalho deve conter:
+"Authorization": "APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw="
+"Content-Type": "application/json"
+O corpo (payload) da requisição para o Elasticsearch do DataJud deve fazer uma busca pelo termo req.body.q (ex: {"query": {"match": {"texto_ementa": q}}} ou {"query": {"query_string": {"query": q}}}). Configure para retornar cerca de 10 resultados ("size": 10).
+Extraia os dados da resposta do CNJ (que vem no formato do Elasticsearch: hits.hits[]._[source]) e mapeie para o formato que o frontend já espera:
+{
+"results": [
+{
+"tribunal": "Sigla do Tribunal",
+"tipo": "Acórdão/Sentença",
+"processo": "Número do Processo",
+"relator": "Nome do Relator",
+"data": "Data",
+"ementa": "Texto da ementa...",
+"tese": "Resumo ou N/A"
+}
+]
+}
+(Adapte os nomes dos campos de acordo com os metadados devolvidos pelo DataJud, preenchendo com "Não informado" os campos que não existirem).
+Se a requisição ao CNJ falhar, retorne um erro 500 informando que houve falha na comunicação com o DataJud. NUNCA faça fallback para a IA. O objetivo é remover o custo.
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+User: Ok nesse é nessa página aí também que tenha a possibilidade de modificar para que ela possa ter acesso a dentro da mesma conversa acesso aos históricos todos para é um problema também que que tá tendo lá e eu não sei como é que faz se nesse arquivo também tem como eu incluir e em qual página também teria que mudar para poder no histórico ficar também a minha conversa não só conversa daí a.
+
+Assistant: O robô já começou a trabalhar no seu pedido para abrir um Pull Request corrigindo aquele erro que estava quebrando o código, e também tentando alinhar os textos à esquerda para corrigir aquela bagunça do negrito e do texto centralizado.
+
+Vou te explicar detalhadamente cada uma das suas dúvidas:
+
+1. Por que existem dois arquivos (legal-assistant.tsx e teste.tsx)?
+Você provavelmente duplicou a página legal-assistant.tsx original e colou como teste.tsx para fazer testes com medo de quebrar a página principal.
+O ideal é você manter e consertar apenas um deles (o legal-assistant.tsx que é a rota oficial do seu sistema) e apagar o outro para não gerar confusão de onde você está alterando o código.
+
+2. O problema da formatação (metade em negrito e centralizado)
+Isso geralmente acontece por dois motivos:
+
+Alinhamento: O container onde a resposta aparece estava herdando um alinhamento centralizado (text-center). No Pull Request que pedi para a IA criar, solicitei que ela force o alinhamento à esquerda (text-left).
+Limites de Texto (Tokens): O que causa o texto ficar "metade em negrito até o final" é que a Inteligência Artificial usa **texto** para fazer negrito. Se ela atinge o limite máximo de palavras da API antes de terminar de escrever a resposta, ela para de escrever do nada e não "fecha" o **. Isso faz com que todo o resto da página fique em negrito para sempre. Pedimos para a IA revisar os limites também.
+3. Sobre salvar o histórico da conversa toda (não só a última resposta)
+Atualmente, olhei o banco de dados do seu projeto (no arquivo shared/schema.ts). Ele foi programado para ter apenas duas colunas sobre o histórico:
+
+inputPreview: Uma prévia da sua primeira pergunta.
+result: O texto final gerado pela IA.
+Para que o sistema passe a salvar o "bate-papo" (vai-e-vem) inteiro da conversa no histórico:
+Não basta apenas mudar a página teste.tsx. Nós precisamos modificar o Banco de Dados para criar uma nova coluna chamada chatHistory (histórico de chat) que suporte guardar múltiplas mensagens, e depois alterar o servidor (server/routes.ts) para salvar e carregar essa informação.
+
+O que faremos agora:
+Assim que a IA do GitHub finalizar o Pull Request atual corrigindo o erro crítico da tela e do alinhamento, você aprova e testa.
+Se voltar a funcionar sem quebrar, nós podemos fazer um **segundo Pull Request focado apenas em alterar o banco de da...
+
+This pull request was created from Copilot chat.
+
+💬 Send tasks to Copilot coding agent from Slack and Teams to turn conversations into code. Copilot posts an update in your thread when it's finished.
+
+
+/api/jurisprudencia/buscar was burning AI credits (Gemini) to hallucinate jurisprudence results. This replaces it with direct calls to the free DataJud CNJ public API, returning real process data at zero AI cost.
+
+Key changes
+Query strategy: Switched from Gemini prompt to Elasticsearch multi_match across assuntos.nome, movimentos.nome, classe.nome, orgaoJulgador.nome — matching how users search (by subject/term, not process number)
+Parallel tribunal fetches: Promise.all over all selected tribunals (default: STJ + TRF1–TRF6); individual failures log and return [] without aborting the full request
+Response mapping: DataJud _source → frontend results shape:
+processo ← numeroProcesso
+tribunal ← tribunal
+tipo ← classe.nome
+data ← dataAjuizamento (pt-BR formatted)
+relator ← orgaoJulgador.nome
+tese ← assuntos[].nome joined
+ementa ← synthetic descriptor: "Classe: X | Assunto(s): Y | Último movimento: Z" (DataJud has no ementa field)
+// Before: Gemini AI call (costs money, hallucinates)
+const result = await gemini.models.generateContent({ model: "gemini-2.5-flash", ... });
+
+// After: parallel DataJud fetches with real process data
+const allHitsArrays = await Promise.all(selectedTribunais.map(fetchTribunal));
+const allHits = allHitsArrays.flat();
+Auth: reuses existing DATAJUD_API_KEY constant (process.env.DATAJUD_API_KEY with public key fallback), consistent with other DataJud routes in the file
+.gitignore: added to exclude node_modules/ and build artifacts
+Original prompt
+O usuário forneceu o payload de resposta exato do Elasticsearch da API do DataJud (CNJ). A estrutura de resposta é:
+
+"hits": [
+{
+"_source": {
+"numeroProcesso": "00008323520184013202",
+"classe": { "nome": "Procedimento do Juizado Especial Cível" },
+"tribunal": "TRF1",
+"dataHoraUltimaAtualizacao": "2023-07-21T19:10:08.483Z",
+"dataAjuizamento": "2018-10-29T00:00:00.000Z",
+"orgaoJulgador": { "nome": "JEF Adj - Tefé" },
+"assuntos": [ { "nome": "Concessão" } ],
+"movimentos": [ { "nome": "Distribuição" } ]
+}
+}
+]
+Por favor, no PR atual que modifica a rota /api/jurisprudencia/buscar em server/routes.ts:
+
+Use a estrutura nativa do fetch do Node para fazer a requisição HTTP POST.
+Como a busca do usuário no frontend é por termo/assunto (ex: "dano moral", "BPC"), a query do Elasticsearch deve usar "query_string" ou "multi_match" buscando em campos textuais (como assuntos.nome ou movimentos.nome ou classe.nome), em vez de usar match exato no numeroProcesso.
+Mapeie a resposta do CNJ para o array results que o frontend espera, usando a estrutura exata fornecida:
+processo: _source.numeroProcesso
+tribunal: _source.tribunal
+tipo: _source.classe.nome
+data: _source.dataAjuizamento (ou atualizacao, formatada)
+relator: _source.orgaoJulgador.nome
+tese: _source.assuntos.map(a => a.nome).join(', ') (se houver assuntos)
+ementa: Como o DataJud foca em metadados processuais, se não houver um campo "ementa" explícito no _source, crie um texto descritivo agrupando a classe, o assunto e o último movimento relevante para servir de contexto visual na tela.
+Mantenha as requisições assíncronas para os tribunais marcados (usando a URL correta para cada um, ex: _trf1, _stj) e junte todos os hits válidos antes de devolver ao frontend.
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+Assistant: Com certeza! Isso é uma excelente ideia e é perfeitamente possível de fazer. Na verdade, isso é o que chamamos de "Engenharia de Prompt" (dar instruções mais inteligentes para a IA). Isso não vai gerar custos adicionais na sua API, apenas fará com que a IA trabalhe de forma mais eficiente.
+
+Vou enviar um comando agora mesmo para o nosso agente de código alterar as instruções do servidor (server/routes.ts). Ele vai ensinar a IA a fazer exatamente isso:
+
+Ler a Ementa gigante.
+Resumir a parte do texto da ementa para conectar com o seu caso/texto.
+Regra de Ouro: Nunca alterar a parte final da ementa (a citação, tribunal, data, etc.), mantendo a fonte intacta e oficial.
+Assistant: Perfeito! Isso é uma ideia excelente e totalmente possível de fazer sem adicionar nenhum custo extra para você.
+
+O que você está pedindo chama-se "Engenharia de Prompt" (ajustar as regras que o cérebro da IA lê antes de te responder).
+
+Acabei de enviar o robô aqui
+
+Assistant: Iniciei as alterações para melhorar como a IA lida com as "Ementas" no Assistente Legal. Assim que o Pull Request estiver pronto, incluindo instruções para garantir que as ementas sejam bem resumidas e que a fonte seja preservada, avisarei você para revisar.
+
+User: Deixa eu te perguntar outra vez eu perguntei ao triar ela não deu muita atenção ela falou que ah para frente mexe Mas é porque quase todo o sistema jurídico que eu tenho acesso que eu tô até copiando o modelo deles eles têm acesso sim fácil a a jurisprudência e não era não é eu acho que não é uma questão de ser difícil só que ela colocou para poder buscar a jurisprudência aí a e as outras plataformas não é ia que busca ou seja ela tá querendo fazer eu gastar mais tem aí no projeto você consegue analisar onde fica a caixinha a caixinha da da jurisprudência ele consegue adaptar para poder fazer a pesquisa porque todos os sistemas que eu consigo acessar tem eu acho que não precisa de API é público e eu não vou pesquisar pela assistente até tentei lá quase meia hora e não vem nada e cobra um aborreira.
+
+Assistant: Sim, eu consegui analisar e encontrei exatamente onde está essa "caixinha" e como ela funciona hoje!
+
+Atualmente, a caixinha da "Biblioteca de Jurisprudência" (que fica no arquivo client/src/pages/legal-assistant.tsx) envia o que você digitou para o servidor (server/routes.ts), e lá o servidor gasta os seus créditos de Inteligência Artificial mandando a IA tentar "lembrar" ou "pesquisar" jurisprudências do STJ, STF, etc.
+
+Isso é péssimo porque:
+
+Gasta o seu dinheiro à toa.
+A IA frequentemente inventa processos (alucina) ou não acha nada.
+A verdade sobre "ser público"
+Você tem razão ao dizer que os processos são públicos, mas o que acontece nos outros sistemas jurídicos grandes é o seguinte: eles não usam Inteligência Artificial para buscar isso. Ou eles pagam uma API privada (como a do Jusbrasil/Escav...
+
+This pull request was created from Copilot chat.
+
+📱 Kick off Copilot coding agent tasks wherever you are with GitHub Mobile, available on iOS and Android.
+
+
+/api/jurisprudencia/buscar was burning AI credits (Gemini) to hallucinate jurisprudence results. This replaces it with direct calls to the free DataJud CNJ public API, returning real process data at zero AI cost.
+
+Key changes
+Query strategy: Switched from Gemini prompt to Elasticsearch multi_match across assuntos.nome, movimentos.nome, classe.nome, orgaoJulgador.nome — matching how users search (by subject/term, not process number)
+Parallel tribunal fetches: Promise.all over all selected tribunals (default: STJ + TRF1–TRF6); individual failures log and return [] without aborting the full request
+Response mapping: DataJud _source → frontend results shape:
+processo ← numeroProcesso
+tribunal ← tribunal
+tipo ← classe.nome
+data ← dataAjuizamento (pt-BR formatted)
+relator ← orgaoJulgador.nome
+tese ← assuntos[].nome joined
+ementa ← synthetic descriptor: "Classe: X | Assunto(s): Y | Último movimento: Z" (DataJud has no ementa field)
+// Before: Gemini AI call (costs money, hallucinates)
+const result = await gemini.models.generateContent({ model: "gemini-2.5-flash", ... });
+
+// After: parallel DataJud fetches with real process data
+const allHitsArrays = await Promise.all(selectedTribunais.map(fetchTribunal));
+const allHits = allHitsArrays.flat();
+Auth: reuses existing DATAJUD_API_KEY constant (process.env.DATAJUD_API_KEY with public key fallback), consistent with other DataJud routes in the file
+.gitignore: added to exclude node_modules/ and build artifacts
+Original prompt
+O usuário forneceu o payload de resposta exato do Elasticsearch da API do DataJud (CNJ). A estrutura de resposta é:
+
+"hits": [
+{
+"_source": {
+"numeroProcesso": "00008323520184013202",
+"classe": { "nome": "Procedimento do Juizado Especial Cível" },
+"tribunal": "TRF1",
+"dataHoraUltimaAtualizacao": "2023-07-21T19:10:08.483Z",
+"dataAjuizamento": "2018-10-29T00:00:00.000Z",
+"orgaoJulgador": { "nome": "JEF Adj - Tefé" },
+"assuntos": [ { "nome": "Concessão" } ],
+"movimentos": [ { "nome": "Distribuição" } ]
+}
+}
+]
+Por favor, no PR atual que modifica a rota /api/jurisprudencia/buscar em server/routes.ts:
+
+Use a estrutura nativa do fetch do Node para fazer a requisição HTTP POST.
+Como a busca do usuário no frontend é por termo/assunto (ex: "dano moral", "BPC"), a query do Elasticsearch deve usar "query_string" ou "multi_match" buscando em campos textuais (como assuntos.nome ou movimentos.nome ou classe.nome), em vez de usar match exato no numeroProcesso.
+Mapeie a resposta do CNJ para o array results que o frontend espera, usando a estrutura exata fornecida:
+processo: _source.numeroProcesso
+tribunal: _source.tribunal
+tipo: _source.classe.nome
+data: _source.dataAjuizamento (ou atualizacao, formatada)
+relator: _source.orgaoJulgador.nome
+tese: _source.assuntos.map(a => a.nome).join(', ') (se houver assuntos)
+ementa: Como o DataJud foca em metadados processuais, se não houver um campo "ementa" explícito no _source, crie um texto descritivo agrupando a classe, o assunto e o último movimento relevante para servir de contexto visual na tela.
+Mantenha as requisições assíncronas para os tribunais marcados (usando a URL correta para cada um, ex: _trf1, _stj) e junte todos os hits válidos antes de devolver ao frontend.
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+Assistant: Com certeza! Isso é uma excelente ideia e é perfeitamente possível de fazer. Na verdade, isso é o que chamamos de "Engenharia de Prompt" (dar instruções mais inteligentes para a IA). Isso não vai gerar custos adicionais na sua API, apenas fará com que a IA trabalhe de forma mais eficiente.
+
+Vou enviar um comando agora mesmo para o nosso agente de código alterar as instruções do servidor (server/routes.ts). Ele vai ensinar a IA a fazer exatamente isso:
+
+Ler a Ementa gigante.
+Resumir a parte do texto da ementa para conectar com o seu caso/texto.
+Regra de Ouro: Nunca alterar a parte final da ementa (a citação, tribunal, data, etc.), mantendo a fonte intacta e oficial.
+Assistant: Perfeito! Isso é uma ideia excelente e totalmente possível de fazer sem adicionar nenhum custo extra para você.
+
+O que você está pedindo chama-se "Engenharia de Prompt" (ajustar as regras que o cérebro da IA lê antes de te responder).
+
+Acabei de enviar o robô aqui
+
+Assistant: Iniciei as alterações para melhorar como a IA lida com as "Ementas" no Assistente Legal. Assim que o Pull Request estiver pronto, incluindo instruções para garantir que as ementas sejam bem resumidas e que a fonte seja preservada, avisarei você para revisar.
+
+User: Deixa eu te perguntar outra vez eu perguntei ao triar ela não deu muita atenção ela falou que ah para frente mexe Mas é porque quase todo o sistema jurídico que eu tenho acesso que eu tô até copiando o modelo deles eles têm acesso sim fácil a a jurisprudência e não era não é eu acho que não é uma questão de ser difícil só que ela colocou para poder buscar a jurisprudência aí a e as outras plataformas não é ia que busca ou seja ela tá querendo fazer eu gastar mais tem aí no projeto você consegue analisar onde fica a caixinha a caixinha da da jurisprudência ele consegue adaptar para poder fazer a pesquisa porque todos os sistemas que eu consigo acessar tem eu acho que não precisa de API é público e eu não vou pesquisar pela assistente até tentei lá quase meia hora e não vem nada e cobra um aborreira.
+
+Assistant: Sim, eu consegui analisar e encontrei exatamente onde está essa "caixinha" e como ela funciona hoje!
+
+Atualmente, a caixinha da "Biblioteca de Jurisprudência" (que fica no arquivo client/src/pages/legal-assistant.tsx) envia o que você digitou para o servidor (server/routes.ts), e lá o servidor gasta os seus créditos de Inteligência Artificial mandando a IA tentar "lembrar" ou "pesquisar" jurisprudências do STJ, STF, etc.
+
+Isso é péssimo porque:
+
+Gasta o seu dinheiro à toa.
+A IA frequentemente inventa processos (alucina) ou não acha nada.
+A verdade sobre "ser público"
+Você tem razão ao dizer que os processos são públicos, mas o que acontece nos outros sistemas jurídicos grandes é o seguinte: eles não usam Inteligência Artificial para buscar isso. Ou eles pagam uma API privada (como a do Jusbrasil/Escav...
+
+This pull request was created from Copilot chat.
+
+📱 Kick off Copilot coding agent tasks wherever you are with GitHub Mobile, available on iOS and Android.
+
+
+The POST /api/jurisprudencia/buscar route was burning Gemini AI credits to hallucinate jurisprudência results. This replaces it with direct calls to the CNJ's public DataJud API — free, real, and official court records.
+
+Backend (server/routes.ts)
+Drops the Gemini call entirely
+Defines JURI_TRIBUNAL_MAP mapping UI codes → DataJud index aliases (api_publica_stj, api_publica_trf1–trf6, api_publica_tjmg, api_publica_tjsp, etc.)
+Fires all selected tribunals in parallel via Promise.all, size: 4 per tribunal
+Maps _source fields to the shape the frontend already expects (tribunal, tipo, processo, relator, data, ementa, tese)
+Per-tribunal fetch errors are logged and short-circuit to [] without aborting the full request
+const fetchTribunal = async (tribunal: string): Promise<any[]> => {
+  const url = `https://api-publica.datajud.cnj.jus.br/${JURI_TRIBUNAL_MAP[tribunal]}/_search`;
+  const body = { query: { query_string: { query: q.trim() } }, size: 4 };
+  const response = await fetch(url, {
+  method: "POST",
+  headers: { Authorization: `APIKey ${JURI_API_KEY}`, "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+  });
+  // ...maps hits.hits[i]._source → { tribunal, tipo, processo, relator, data, ementa, tese }
+  };
+  
+  const results = (await Promise.all(selectedTribunais.map(fetchTribunal))).flat();
+  Frontend (client/src/pages/legal-assistant.tsx)
+  Adds TJMG and TJSP to the tribunal toggle buttons (now covers all 10 endpoints provided)
+  Includes both in the default selected state so they're active on first load
+  Original prompt
+  O usuário forneceu os endpoints exatos do Elasticsearch do DataJud (CNJ) para os tribunais.
+  
+  Lista fornecida:
+
+  https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf1/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf2/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf3/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf4/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf5/_search2
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf6/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_tjmg/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_tjsp/_search
+  No PR atual que remove a IA e implementa o DataJud na rota POST /api/jurisprudencia/buscar em server/routes.ts:
+  
+  Mapeie os tribunais que vêm no req.body.tribunais (ex: ["TRF1", "TJMG"]) para esses endpoints correspondentes.
+  Se múltiplos tribunais forem solicitados, use Promise.all para fazer o fetch simultâneo nesses endpoints específicos selecionados pelo usuário.
+  Lembre-se de usar o Header "Authorization": "APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw="
+  O corpo da requisição POST para o Elasticsearch deve ser estruturado corretamente (ex: {"query": {"query_string": {"query": termo_de_busca}}}) e com size limitado (ex: 3 a 5 por tribunal para não sobrecarregar).
+  Trate as respostas (hits.hits), extraia os metadados (número do processo, tribunal, data, etc.) e formate no JSON esperado pelo front-end.
+  Se o frontend não tiver opções para TJMG e TJSP nos botões, considere adicioná-los no client/src/pages/legal-assistant.tsx para que o usuário possa usufruir dessas novas bases estaduais.
+  The following is the prior conversation context from the user's chat exploration (may be truncated):
+  
+  Assistant: Comecei a trabalhar para incluir regras no sistema que garantam que as respostas geradas pela IA no Assistente sejam mais legíveis, com parágrafos curtos e espaçamento adequado. Estarei ajustando o prompt da IA para evitar blocos de texto "embolados". Assim que a alteração estiver pronta, te aviso!
+  
+  User: É porque quem nem se falou é porque eu já tinha combinado de usar germini de versão econômica para resumo aí que acontece ela vem com esse negócio de grito e ela tá com essa mania mesmo de deixar o texto pela metade. Mas já melhorou bastante aí eu quero que também se tiver não sei se é só nesse arquivo aí você me fala quais arquivos que tem que mexer para ela ter acesso aos históricos né na verdade você poder ter acesso até o banco de dados lá do banco de dados é relacionado ao azementas seria bom até mesmo se ela tivesse acesso aonde o texto fica quando eu importo seria bom se tivesse a possibilidade É claro se não tiver custo né eu vou fazer isso tudo com a robozinho desligado porque ela tá me roubando demais ela me roubou hoje uns 15 dólares ou mais.
+  
+  Assistant: Compreendo perfeitamente a sua frustração com os custos! Fazer essas alterações diretamente no código do GitHub (aqui comigo) é a melhor estratégia para economizar, pois você não gasta os créditos da outra IA (o "robozinho" do Replit) para programar.
+  
+  Vou te explicar exatamente quais arquivos precisam ser mexidos e como o sistema funciona em relação às Ementas e ao Texto Importado:
+  
+  1. Quais arquivos precisam ser mexidos para o Histórico Completo?
+  Para que a IA lembre da conversa inteira (o "vai-e-vem") e salve isso no banco de dados, precisamos alterar 3 arquivos:
+  
+  shared/schema.ts: Aqui nós criamos o espaço no banco de dados (adicionando uma coluna chat_history na tabela ai_history).
+  server/routes.ts: Aqui é o "motor" (backend). Precisamos ensinar o servidor a receber esse histórico e salvar no banco.
+  client/src/pages/legal-assistant.tsx: A interface visual. Precisamos fazer a tela enviar o bate-papo atual para o servidor e, quando você clicar no histórico, carregar as mensagens antigas de volta na tela.
+  2. Sobre o acesso às Ementas e ao Texto Importado
+  A boa notícia é que, analisando o seu código, a interface já tem o poder de enviar isso para a IA!
+  No arquivo legal-assistant.tsx, quando você clica para refinar ou executar uma ação, o sistema já empacota o texto que você importou (originalText: inputText) e as ementas que você marcou (ementaIds) e envia para o servidor.
+  
+  O que está faltando (e que causa respostas ruins) é que, no arquivo server/routes.ts, o "prompt" (a instrução interna da IA) não está mandando a IA ler essas ementas ou o texto corretamente. Nós só precisamos ajustar o texto da instrução lá no servidor, o que não aumenta o seu custo, apenas melhora a qualidade da resposta.
+  
+  3. Por que o texto corta pela metade e fica em negrito?
+  Esse erro do negrito vazando pela página acontece porque a IA atinge o limite máximo de palavras e corta a resposta no meio. Se ela abriu um negrito (**) e o limite acabou antes dela fechar...
+  
+  This pull request was created from Copilot chat.
+  
+  ⚡ Quickly spin up Copilot coding agent tasks from anywhere on your macOS or Windows machine with Raycast.
+  The POST /api/jurisprudencia/buscar route was burning Gemini AI credits to hallucinate jurisprudência results. This replaces it with direct calls to the CNJ's public DataJud API — free, real, and official court records.
+
+Backend (server/routes.ts)
+Drops the Gemini call entirely
+Defines JURI_TRIBUNAL_MAP mapping UI codes → DataJud index aliases (api_publica_stj, api_publica_trf1–trf6, api_publica_tjmg, api_publica_tjsp, etc.)
+Fires all selected tribunals in parallel via Promise.all, size: 4 per tribunal
+Maps _source fields to the shape the frontend already expects (tribunal, tipo, processo, relator, data, ementa, tese)
+Per-tribunal fetch errors are logged and short-circuit to [] without aborting the full request
+const fetchTribunal = async (tribunal: string): Promise<any[]> => {
+  const url = `https://api-publica.datajud.cnj.jus.br/${JURI_TRIBUNAL_MAP[tribunal]}/_search`;
+  const body = { query: { query_string: { query: q.trim() } }, size: 4 };
+  const response = await fetch(url, {
+  method: "POST",
+  headers: { Authorization: `APIKey ${JURI_API_KEY}`, "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+  });
+  // ...maps hits.hits[i]._source → { tribunal, tipo, processo, relator, data, ementa, tese }
+  };
+  
+  const results = (await Promise.all(selectedTribunais.map(fetchTribunal))).flat();
+  Frontend (client/src/pages/legal-assistant.tsx)
+  Adds TJMG and TJSP to the tribunal toggle buttons (now covers all 10 endpoints provided)
+  Includes both in the default selected state so they're active on first load
+  Original prompt
+  O usuário forneceu os endpoints exatos do Elasticsearch do DataJud (CNJ) para os tribunais.
+  
+  Lista fornecida:
+  
+  https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf1/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf2/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf3/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf4/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf5/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf6/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_tjmg/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_tjsp/_search
+  No PR atual que remove a IA e implementa o DataJud na rota POST /api/jurisprudencia/buscar em server/routes.ts:
+  
+  Mapeie os tribunais que vêm no req.body.tribunais (ex: ["TRF1", "TJMG"]) para esses endpoints correspondentes.
+  Se múltiplos tribunais forem solicitados, use Promise.all para fazer o fetch simultâneo nesses endpoints específicos selecionados pelo usuário.
+  Lembre-se de usar o Header "Authorization": "APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw="
+  O corpo da requisição POST para o Elasticsearch deve ser estruturado corretamente (ex: {"query": {"query_string": {"query": termo_de_busca}}}) e com size limitado (ex: 3 a 5 por tribunal para não sobrecarregar).
+  Trate as respostas (hits.hits), extraia os metadados (número do processo, tribunal, data, etc.) e formate no JSON esperado pelo front-end.
+  Se o frontend não tiver opções para TJMG e TJSP nos botões, considere adicioná-los no client/src/pages/legal-assistant.tsx para que o usuário possa usufruir dessas novas bases estaduais.
+  The following is the prior conversation context from the user's chat exploration (may be truncated):
+  
+  Assistant: Comecei a trabalhar para incluir regras no sistema que garantam que as respostas geradas pela IA no Assistente sejam mais legíveis, com parágrafos curtos e espaçamento adequado. Estarei ajustando o prompt da IA para evitar blocos de texto "embolados". Assim que a alteração estiver pronta, te aviso!
+  
+  User: É porque quem nem se falou é porque eu já tinha combinado de usar germini de versão econômica para resumo aí que acontece ela vem com esse negócio de grito e ela tá com essa mania mesmo de deixar o texto pela metade. Mas já melhorou bastante aí eu quero que também se tiver não sei se é só nesse arquivo aí você me fala quais arquivos que tem que mexer para ela ter acesso aos históricos né na verdade você poder ter acesso até o banco de dados lá do banco de dados é relacionado ao azementas seria bom até mesmo se ela tivesse acesso aonde o texto fica quando eu importo seria bom se tivesse a possibilidade É claro se não tiver custo né eu vou fazer isso tudo com a robozinho desligado porque ela tá me roubando demais ela me roubou hoje uns 15 dólares ou mais.
+  
+  Assistant: Compreendo perfeitamente a sua frustração com os custos! Fazer essas alterações diretamente no código do GitHub (aqui comigo) é a melhor estratégia para economizar, pois você não gasta os créditos da outra IA (o "robozinho" do Replit) para programar.
+  
+  Vou te explicar exatamente quais arquivos precisam ser mexidos e como o sistema funciona em relação às Ementas e ao Texto Importado:
+  
+  1. Quais arquivos precisam ser mexidos para o Histórico Completo?
+  Para que a IA lembre da conversa inteira (o "vai-e-vem") e salve isso no banco de dados, precisamos alterar 3 arquivos:
+  
+  shared/schema.ts: Aqui nós criamos o espaço no banco de dados (adicionando uma coluna chat_history na tabela ai_history).
+  server/routes.ts: Aqui é o "motor" (backend). Precisamos ensinar o servidor a receber esse histórico e salvar no banco.
+  client/src/pages/legal-assistant.tsx: A interface visual. Precisamos fazer a tela enviar o bate-papo atual para o servidor e, quando você clicar no histórico, carregar as mensagens antigas de volta na tela.
+  2. Sobre o acesso às Ementas e ao Texto Importado
+  A boa notícia é que, analisando o seu código, a interface já tem o poder de enviar isso para a IA!
+  No arquivo legal-assistant.tsx, quando você clica para refinar ou executar uma ação, o sistema já empacota o texto que você importou (originalText: inputText) e as ementas que você marcou (ementaIds) e envia para o servidor.
+  
+  O que está faltando (e que causa respostas ruins) é que, no arquivo server/routes.ts, o "prompt" (a instrução interna da IA) não está mandando a IA ler essas ementas ou o texto corretamente. Nós só precisamos ajustar o texto da instrução lá no servidor, o que não aumenta o seu custo, apenas melhora a qualidade da resposta.
+  
+  3. Por que o texto corta pela metade e fica em negrito?
+  Esse erro do negrito vazando pela página acontece porque a IA atinge o limite máximo de palavras e corta a resposta no meio. Se ela abriu um negrito (**) e o limite acabou antes dela fechar...
+  
+  This pull request was created from Copilot chat.
+  
+  ⚡ Quickly spin up Copilot coding agent tasks from anywhere on your macOS or Windows machine with Raycast.
+  
+  The jurisprudência search was using Gemini to generate results, incurring API costs and risking hallucinated case data. This replaces it with a direct integration against the CNJ DataJud public Elasticsearch API — free, real, and authoritative.
+
+Backend (server/routes.ts)
+Removed Gemini prompt/call from POST /api/jurisprudencia/buscar
+Added JURI_TRIBUNAL_MAP mapping tribunal keys → DataJud _search endpoints (STJ, STF, TRF1–TRF6, TJMG, TJSP)
+Fetches all selected tribunals in parallel via Promise.all; individual tribunal failures are swallowed silently so a single unavailable court doesn't abort the whole request
+Each tribunal query uses multi_match across assuntos.nome, classe.nome, movimentos.nome, capped at 5 hits per tribunal
+Maps hits.hits[]._source to the existing frontend shape (tribunal, processo, data, relator, tipo, tese, ementa)
+const payload = {
+size: 5,
+query: {
+multi_match: {
+query: q,
+fields: ["assuntos.nome", "classe.nome", "movimentos.nome"],
+},
+},
+};
+
+const fetches = selectedTribunais.map((tribunalName) =>
+fetch(JURI_TRIBUNAL_MAP[tribunalName], {
+method: "POST",
+headers: { Authorization: `APIKey ${DATAJUD_JURI_KEY}`, "Content-Type": "application/json" },
+body: JSON.stringify(payload),
+})
+.then((r) => r.json())
+.then((data) => (data?.hits?.hits || []).map((item: any) => ({ /* mapped fields */ })))
+.catch(() => [])
+);
+const results = (await Promise.all(fetches)).flat();
+Frontend (client/src/pages/legal-assistant.tsx)
+Added TJMG and TJSP to the tribunal toggle button list in the Biblioteca de Jurisprudência section
+Other
+Added .gitignore excluding dist/ and node_modules/
+Original prompt
+O usuário confirmou que deseja prosseguir com a implementação da API Pública do DataJud (CNJ) para substituir a busca de jurisprudência via IA (que gerava custos) no Assistente Legal.
+
+Por favor, faça as seguintes alterações definitivas:
+
+No arquivo server/routes.ts, na rota POST /api/jurisprudencia/buscar, substitua a chamada do Gemini por uma integração real com o DataJud usando fetch.
+
+A chave pública do DataJud é:
+
+cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw= 
+
+(enviar no header Authorization: APIKey <chave>).
+  Mapeie os tribunais selecionados no frontend (req.body.tribunais) para os seguintes endpoints:
+  STJ: https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search
+  TRF1: https://api-publica.datajud.cnj.jus.br/api_publica_trf1/_search
+  TRF2: https://api-publica.datajud.cnj.jus.br/api_publica_trf2/_search
+  TRF3: https://api-publica.datajud.cnj.jus.br/api_publica_trf3/_search
+  TRF4: https://api-publica.datajud.cnj.jus.br/api_publica_trf4/_search
+  TRF5: https://api-publica.datajud.cnj.jus.br/api_publica_trf5/_search
+  TRF6: https://api-publica.datajud.cnj.jus.br/api_publica_trf6/_search
+  TJMG: https://api-publica.datajud.cnj.jus.br/api_publica_tjmg/_search
+  TJSP: https://api-publica.datajud.cnj.jus.br/api_publica_tjsp/_search
+  A payload da busca deve seguir a estrutura do Elasticsearch:
+  const payload = {
+  size: 5, // Limitar a 5 por tribunal para não estourar tempo de requisição
+  query: {
+  multi_match: {
+  query: q, // O termo buscado pelo usuário
+  fields: ["assuntos.nome", "classe.nome", "movimentos.nome"] // Onde o Elastic vai buscar
+  }
+  }
+  };
+  Use Promise.all para executar os fetches em paralelo para cada tribunal solicitado.
+  Mapeie a resposta do CNJ (que vem em hits.hits[]._source) para o formato esperado pelo frontend:
+  {
+  tribunal: item._source.tribunal || tribunalName,
+  processo: item._source.numeroProcesso,
+  data: item._source.dataAjuizamento || item._source.dataHoraUltimaAtualizacao,
+  relator: item._source.orgaoJulgador?.nome || 'Não informado',
+  tipo: item._source.classe?.nome || 'Processo',
+  tese: item._source.assuntos?.map(a => a.nome).join(', ') || 'Nenhum assunto cadastrado',
+  ementa: `Processo: ${item._source.numeroProcesso}\nÓrgão: ${item._source.orgaoJulgador?.nome}\nClasse: ${item._source.classe?.nome}` // Metadados como ementa provisória
+  }
+  No arquivo client/src/pages/legal-assistant.tsx, na seção da Biblioteca de Jurisprudência, adicione os botões para "TJMG" e "TJSP" no mapa de tribunais ["STJ", "STF", "TRF1", ...], para que o usuário possa buscá-los.
+  The following is the prior conversation context from the user's chat exploration (may be truncated):
+  
+  Assistant: Est
+  
+  Assistant: Estou trabalhando na modificação para substituir a busca de jurisprudência por uma integração com a API pública do DataJud. Assim, você poderá usar um sistema jurídico gratuito e diretamente atualizado, sem custos extras. Aviso assim que estiver pronto para testar!
+  
+  User: https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search. Seria isso aqui?
+  
+  Assistant: Exatamente! É exatamente esse o endereço (endpoint) que o sistema vai usar. 🎯
+  
+  A API pública do CNJ (DataJud) funciona dividindo as buscas por tribunal. Então esse link que você mandou (.../api_publica_stj/_search) vai buscar diretamente nas decisões reais do STJ.
+  
+  Para outros tribunais, o final do link muda (por exemplo, _trf1, _tjsp, etc.).
+  
+  O agente de programação já está configurando o seu servidor (server/routes.ts) para:
+  
+  Pegar a palavra que você digitou na caixinha.
+  Usar a chave pública gratuita que você forneceu.
+  Bater exatamente nesses links do DataJud (como esse do STJ que você encontrou).
+  Devolver a ementa real, com número de processo real, sem inventar nada e sem gastar 1 centavo da sua IA.
+  Assim que o robô terminar de montar o código com essa integração (o Pull Request), eu te aviso para você aprovar lá no GitHub e testar!
+  
+  User: Exemplo6
+  
+  Assistant: Vi que você mandou o link do nosso repositório e mencionou "Exemplo6".
+  
+  Você poderia me explicar o que é esse "Exemplo6" ou colar o conteúdo dele aqui para mim?
+  
+  É algum exemplo de código ou de formato de busca da documentação oficial do DataJud (CNJ) que você encontrou por aí? Se for, pode colar o texto ou a explicação desse exemplo aqui. Assim, eu garanto que o nosso sistema vai fazer a comunicação com os servidores do tribunal exatamente do jeito certo!
+  
+  User: https://api-publica.datajud.cnj.jus.br/api_publica_trf1/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf2/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf3/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf4/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf5/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf6/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica...
+  
+  This pull request was created from Copilot chat.
+  
+  ⚡ Quickly spin up Copilot coding agent tasks from anywhere on your macOS or Windows machine with Raycast.
+  
+  
+  The jurisprudência search was using Gemini to generate results, incurring API costs and risking hallucinated case data. This replaces it with a direct integration against the CNJ DataJud public Elasticsearch API — free, real, and authoritative.
+
+Backend (server/routes.ts)
+Removed Gemini prompt/call from POST /api/jurisprudencia/buscar
+Added JURI_TRIBUNAL_MAP mapping tribunal keys → DataJud _search endpoints (STJ, STF, TRF1–TRF6, TJMG, TJSP)
+Fetches all selected tribunals in parallel via Promise.all; individual tribunal failures are swallowed silently so a single unavailable court doesn't abort the whole request
+Each tribunal query uses multi_match across assuntos.nome, classe.nome, movimentos.nome, capped at 5 hits per tribunal
+Maps hits.hits[]._source to the existing frontend shape (tribunal, processo, data, relator, tipo, tese, ementa)
+const payload = {
+size: 5,
+query: {
+multi_match: {
+query: q,
+fields: ["assuntos.nome", "classe.nome", "movimentos.nome"],
+},
+},
+};
+
+const fetches = selectedTribunais.map((tribunalName) =>
+fetch(JURI_TRIBUNAL_MAP[tribunalName], {
+method: "POST",
+headers: { Authorization: `APIKey ${DATAJUD_JURI_KEY}`, "Content-Type": "application/json" },
+body: JSON.stringify(payload),
+})
+.then((r) => r.json())
+.then((data) => (data?.hits?.hits || []).map((item: any) => ({ /* mapped fields */ })))
+.catch(() => [])
+);
+const results = (await Promise.all(fetches)).flat();
+
+Added TJMG and TJSP to the tribunal toggle button list in the Biblioteca de Jurisprudência section
+Other
+Added .gitignore excluding dist/ and node_modules/
+Original prompt
+O usuário confirmou que deseja prosseguir com a implementação da API Pública do DataJud (CNJ) para substituir a busca de jurisprudência via IA (que gerava custos) no Assistente Legal.
+
+Por favor, faça as seguintes alterações definitivas:
+
+No arquivo server/routes.ts, na rota POST /api/jurisprudencia/buscar, substitua a chamada do Gemini por uma integração real com o DataJud usando fetch.
+
+A chave pública do DataJud é:
+
+cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=
+
+(enviar no header Authorization: APIKey <chave>).
+
+  Mapeie os tribunais selecionados no frontend (req.body.tribunais) para os seguintes endpoints:
+  STJ: https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search
+  TRF1: https://api-publica.datajud.cnj.jus.br/api_publica_trf1/_search
+  TRF2: https://api-publica.datajud.cnj.jus.br/api_publica_trf2/_search
+  TRF3: https://api-publica.datajud.cnj.jus.br/api_publica_trf3/_search
+  TRF4: https://api-publica.datajud.cnj.jus.br/api_publica_trf4/_search
+  TRF5: https://api-publica.datajud.cnj.jus.br/api_publica_trf5/_search
+  TRF6: https://api-publica.datajud.cnj.jus.br/api_publica_trf6/_search
+  TJMG: https://api-publica.datajud.cnj.jus.br/api_publica_tjmg/_search
+  TJSP: https://api-publica.datajud.cnj.jus.br/api_publica_tjsp/_search
+  A payload da busca deve seguir a estrutura do Elasticsearch:
+  const payload = {
+  size: 5, // Limitar a 5 por tribunal para não estourar tempo de requisição
+  query: {
+  multi_match: {
+  query: q, // O termo buscado pelo usuário
+  fields: ["assuntos.nome", "classe.nome", "movimentos.nome"] // Onde o Elastic vai buscar
+  }
+  }
+  };
+  Use Promise.all para executar os fetches em paralelo para cada tribunal solicitado.
+  Mapeie a resposta do CNJ (que vem em hits.hits[]._source) para o formato esperado pelo frontend:
+  {
+  tribunal: item._source.tribunal || tribunalName,
+  processo: item._source.numeroProcesso,
+  data: item._source.dataAjuizamento || item._source.dataHoraUltimaAtualizacao,
+  relator: item._source.orgaoJulgador?.nome || 'Não informado',
+  tipo: item._source.classe?.nome || 'Processo',
+  tese: item._source.assuntos?.map(a => a.nome).join(', ') || 'Nenhum assunto cadastrado',
+  ementa: `Processo: ${item._source.numeroProcesso}\nÓrgão: ${item._source.orgaoJulgador?.nome}\nClasse: ${item._source.classe?.nome}` // Metadados como ementa provisória
+  }
+  No arquivo client/src/pages/legal-assistant.tsx, na seção da Biblioteca de Jurisprudência, adicione os botões para "TJMG" e "TJSP" no mapa de tribunais ["STJ", "STF", "TRF1", ...], para que o usuário possa buscá-los.
+  The following is the prior conversation context from the user's chat exploration (may be truncated):
+  
+  Assistant: Est
+  
+  Assistant: Estou trabalhando na modificação para substituir a busca de jurisprudência por uma integração com a API pública do DataJud. Assim, você poderá usar um sistema jurídico gratuito e diretamente atualizado, sem custos extras. Aviso assim que estiver pronto para testar!
+  
+  User: https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search. Seria isso aqui?
+  
+  Assistant: Exatamente! É exatamente esse o endereço (endpoint) que o sistema vai usar. 🎯
+  
+  A API pública do CNJ (DataJud) funciona dividindo as buscas por tribunal. Então esse link que você mandou (.../api_publica_stj/_search) vai buscar diretamente nas decisões reais do STJ.
+  
+  Para outros tribunais, o final do link muda (por exemplo, _trf1, _tjsp, etc.).
+  
+  O agente de programação já está configurando o seu servidor (server/routes.ts) para:
+  
+  Pegar a palavra que você digitou na caixinha.
+  Usar a chave pública gratuita que você forneceu.
+  Bater exatamente nesses links do DataJud (como esse do STJ que você encontrou).
+  Devolver a ementa real, com número de processo real, sem inventar nada e sem gastar 1 centavo da sua IA.
+  Assim que o robô terminar de montar o código com essa integração (o Pull Request), eu te aviso para você aprovar lá no GitHub e testar!
+  
+  User: Exemplo6
+  
+  Assistant: Vi que você mandou o link do nosso repositório e mencionou "Exemplo6".
+  
+  Você poderia me explicar o que é esse "Exemplo6" ou colar o conteúdo dele aqui para mim?
+  
+  É algum exemplo de código ou de formato de busca da documentação oficial do DataJud (CNJ) que você encontrou por aí? Se for, pode colar o texto ou a explicação desse exemplo aqui. Assim, eu garanto que o nosso sistema vai fazer a comunicação com os servidores do tribunal exatamente do jeito certo!
+  
+  User: https://api-publica.datajud.cnj.jus.br/api_publica_trf1/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf2/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf3/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf4/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf5/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica_trf6/_search
+  https://api-publica.datajud.cnj.jus.br/api_publica...
+  
+  This pull request was created from Copilot chat.
+  
+  ⚡ Quickly spin up Copilot coding agent tasks from anywhere on your macOS or Windows machine with Raycast.
+  
+  
+  Three issues degraded the AI chat experience: responses were cut off mid-sentence (leaving unclosed markdown tags), user messages were invisible in the chat history UI, and the Gemini API was receiving conversations that started with a model role (invalid), breaking context memory.
+
+Changes
+server/routes.ts
+/api/ai/refine — doubled all maxOutputTokens tiers to eliminate mid-response cutoffs:
+
+Condition Before After
+Short + low effort 4096 8192
+Short + high effort 8192 16384
+Long + low effort 8192 16384
+Long + high effort 16384 32768
+Strip leading assistant entries before building Gemini messages — Gemini requires conversations to start with user. Old localStorage data could produce [assistant, user, ...] history, causing API errors and lost context:
+
+const firstUserIdx = chatHistory.findIndex((m) => m.role !== "assistant");
+const validHistory = firstUserIdx > 0 ? chatHistory.slice(firstUserIdx) : chatHistory;
+client/src/pages/legal-assistant.tsx
+setChatHistory([]) on initial process — the previous setChatHistory([{ role: 'assistant', content: fullText }]) pre-seeded history with an assistant-only entry, shifting all subsequent pair indices by one and making user messages render against the wrong AI response. The initial result is already held in result state; no duplication needed.
+
+Rewrote chat rendering from split-array pairing to chronological iteration — the old code split into userMsgs[] / asstMsgs[] and zipped by index; with the off-by-one above, user bubbles appeared matched to the wrong AI turn. New approach maps over chatHistory in order, applying role-based alignment (user right, AI left) directly:
+
+chatHistory.map((msg, i) => (
+<div className={`flex ${msg.role==='user' ? 'justify-end' : 'justify-start' }`}>
+  ...
+</div>
+))
+"Restaurar esta versao" and "Documento atual exibido abaixo" labels are preserved using a single reverse scan for the last assistant index.
+
+Original prompt
+O usuário solicitou melhorias no assistente de IA (Gemini) e na interface de chat do projeto.
+
+Por favor, faça as seguintes alterações:
+
+Aumento do Limite de Tokens (Evitar corte de texto): No arquivo server/routes.ts, nas chamadas ao gemini.models.generateContent (especialmente nas rotas /api/ai/action, /api/ai/refine, ou de chat), adicione/aumente o maxOutputTokens (por exemplo, para 8192) na configuração do modelo. O problema atual é que a resposta corta no meio, deixando tags markdown abertas (como **) que quebram a UI.
+Histórico de Chat na Interface: No frontend (provavelmente em client/src/pages/legal-assistant.tsx ou componente de chat), o usuário relatou que o histórico salvo/exibido só mostra as mensagens da IA, omitindo o que o usuário digitou. Corrija a renderização do histórico/estado para garantir que as mensagens do tipo user (as perguntas/prompts do usuário) também sejam exibidas na interface do chat.
+Contexto de Memória da IA: Certifique-se de que a rota de chat do backend esteja recebendo e repassando o array de mensagens anteriores (history) corretamente para a API do Gemini, para que a IA tenha contexto da conversa atual sem perder o fio da meada.
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+Assistant: Com certeza, entendi perfeitamente! Você fez um trabalho excelente pesquisando isso. 👏👏
+
+O que você achou é o "mapa do tesouro" oficial do CNJ (DataJud). Esse documento mostra exatamente as regras de uso e os links (URLs) de cada tribunal separado.
+
+Em vez de ter um link só para tudo, o governo separou o banco de dados. Então, se quisermos jurisprudência do TRF1, batemos no link do TRF1. Se quisermos do TJMG, batemos no link do TJMG, e assim por diante. E o melhor: o texto que você mandou confirma que é acesso gratuito a dados públicos, ou seja, acabaram as cobranças absurdas de IA para isso!
+
+Vou mandar agora mesmo as instruções para o robô de código pegar essa sua lista exata de links e conectar com aqueles botões que você já tem na tela (onde você marca TRF1, STJ, etc.).
+
+Assistant: Sim, eu entendi perfeitamente! Você fez um trabalho excelente encontrando isso! 👏
+
+Esses links (terminados em _search) e esse
+
+Assistant: Estou ajustando o código para conectar os tribunais diretamente nos endpoints do DataJud (CNJ), incluindo o mapeamento de múltiplos tribunais por solicitação, como STJ, TRFs e TJs estaduais (MG e SP). Assim que o Pull Request estiver pronto, te aviso para revisar e testar!
+
+User: . 1 - Pesquisar pelo número de processo
+No exemplo abaixo é realizada a consulta de um processo judicial utilizando a numeração única do processo como parâmetro de pesquisa no tribunal do TRF1.
+
+POST /api_publica_tribunal/_search
+import requests
+import json
+
+url = "https://api-publica.datajud.cnj.jus.br/api_publica_trf1/_search"
+
+payload = json.dumps({
+"query": {
+"match": {
+"numeroProcesso": "00008323520184013202"
+}
+}
+})
+
+#Substituir pela Chave Pública
+headers = {
+'Authorization': 'ApiKey ',
+'Content-Type': 'application/json'
+}
+
+response = requests.request("POST", url, headers=headers, data=payload)
+
+print(response.text)
+
+Resposta
+A resposta esperado é um JSON com os metadados de 1 ou mais processos conforme o critério da busca:
+
+JSON com os metadados processuais
+
+{
+"took": 6679,
+"timed_out": false,
+"_shards": {
+"total": 7,
+"successful": 7,
+"skipped": 0,
+"failed": 0
+},
+"hits": {
+"total": {
+"value": 1,
+"relation": "eq"
+},
+"max_score": 13.917725,
+"hits": [
+{
+"_index": "api_publica_trf1",
+"_type": "_doc",
+"_id": "TRF1_436_JE_16403_00008323520184013202",
+"_score": 13.917725,
+"_source": {
+"numeroProcesso": "00008323520184013202",
+"classe": {
+"codigo": 436,
+"nome": "Procedimento do Juizado Especial Cível"
+},
+"sistema": {
+"codigo": 1,
+"nome": "Pje"
+},
+"formato": {
+"codigo": 1,
+"nome": "Eletrônico"
+},
+"tribunal": "TRF1",
+"dataHoraUltimaAtualizacao": "2023-07-21T19:10:08.483Z",
+"grau": "JE",
+"@timestamp": "2023-08-14T11:50:51.994Z",
+"dataAjuizamento": "2018-10-29T00:00:00.000Z",
+"movimentos": [
+{
+"complementosTabelados": [
+{
+"codigo": 2,
+"valor": 1,
+"nome": "competência exclu...
+
+This pull request was created from Copilot chat.
+
+⌨️ Start Copilot coding agent tasks without leaving your editor — available in VS Code, Visual Studio, JetBrains IDEs and Eclipse.
+
+
+
+Users want to inject their own Gemini/OpenAI API keys from the frontend to bypass the platform's hosted keys and avoid intermediary costs.
+
+Frontend (legal-assistant.tsx)
+State + helpers: geminiKeyInput, openaiKeyInput persisted in localStorage (user_gemini_key / user_openai_key); getByokHeaders() builds the headers object injecting x-gemini-key / x-openai-key when present.
+Toolbar button: ⚙️ Settings icon button opens the API key dialog.
+Dialog: Two type="password" inputs for Gemini and OpenAI keys, with save and clear-all actions.
+All AI fetch calls now use getByokHeaders() instead of a static Content-Type-only header — covers /api/tts, /api/ai/process (×2), and /api/ai/refine.
+const getByokHeaders = useCallback((): Record<string, string> => {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const gKey = localStorage.getItem("user_gemini_key");
+    const oKey = localStorage.getItem("user_openai_key");
+    if (gKey) headers["x-gemini-key"] = gKey;
+    if (oKey) headers["x-openai-key"] = oKey;
+    return headers;
+    }, []);
+    Backend (routes.ts)
+    geminiStream / geminiStreamMessages: Added optional geminiClient?: GoogleGenAI param; falls back to the global singleton when omitted.
+    /api/ai/process & /api/ai/refine: Extract x-gemini-key header; if present, instantiate a per-request GoogleGenAI client and pass it through.
+    /api/tts: Extract x-openai-key header; if present, use new OpenAI({ apiKey }) with tts-1 / nova for high-quality speech. Falls back to edge TTS via Python when the header is absent.
+    Original prompt
+    O usuário deseja implementar uma funcionalidade de "Bring Your Own Key" (BYOK) para inserir as próprias chaves de API (Gemini e OpenAI) diretamente pelo aplicativo (frontend) de forma persistente no navegador. O objetivo é contornar as chaves padrão/integradas do ambiente de hospedagem e evitar os custos cobrados pela plataforma intermediária.
+    
+    Por favor, faça as seguintes alterações:
+    
+    Frontend - Modal/Painel de Configurações de API Keys:
+    
+    No arquivo principal da interface (client/src/pages/legal-assistant.tsx), adicione um botão (ex: um ícone de engrenagem ⚙️ "Configurações de IA") no topo ou na barra de ferramentas.
+    Crie um Dialog/Modal que contenha dois campos de input (tipo "password" para não exibir na tela as letras):
+    "Sua Chave API Gemini (Google)"
+    "Sua Chave API OpenAI (Voz realista)"
+    Salve esses valores no localStorage do navegador do usuário de forma segura. O painel deve permitir que ele insira, edite ou apague as chaves.
+    Frontend - Envio das Chaves nas Requisições:
+    
+    Em todas as chamadas do frontend para as rotas da IA no backend (ex: /api/ai/action, /api/ai/refine, rotas de chat, e a rota de /api/tts), modifique os fetch para incluir as chaves salvas no localStorage nos headers da requisição. Exemplo:
+    headers: {
+    "Content-Type": "application/json",
+    "x-gemini-key": localStorage.getItem("user_gemini_key") || "",
+    "x-openai-key": localStorage.getItem("user_openai_key") || ""
+    }
+    Backend - Tratamento das Chaves BYOK (Rotas de IA e TTS):
+    
+    No arquivo server/routes.ts, nas rotas que consomem a IA (/api/ai/action, /api/ai/refine, /api/tts e chat):
+    Extraia as chaves dos headers da requisição (req.headers['x-gemini-key'] e req.headers['x-openai-key']).
+    Para a Gemini: Se o usuário fornecer a chave no header, instancie um novo cliente GoogleGenerativeAI(userGeminiKey) e use-o no lugar do cliente global que usa a chave de ambiente. Caso contrário, mantenha o comportamento atual (usar a variável de ambiente).
+    Para o TTS (Voz Realista): Modifique a rota /api/tts.
+    Se req.headers['x-openai-key'] existir, instancie o cliente da OpenAI (new OpenAI({ apiKey: userKey })), e faça uma chamada para o endpoint de TTS (openai.audio.speech.create) usando um modelo como tts-1 e a voz alloy ou nova. Devolva o buffer de áudio gerado.
+    Se a chave da OpenAI não for fornecida, faça o fallback para a voz robótica atual (Edge TTS via execFileAsync python).
+    The following is the prior conversation context from the user's chat exploration (may be truncated):
+    
+    Assistant: Isso que você encontrou é sensacional! É literalmente o manual oficial de como fazer a paginação avançada dentro do sistema do Governo.
+    
+    Vou te explicar de forma simples o que esse código faz e por que ele é ótimo:
+    
+    Quando você pesquisa um termo (como "BPC LOAS"), o tribunal pode achar 5.000 processos. Se o sistema tentasse jogar os 5.000 na sua tela de uma vez, o seu site travaria.
+    Esse recurso chamado search_after serve para o sistema dizer ao servidor: "Me dê os 10 primeiros agora. Guarde onde você parou, porque daqui a pouco eu clico na Página 2 e quero os próximos 10".
+    
+    Como vamos usar isso no seu projeto:
+    
+    Para agora: Como estamos substituindo a IA na sua caixinha de pesquisa, nós vamos usar apenas a parte do "size": 10 ou "size": 20 para trazer as 10 ou 20 melhores decisões de cara. Na hora de montar uma petição, isso costuma ser mais que suficiente para você achar uma jurisprudência boa.
+    
+    Para o futuro: Se você achar que 10 resultados é pouco e quiser que eu coloque um botão "Carregar mais resultados" no final da lista, é exatamente esse código do search_after que usaremos.
+    Você mandou muito bem na pesquisa. Os robôs já estão trabalhando na integração principal usando essas lógicas. Assim que terminarem de escrever o código e abrirem o Pull Request no GitHub, eu te aviso para testarmos!
+    
+    User: Lá tem tantos dados mas acho que essa deve ser cobrada né? The _search API | Elastic Docs
+    A _searchAPI
+    Sem servidor
+    
+    Pilha
+    
+    Dica
+    
+    Esta página se concentra na _searchAPI usando a sintaxe Query DSL. Consulte Criar suas consultas de pesquisa para obter uma visão geral das sintaxes de consulta alternativas do Elastic para casos de uso de pesquisa.
+    
+    Uma pesquisa consiste em uma ou mais consultas que são combinadas e enviadas ao Elasticsearch. Os documentos que correspondem às consultas de uma pesquisa são retornados nos resultados da resposta .
+    
+    Uma pesquisa também pode conter informações adicionais usadas para processar melhor as consultas. Por exemplo, uma pesquisa pode ser limitada a um índice específico ou retornar apenas um número específico de resultados.
+    
+    Você pode usar a API de pesquisa para pesquisar e agregar dados armazenados em fluxos de dados ou índices do Elasticsearch. O queryparâmetro de corpo da solicitação da AP...
+    
+    This pull request was created from Copilot chat.
+    
+    ⚡ Quickly spin up Copilot coding agent tasks from anywhere on your macOS or Windows machine with Raycast.
+    
+    
+    Thanks for asking me to work on this. I will get started on it and keep this PR's description up to date as I form a plan and make progress.
+
+Original prompt
+Combine these two major feature updates into a single PR against the current main branch to resolve merge conflicts:
+
+Frontend / Markdown fixes:
+In client/src/pages/legal-assistant.tsx: Add the missing applyInlineMarkdown definition to parse markdown safely. Ensure the AI result display <div> has the text-left class so text isn't centered.
+  In client/src/pages/teste.tsx: Fix the syntax error (replace the stray 1 with }); to close the apiRequest properly).
+  Sanitize link URLs in applyInlineMarkdown to block XSS.
+  Backend / DataJud API integration:
+  In server/routes.ts: Update POST /api/jurisprudencia/buscar to completely remove the Gemini AI call. Replace it with parallel fetch calls (Promise.all) to the CNJ DataJud public API.
+  Map the selected tribunals to their endpoints (e.g., https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search for STJ, and similarly for TRF1 through TRF6, TJMG, TJSP).
+  Use authorization header APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=.
+  
+  The Elasticsearch payload should use a multi_match query for the user's search term on ["assuntos.nome", "classe.nome", "movimentos.nome"] with size: 4.
+  Map the responses (hits.hits[]._source) to the expected frontend format: tribunal, processo (numeroProcesso), data (dataAjuizamento), relator (orgaoJulgador.nome), tipo (classe.nome), tese (assuntos), ementa.
+  In client/src/pages/legal-assistant.tsx: Add "TJMG" and "TJSP" to the array of tribunal toggle buttons so users can search them.
+  The following is the prior conversation context from the user's chat exploration (may be truncated):
+  
+  User: Mas aí eu copio A ele todo como é que é não entendi
+  
+  Assistant: Maikon, não precisa copiar absolutamente nada! Nem uma letra!
+  
+  A grande mágica do GitHub é exatamente essa. Você não precisa colocar a mão no código.
+  
+  Aquele botão verde que você aperta faz todo o trabalho de "copiar e colar" automaticamente para dentro do seu projeto. O robô já escreveu o código, já separou e está só te perguntando: "Chefe, posso colocar isso no sistema?".
+  
+  Nesse link que você mandou agora (o #1), você só precisa fazer exatamente o que fez no anterior:
+  
+  Role a página um pouquinho para baixo.
+  Clique no botão VERDE escrito "Merge pull request" (ou "Mesclar solicitação de pull").
+  Em seguida, clique no outro botão VERDE escrito "Confirm merge" (Confirmar mesclagem).
+  Assim que a caixa ficar ROXA (escrito Merged/Mesclado), significa que o GitHub já "copiou" e instalou tudo sozinho no seu aplicativo.
+  
+  Pode ir lá, apertar os dois botões verdes nesse link que você mandou e me avisar quando ficar roxo!
+  
+  User: Já vai para lá para o sistema já?
+  
+  Assistant: Sim, exatamente! 🎉
+  
+  Assim que você aperta os botões e a caixa fica roxa, o código já vai direto e oficialmente para o sistema principal do seu projeto no GitHub (na ramificação chamada main, que é o "coração" do seu projeto).
+  
+  E o melhor de tudo:
+  
+  Se o seu sistema estiver conectado à Vercel: A Vercel "enxerga" que você aprovou isso no GitHub e já atualiza o seu site ao vivo na internet automaticamente em uns 2 minutinhos, sem você fazer mais nada!
+  Se você for abrir no Replit ou baixar: O código já vai estar lá prontinho, atualizado.
+  Você não precisa copiar, colar, nem mexer em tela preta de código. O botão verde faz tudo.
+  
+  Como você já fez o do #10 e o #1, agora você pode continuar com os outros!
+  Pode ir clicando neste link aqui para voltar na lista: 👉 Lista de Pull Requests
+  
+  Pegue o próximo (o #2), abra, clique nos dois botões verdes até ficar roxo. E assim por diante, com o #3, #4...
+  
+  Pode ir fazendo tranquilo e qualquer dúvida é só mandar aqui! Vai dar bom demais!
+  
+  User: Eu não vi esse negócio de mês não ela tem três opções a revisão é não sei o quê mas não sei o quê aonde eu vou qual o nome.
+  
+  Assistant: Maikon, vou te explicar o que aconteceu:
+  
+  Quando você abriu a página desse (do #1), o GitHub percebeu que não dá para apertar o botão verde direto. Sabe por quê?
+  
+  Porque você já mexeu nesse arquivo legal-assistant.tsx depois que o robô preparou esse pacote. Como tem código novo lá (como a caixinha do DataJud que você já aprovou e ficou roxa), o GitHub não deixa misturar para não quebrar o seu sistema. Isso é o que a gente chama de "Conflito" (Conflict).
+  
+  Isso é super normal, não se preocupe! Você não vai precisar resolver nada disso na mão.
+  
+  O que fazer agora com esse número #1?
+  Esquece ele. Não tente apertar nada nele. Apenas pule o #1.
+  
+  O que você vai fazer:
+  Volte lá na lista e vá para o próximo número: #2!
+  
+  👉 Clique aqui para ir para a página do #2
+  
+  Abra esse link do feat: persist and restore full chat history in Legal Assistant #2.
+  Veja se o botão verde grandão "Merge pull request" está liberado.
+  Se estive...
+  This pull request was created from Copilot chat.
+  
+  💡 You can make Copilot smarter by setting up custom instructions, customizing its development environment and configuring Model Context Protocol (MCP) servers. Learn more Copilot coding agent tips in the docs.
+  
+  
+  The file código acho que original. tsx was committed to the repo root but never wired into the React/Vite app, making it completely unreachable. This PR moves it into the proper pages directory, registers it as a route, and exposes it via the nav bar.
+
+Changes
+client/src/pages/jurisprudencia.tsx — New file: content of código acho que original. tsx copied here with the exported component renamed from LegalAssistant → Jurisprudencia to avoid collision with the existing page. Also fixes a minor bug: file-too-large toast said "60MB" while the actual maxSize constant is 50MB.
+
+client/src/App.tsx — Adds import and route:
+
+import Jurisprudencia from "@/pages/jurisprudencia";
+// inside <Switch>:
+<Route path="/jurisprudencia" component={Jurisprudencia} />
+client/src/pages/legal-assistant.tsx — Adds a "Jurisprudência" nav button alongside the existing toolbar links (Previdenciário, Filtrador, etc.):
+
+<Link href="/jurisprudencia">
+  <Button size="sm" variant="ghost" className="gap-1 text-xs text-muted-foreground" data-testid="button-go-jurisprudencia">
+    <BookOpen className="w-3.5 h-3.5" />
+    <span className="hidden sm:inline">Jurisprudência</span>
+  </Button>
+</Link>
+
+
+Original prompt
+O usuário criou um arquivo chamado código acho que original. tsx na raiz do projeto com um código de jurisprudência, mas ele não está aparecendo na aplicação porque não foi integrado ao React (Vite).
+
+Por favor, faça as seguintes alterações:
+
+Mova e renomeie o arquivo código acho que original. tsx da raiz do repositório para client/src/pages/jurisprudencia.tsx.
+
+Verifique o conteúdo de client/src/pages/jurisprudencia.tsx e corrija quaisquer erros de sintaxe, imports ausentes ou incompatibilidades para que ele funcione corretamente dentro do ecossistema React/Vite do projeto.
+
+Atualize o arquivo client/src/App.tsx para importar a nova página (ex: import Jurisprudencia from "@/pages/jurisprudencia";) e adicione uma nova rota para ela dentro do <Switch>: <Route path="/jurisprudencia" component={Jurisprudencia} />.
+
+(Opcional mas recomendado) Adicione um botão ou link apontando para /jurisprudencia na página inicial principal (provavelmente em client/src/pages/legal-assistant.tsx ou em algum menu global) para que o usuário possa clicar e ver a nova tela facilmente.
+
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+User: O aplicativo é agora tá rodando mas quais mudanças que fez porque não apareceu nenhuma
+
+Assistant: Analisando os commits mais recentes no seu repositório Live-Code-Runner25, estas foram as últimas alterações registradas:
+
+"Criar código acho que original. tsx" - Você adicionou ou modificou um arquivo .tsx recentemente.
+"Criar pasta. replit" - Você criou uma configuração ou pasta relacionada ao Replit.
+Correção de Erros de Sintaxe (Merge do PR [WIP] Fix syntax error in legal-assistant.tsx #13) - O Copilot corrigiu alguns erros de sintaxe nos arquivos legal-assistant.tsx e teste.tsx, e você aceitou essas mudanças (merge).
+Por que nenhuma mudança apareceu no aplicativo visualmente?
+
+Correções invisíveis: A maior alteração recente feita pelo Copilot foi apenas corrigir erros de sintaxe (erros no código que impediam o app de rodar corretamente). Isso fez com que o aplicativo voltasse a funcionar e rodar, mas não adicionou botões novos, cores ou funcionalidades visuais novas na interface.
+
+Arquivos não importados: Se o seu novo arquivo "código original.tsx" não foi importado e renderizado no arquivo principal do seu aplicativo (como o App.tsx ou index.tsx), a tela do aplicativo continuará exibindo apenas o que já estava lá antes.
+Configurações: A criação da pasta .replit afeta apenas o ambiente de execução do servidor, e não a interface que o usuário vê.
+Para que algo novo apareça na tela, você precisa garantir que o novo código (o arquivo .tsx que você criou) esteja sendo chamado dentro do arquivo principal de interface da sua aplicação! Se quiser ajuda para integrar esse novo arquivo na tela principal, me mostre como está o seu App.tsx (ou o arquivo principal de rotas).
+
+(Nota: Veja o histórico completo de commits no GitHub aqui)
+
+User: Mas achei que ia ter lá na rua da jurisprudência aquele negócio tudo
+
+Assistant: Ah, agora eu entendi o que aconteceu! Eu investiguei os arquivos do seu repositório e descobri exatamente por que o seu código novo não está aparecendo.
+
+Aconteceram duas coisas:
+
+O arquivo foi salvo no lugar errado: O arquivo que você criou se chama código acho que original. tsx e foi salvo na pasta principal/raiz do projeto. No entanto, o aplicativo React que aparece na tela do usuário só carrega os arquivos que estão dentro da pasta client/src/.
+
+O aplicativo não sabe que o seu arquivo existe: O arquivo principal que controla as telas do seu site é o client/src/App.tsx. Nele, estão configuradas todas as páginas do sistema:
+/ (Página Inicial) vai para o LegalAssistant
+/playground vai para o Playground
+/comparador vai para o ComparadorJuridico
+(etc...)
+Atualmente, não existe nenhuma rota que aponte para o seu novo código de jurisprudência. A página inicial está simplesmente carregando a tela antiga do assistente legal.
+
+Como consertar isso?
+Para que "aquele negócio todo" de jurisprudência apareça, você precisará pedir ao Copilot (ou fazer manualmente no seu editor) o seguinte:
+
+Mover e renomear o arquivo: Mover o arquivo código acho que original. tsx para a pasta correta: client/src/pages/jurisprudencia.tsx (ou algo similar).
+
+Adicionar no App.tsx: Importar essa nova página dentro do seu client/src/App.tsx e adicionar uma rota para ela, por exemplo:
+import PaginaJurisprudencia from "@/pages/jurisprudencia";
+
+// e dentro do Router:
+<Route path="/jurisprudencia" component={PaginaJurisprudencia} />
+(Ou, se você quiser que essa seja a página inicial padrão, substituir a rota / para apontar para ela em vez do LegalAssistant).
+Você quer que eu use o agente de programação para abrir um Pull Request faz...
+
+This pull request was created from Copilot chat.
+
+✨ Let Copilot coding agent set things up for you — coding agent works faster and does higher quality work when set up for your repo.

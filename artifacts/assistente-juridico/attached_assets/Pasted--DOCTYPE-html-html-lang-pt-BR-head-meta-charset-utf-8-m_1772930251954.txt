@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Filtrador Jurídico Avançado (Atualizado)</title>
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+    <script>
+        window.pdfjsLib && (pdfjsLib.GlobalWorkerOptions.workerSrc = 
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.worker.min.js");
+    </script>
+    <!-- Mammoth (DOCX -> texto) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <!-- Tesseract.js para OCR (opcional) -->
+    <script src="https://unpkg.com/tesseract.js@4.0.1/dist/tesseract.min.js"></script>
+    <!-- IndexedDB para salvamento robusto -->
+    <script src="https://unpkg.com/idb@7.0.2/build/umd.js"></script>
+    <style>
+        :root {
+            --primary: #1e3a8a; /* Azul escuro jurídico */
+            --secondary: #c49f45; /* Dourado suave */
+            --bg: #0a0a0a; /* Fundo escuro */
+            --panel: #161616; /* Painel escuro */
+            --txt: #e5e7eb; /* Texto claro */
+            --accent: #c49f45; /* Destaque dourado */
+            --good: #22c55e;
+            --bad: #ef4444;
+            --info: #60a5fa;
+            --paper: #ffffff;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #e5e7eb; }
+        .wrap { display: flex; height: 100vh; gap: 14px; padding: 14px; }
+        .left { width: 38%; min-width: 340px; background: var(--panel); color: var(--txt); border-radius: 12px; padding: 14px; overflow: auto; }
+        .right { flex: 1; background: #cbd5e1; border-radius: 12px; padding: 14px; overflow: auto; }
+        h1 { font-size: 14px; margin: 0 0 10px; color: var(--accent); letter-spacing: .5px; text-transform: uppercase; }
+        h2 { font-size: 12px; margin: 14px 0 8px; color: var(--txt); text-transform: uppercase; letter-spacing: .5px; }
+        .hint { font-size: 12px; color: var(--txt); line-height: 1.35; background: rgba(96,165,250,.08); border-left: 3px solid var(--info); padding: 10px; border-radius: 8px; }
+        textarea, input[type="text"], input[type="number"] {
+            width: 100%; background: rgba(0,0,0,.3); color: var(--txt); border: 1px solid rgba(255,255,255,.14);
+            border-radius: 8px; padding: 10px; outline: none;
+        }
+        textarea { min-height: 180px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        label { font-size: 12px; color: var(--txt); display: block; margin: 8px 0 6px; }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .btnrow-export { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-top: 10px; }
+        button {
+            border: 0; border-radius: 10px; padding: 11px 10px; font-weight: 700; cursor: pointer;
+            text-transform: uppercase; letter-spacing: .3px; font-size: 11px;
+        }
+        .b1 { background: var(--accent); color: #111827; }
+        .b2 { background: var(--bad); color: white; }
+        .b3 { background: var(--good); color: #052e16; }
+        .b4 { background: var(--info); color: #0b1220; }
+        .b-copy { background: #fff; color: #000; border: 1px solid #ccc; }
+        .box { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.10); border-radius: 10px; padding: 10px; }
+        .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .checks label { margin: 0; color: var(--txt); font-size: 12px; }
+        .checks input { transform: translateY(1px); }
+        .status { white-space: pre-wrap; font-size: 12px; color: var(--txt); background: rgba(0,0,0,.18); border: 1px solid rgba(255,255,255,.08); padding: 10px; border-radius: 10px; }
+        .paper { background: var(--paper); border-radius: 12px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.18); display: flex; flex-direction: column; height: 100%; }
+        .paper h3 { margin: 0 0 10px; font-size: 14px; }
+        .out { white-space: pre-wrap; font-family: "Times New Roman", Times, serif; font-size: 12pt; line-height: 1.5; flex: 1; overflow: auto; border: 1px solid #ddd; padding: 10px; margin-top: 10px; }
+        .small { font-size: 11px; color: var(--txt); }
+        details { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.10); padding: 10px; border-radius: 10px; }
+        summary { cursor: pointer; font-weight: 700; color: var(--txt); }
+        .removedItem { padding: 8px; border-left: 3px solid var(--bad); background: rgba(239,68,68,.08); border-radius: 8px; margin-top: 8px; color: var(--txt); font-size: 12px; }
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 9999; }
+        .ovbox { background: white; border-radius: 12px; padding: 16px 18px; min-width: 280px; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+        .spin { width: 18px; height: 18px; border: 3px solid #cbd5e1; border-top-color: var(--accent); border-radius: 50%; display: inline-block; animation: sp 1s linear infinite; vertical-align: middle; margin-right: 10px; }
+        @keyframes sp { to { transform: rotate(360deg); } }
+        .page-separator { margin: 20px 0; border-top: 2px dashed var(--primary); color: var(--muted); font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="overlay" id="ov">
+        <div class="ovbox">
+            <div><span class="spin"></span><b id="ovMsg">Processando…</b></div>
+            <div class="small" id="ovSub" style="margin-top:6px;color:#475569">Aguarde.</div>
+        </div>
+    </div>
+    <div class="wrap">
+        <div class="left">
+            <h1>Filtrador Jurídico Avançado (Atualizado)</h1>
+            <div class="hint">
+                Objetivo: <b>cortar repetição</b> (modelos duplicados, citações repetidas), limpar sujeira e gerar texto enxuto.
+            </div>
+            <h2>1) Importar</h2>
+            <input id="files" type="file" multiple accept=".txt,.pdf,.docx,.json,.md" />
+            <label><input type="checkbox" id="useOCR"> Usar OCR para PDFs digitalizados (lento)</label>
+            <h2>2) Texto Bruto</h2>
+            <textarea id="raw" placeholder="Cole aqui o texto gigante…"></textarea>
+            <h2>3) Configurações Gerais</h2>
+            <div class="box">
+                <div class="checks">
+                    <label><input type="checkbox" id="cleanSymbols" checked> Limpar , #, markdown</label>
+                    <label><input type="checkbox" id="dedupeExact" checked> Remover duplicatas exatas</label>
+                    <label><input type="checkbox" id="dedupeNear" checked> Remover duplicatas aproximadas</label>
+                    <label><input type="checkbox" id="keepOrder" checked> Manter ordem original</label>
+                    <label><input type="checkbox" id="splitLarge" checked> Dividir trechos grandes antes de excluir</label>
+                    <label><input type="checkbox" id="cleanAsterisk1" checked> Limpar * (1x)</label>
+                    <label><input type="checkbox" id="cleanAsterisk2" checked> Limpar ** (2x)</label>
+                    <label><input type="checkbox" id="cleanAsterisk3" checked> Limpar *** (3x)</label>
+                    <label><input type="checkbox" id="cleanHash1" checked> Limpar # (1x)</label>
+                    <label><input type="checkbox" id="cleanHash2" checked> Limpar ## (2x)</label>
+                    <label><input type="checkbox" id="cleanHash3" checked> Limpar ### (3x)</label>
+                </div>
+                <div class="row" style="margin-top:10px">
+                    <div>
+                        <label>Mínimo caracteres</label>
+                        <input id="minChars" type="number" value="20" />
+                    </div>
+                    <div>
+                        <label>Similaridade (0.50-0.95)</label>
+                        <input id="sim" type="number" step="0.01" value="0.72" />
+                    </div>
+                </div>
+                <div class="row" style="margin-top:10px">
+                    <div>
+                        <label>Shingle (2-5)</label>
+                        <input id="shingle" type="number" value="3" />
+                    </div>
+                    <div>
+                        <label>Janela (parágrafos)</label>
+                        <input id="windowN" type="number" value="250" />
+                    </div>
+                </div>
+            </div>
+            <h2>4) Regras de Exclusão (Filtro)</h2>
+            <div class="box">
+                <label>Excluir se contiver (1 por linha)</label>
+                <textarea id="banWords" placeholder="Ex.: modelo padrão&#10;pede deferimento"></textarea>
+                <label>Excluir por REGEX</label>
+                <textarea id="banRegex" placeholder="Ex.: ^\s{3,}.$"></textarea>
+                <div class="row" style="margin-top:10px">
+                    <button class="b4" id="btnSaveRules">Salvar Regras</button>
+                    <button class="b2" id="btnClearRules">Limpar</button>
+                </div>
+            </div>
+            <h2>5) Regras de Manutenção (VIP)</h2>
+            <div class="box">
+                <label>Manter se contiver (Whitelist)</label>
+                <textarea id="keepWords" placeholder="Ex.: importante&#10;urgente"></textarea>
+                <label>Manter por REGEX</label>
+                <textarea id="keepRegex" placeholder="Ex.: ^URGENTE.$"></textarea>
+                <div class="row" style="margin-top:10px">
+                    <button class="b4" id="btnSaveKeepRules">Salvar VIP</button>
+                    <button class="b2" id="btnClearKeepRules">Limpar VIP</button>
+                </div>
+            </div>
+            <h2>6) Regras de Captura (Extrator)</h2>
+            <div class="box">
+                <label>Capturar se contiver (1 por linha)</label>
+                <textarea id="captureWords" placeholder="Ex.: falsificação&#10;estelionato"></textarea>
+                <label>Capturar por REGEX</label>
+                <textarea id="captureRegex" placeholder="Ex.: \\b(falsificação|fraude)\\b[\\s\\S]{0,500}"></textarea>
+                <div class="row" style="margin-top:10px">
+                    <button class="b4" id="btnSaveCaptureRules">Salvar Captura</button>
+                    <button class="b2" id="btnClearCaptureRules">Limpar Captura</button>
+                </div>
+            </div>
+            <div class="btnrow">
+                <button class="b1" id="btnRun">Filtrar Agora</button>
+                <button class="b2" id="btnClearAll">Limpar Tudo</button>
+            </div>
+            <h2>Status</h2>
+            <div class="status" id="status">Pronto.</div>
+            <h2>Removidos</h2>
+            <details>
+                <summary>Ver removidos</summary>
+                <div id="removedBox"></div>
+            </details>
+            <h2>Exportar Itens Removidos</h2>
+            <div class="btnrow-export">
+                <button class="b3" id="btnExportRemovedWord">Exportar Word</button>
+                <button class="b3" id="btnExportRemovedTxt">Exportar TXT</button>
+                <button class="b4" id="btnExportRemovedJson">Exportar JSON</button>
+                <button class="b4" id="btnExportRemovedMarkdown">Exportar Markdown</button>
+            </div>
+            <h2>Manual de Regex (Guia Rápido)</h2>
+            <details>
+                <summary>Como criar regras de captura/exclusão</summary>
+                <div style="font-size:12px; color:var(--txt); line-height:1.4;">
+                    <p><b>Regex (Expressões Regulares)</b> são padrões para buscar ou excluir texto. Use nos campos "Capturar por REGEX" (para destacar trechos) ou "Excluir por REGEX" (para remover).</p>
+                    <h3>Comandos Básicos:</h3>
+                    <ul style="padding-left:20px;">
+                        <li><b>\b</b>: Limite de palavra (ex.: <code>\bFraude\b</code> pega só "Fraude", não "Fraudez").</li>
+                        <li><b>^</b>: Início de linha (ex.: <code>^Modelo</code> exclui linhas começando com "Modelo").</li>
+                        <li><b>$</b>: Fim de linha (ex.: <code>deferimento$</code> pega linhas terminando com "deferimento").</li>
+                        <li><b>|</b>: Ou (ex.: <code>Fraude|Estelionato</code> pega um ou outro).</li>
+                        <li><b>[\\s\\S]{0,500}</b>: Pega até 500 caracteres após o termo (útil para captura de contexto).</li>
+                        <li><b>.*?</b>: Pega qualquer texto até o próximo padrão (ex.: <code>Contrato.*?assinatura</code> pega de "Contrato" até "assinatura").</li>
+                    </ul>
+                    <h3>Exemplos para Captura (Extrator):</h3>
+                    <ul style="padding-left:20px;">
+                        <li><code>\b(Falsificação|Fraude)\b[\\s\\S]{0,500}</code>: Pega trechos com "Falsificação" ou "Fraude" + 500 caracteres de contexto.</li>
+                        <li><code>\bSentença\b[\\s\\S]*?(?=\bId\s+no\s+PJE|\bEvento\s+\d+|$)</code>: Pega trecho de "Sentença" até um identificador.</li>
+                    </ul>
+                    <h3>Exemplos para Exclusão (Filtro):</h3>
+                    <ul style="padding-left:20px;">
+                        <li><code>^Modelo\s+Padrão</code>: Exclui linhas começando com "Modelo Padrão".</li>
+                        <li><code>^(?=\s{3,})</code>: Exclui linhas com 3 ou mais espaços no início (formatação estranha).</li>
+                    </ul>
+                    <p><b>Dica:</b> Teste regex em ferramentas como regex101.com antes de usar aqui.</p>
+                </div>
+            </details>
+        </div>
+        <div class="right">
+            <div class="paper">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3>Resultado Filtrado</h3>
+                    <button class="b-copy" id="btnCopyText" title="Copia o texto limpo para colar no Word">&#x1F4CB; Copiar Texto Limpo</button>
+                </div>
+                <div class="small">Use o botão acima para copiar ou os botões abaixo para baixar arquivo.</div>
+                <div class="btnrow-export">
+                    <button class="b3" id="btnExportWord">Exportar Word</button>
+                    <button class="b3" id="btnExportTxt">Exportar TXT</button>
+                    <button class="b4" id="btnExportJson">Exportar JSON</button>
+                    <button class="b4" id="btnExportMarkdown">Exportar Markdown</button>
+                </div>
+                <hr style="margin:10px 0; border:0; border-top:1px solid #ddd;" />
+                <div id="out" class="out">[O texto filtrado aparece aqui]</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Banco de dados IndexedDB para salvamento robusto
+        const dbPromise = idb.openDB("FiltradorDB", 1, {
+            upgrade(db) {
+                db.createObjectStore("state", { keyPath: "id" });
+            }
+        });
+
+        async function loadState() {
+            const db = await dbPromise;
+            const state = await db.get("state", "current");
+            if (!state) return;
+            if (state.raw != null) document.getElementById("raw").value = state.raw;
+            if (state.banWords != null) document.getElementById("banWords").value = state.banWords;
+            if (state.banRegex != null) document.getElementById("banRegex").value = state.banRegex;
+            if (state.keepWords != null) document.getElementById("keepWords").value = state.keepWords;
+            if (state.keepRegex != null) document.getElementById("keepRegex").value = state.keepRegex;
+            if (state.captureWords != null) document.getElementById("captureWords").value = state.captureWords;
+            if (state.captureRegex != null) document.getElementById("captureRegex").value = state.captureRegex;
+            if (state.cfg) {
+                for (const [k, v] of Object.entries(state.cfg)) {
+                    const el = document.getElementById(k);
+                    if (!el) continue;
+                    if (el.type === "checkbox") el.checked = !!v;
+                    else el.value = v;
+                }
+            }
+            if (state.lastOut != null) document.getElementById("out").textContent = state.lastOut;
+        }
+
+        async function saveState(extra = {}) {
+            const db = await dbPromise;
+            const cfgIds = ["cleanSymbols", "dedupeExact", "dedupeNear", "keepOrder", "splitLarge", "minChars", "sim", "shingle", "windowN", "cleanAsterisk1", "cleanAsterisk2", "cleanAsterisk3", "cleanHash1", "cleanHash2", "cleanHash3", "useOCR"];
+            const cfg = {};
+            for (const id of cfgIds) {
+                const el = document.getElementById(id);
+                cfg[id] = (el.type === "checkbox") ? el.checked : el.value;
+            }
+            const st = {
+                id: "current",
+                raw: document.getElementById("raw").value,
+                banWords: document.getElementById("banWords").value,
+                banRegex: document.getElementById("banRegex").value,
+                keepWords: document.getElementById("keepWords").value,
+                keepRegex: document.getElementById("keepRegex").value,
+                captureWords: document.getElementById("captureWords").value,
+                captureRegex: document.getElementById("captureRegex").value,
+                cfg,
+                lastOut: document.getElementById("out").textContent,
+                ...extra
+            };
+            await db.put("state", st);
+        }
+
+        ["raw", "banWords", "banRegex", "keepWords", "keepRegex", "captureWords", "captureRegex", "minChars", "sim", "shingle", "windowN", "cleanSymbols", "dedupeExact", "dedupeNear", "keepOrder", "splitLarge", "cleanAsterisk1", "cleanAsterisk2", "cleanAsterisk3", "cleanHash1", "cleanHash2", "cleanHash3", "useOCR"]
+            .forEach(id => {
+                const el = document.getElementById(id);
+                el && el.addEventListener("input", () => saveState());
+                el && el.addEventListener("change", () => saveState());
+            });
+
+        // UI helpers
+        function setStatus(s) { document.getElementById("status").textContent = s; }
+        function ov(on, msg, sub) {
+            const o = document.getElementById("ov");
+            o.style.display = on ? "flex" : "none";
+            if (msg) document.getElementById("ovMsg").textContent = msg;
+            if (sub) document.getElementById("ovSub").textContent = sub;
+        }
+        function download(filename, text, mime = "text/plain") {
+            const blob = new Blob([text], { type: mime });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        }
+
+        // Text utilities
+        function cleanMarkdownNoise(t) {
+            let s = t || "";
+            if (document.getElementById("cleanAsterisk1").checked) s = s.replace(/\*/g, "");
+            if (document.getElementById("cleanAsterisk2").checked) s = s.replace(/\*\*/g, "");
+            if (document.getElementById("cleanAsterisk3").checked) s = s.replace(/\*\*\*/g, "");
+            if (document.getElementById("cleanHash1").checked) s = s.replace(/#/g, "");
+            if (document.getElementById("cleanHash2").checked) s = s.replace(/##/g, "");
+            if (document.getElementById("cleanHash3").checked) s = s.replace(/###/g, "");
+            if (document.getElementById("cleanSymbols").checked) {
+                s = s.replace(/^\s{0,6}(?:[•\-–—]+|#{1,6}|>+)\s+/gm, "");
+                s = s.replace(/[#~]{2,}/g, " ");
+            }
+            s = s.replace(/[“”]/g, '"').replace(/[’]/g, "'");
+            s = s.replace(/[ \t]+/g, " ");
+            s = s.replace(/\n{3,}/g, "\n\n");
+            return s;
+        }
+        function splitParagraphs(t, splitLarge = false) {
+            const paragraphs = (t || "")
+                .replace(/\r\n/g, "\n")
+                .split(/\n{2,}|\n(?=\s*[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]{3,}[\s:])/g)
+                .map(p => p.trim())
+                .filter(Boolean);
+            if (splitLarge) {
+                const splitSize = 500;
+                const result = [];
+                paragraphs.forEach(p => {
+                    if (p.length > splitSize) {
+                        let start = 0;
+                        while (start < p.length) {
+                            result.push(p.slice(start, start + splitSize));
+                            start += splitSize;
+                        }
+                    } else {
+                        result.push(p);
+                    }
+                });
+                return result;
+            }
+            return paragraphs;
+        }
+        function normalizeForCompare(s) {
+            return (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+        }
+        function makeShingles(words, size) {
+            const out = [];
+            for (let i = 0; i + size <= words.length; i++) out.push(words.slice(i, i + size).join(" "));
+            return out;
+        }
+        function signature(norm, shingleSize) {
+            const words = norm.split(" ").filter(Boolean);
+            const sh = makeShingles(words, shingleSize);
+            const limited = sh.length > 250 ? sh.slice(0, 250) : sh;
+            return new Set(limited);
+        }
+        function jaccard(a, b) {
+            if (!a.size || !b.size) return 0;
+            let inter = 0;
+            const small = a.size < b.size ? a : b;
+            const big = a.size < b.size ? b : a;
+            for (const x of small) if (big.has(x)) inter++;
+            const uni = a.size + b.size - inter;
+            return uni ? inter / uni : 0;
+        }
+        function parseLines(text) {
+            return (text || "").split("\n").map(s => s.trim()).filter(Boolean);
+        }
+        function buildRegexList(lines) {
+            const out = [];
+            for (const l of lines) {
+                try { out.push(new RegExp(l, "i")); } catch (e) {}
+            }
+            return out;
+        }
+
+        // Importers
+        async function extractTextFromPDF(file, useOCR) {
+            const buf = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+            let full = "";
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                if (content.items.length > 0) {
+                    full += `--- Página ${i} ---\n` + content.items.map(it => it.str).join(" ") + "\n\n";
+                } else if (useOCR) {
+                    ov(true, `OCR: Processando Página ${i}...`, "Isso pode demorar um pouco.");
+                    try {
+                        const viewport = page.getViewport({ scale: 2.0 });
+                        const canvas = document.createElement("canvas");
+                        const context = canvas.getContext("2d");
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+                        await page.render({ canvasContext: context, viewport }).promise;
+                        const imageData = canvas.toDataURL("image/png");
+                        const worker = await Tesseract.createWorker('por');
+                        const result = await worker.recognize(imageData);
+                        await worker.terminate();
+                        full += `--- Página ${i} (OCR) ---\n` + result.data.text + "\n\n";
+                    } catch (e) {
+                        full += `--- Página ${i} (Erro OCR) ---\nNão foi possível extrair texto.\n\n`;
+                    } finally {
+                        ov(false);
+                    }
+                } else {
+                    full += `--- Página ${i} ---\nTexto não extraído (ative OCR se necessário).\n\n`;
+                }
+            }
+            return full;
+        }
+        async function extractTextFromDOCX(file) {
+            const buf = await file.arrayBuffer();
+            const res = await mammoth.extractRawText({ arrayBuffer: buf });
+            return res.value || "";
+        }
+        async function extractTextFromJSON(file) {
+            const txt = await file.text();
+            let obj;
+            try { obj = JSON.parse(txt); } catch (e) { return txt; }
+            const parts = [];
+            (function walk(x) {
+                if (x == null) return;
+                if (typeof x === "string") { if (x.trim().length > 0) parts.push(x); return; }
+                if (Array.isArray(x)) { x.forEach(walk); return; }
+                if (typeof x === "object") { Object.values(x).forEach(walk); return; }
+            })(obj);
+            return parts.join("\n\n");
+        }
+
+        // Core filtering
+        let res = { removed: [], outText: "", outPars: [], stats: { total: 0, kept: 0, removed: 0 } };
+        function applyBanRules(par, banWords, banRegexList, keepWords, keepRegexList) {
+            const low = par.toLowerCase();
+            for (const w of keepWords) if (w && low.includes(w.toLowerCase())) return { drop: false, reason: `mantido por palavra: "${w}"` };
+            for (const rx of keepRegexList) if (rx.test(par)) return { drop: false, reason: `mantido por regex: /${rx.source}/i` };
+            for (const w of banWords) if (w && low.includes(w.toLowerCase())) return { drop: true, reason: `regra palavra: "${w}"` };
+            for (const rx of banRegexList) if (rx.test(par)) return { drop: true, reason: `regex: /${rx.source}/i` };
+            return { drop: false };
+        }
+        function applyCaptureRules(par, captureWords, captureRegexList) {
+            const low = par.toLowerCase();
+            for (const w of captureWords) if (w && low.includes(w.toLowerCase())) return { highlight: true, reason: `capturado por palavra: "${w}"` };
+            for (const rx of captureRegexList) if (rx.test(par)) return { highlight: true, reason: `capturado por regex: /${rx.source}/i` };
+            return { highlight: false };
+        }
+        function filterText(rawText, cfg) {
+            const removed = [];
+            let text = rawText || "";
+            if (cfg.cleanSymbols) text = cleanMarkdownNoise(text);
+            let pars = splitParagraphs(text, cfg.splitLarge)
+                .map(p => p.replace(/\s+/g, " ").trim())
+                .filter(p => p.length >= cfg.minChars);
+            const exactSet = new Set();
+            const kept = [];
+            const out = [];
+            for (const p of pars) {
+                const rule = applyBanRules(p, cfg.banWords, cfg.banRegexList, cfg.keepWords, cfg.keepRegexList);
+                if (rule.drop) {
+                    removed.push({ motivo: rule.reason, texto: p });
+                    continue;
+                }
+                const capture = applyCaptureRules(p, cfg.captureWords, cfg.captureRegexList);
+                const norm = normalizeForCompare(p);
+                if (cfg.dedupeExact) {
+                    if (exactSet.has(norm)) {
+                        removed.push({ motivo: "duplicata exata", texto: p });
+                        continue;
+                    }
+                    exactSet.add(norm);
+                }
+                if (cfg.dedupeNear) {
+                    const sig = signature(norm, cfg.shingleSize);
+                    let dup = false;
+                    const start = Math.max(0, kept.length - cfg.windowN);
+                    for (let i = start; i < kept.length; i++) {
+                        if (jaccard(sig, kept[i].sig) >= cfg.sim) {
+                            dup = true;
+                            break;
+                        }
+                    }
+                    if (dup) {
+                        removed.push({ motivo: "duplicata aproximada", texto: p });
+                        continue;
+                    }
+                    kept.push({ raw: p, norm, sig });
+                }
+                out.push(capture.highlight ? `**${p}** (Destacado: ${capture.reason})` : p);
+            }
+            return {
+                outText: out.join("\n\n"),
+                outPars: out,
+                removed,
+                stats: {
+                    total: pars.length,
+                    kept: out.length,
+                    removed: removed.length
+                }
+            };
+        }
+
+        // Event Listeners
+        document.getElementById("btnSaveRules").addEventListener("click", () => { saveState(); setStatus("Regras salvas."); });
+        document.getElementById("btnClearRules").addEventListener("click", () => {
+            document.getElementById("banWords").value = "";
+            document.getElementById("banRegex").value = "";
+            saveState();
+            setStatus("Regras limpas.");
+        });
+        document.getElementById("btnSaveKeepRules").addEventListener("click", () => { saveState(); setStatus("VIP salvo."); });
+        document.getElementById("btnClearKeepRules").addEventListener("click", () => {
+            document.getElementById("keepWords").value = "";
+            document.getElementById("keepRegex").value = "";
+            saveState();
+            setStatus("VIP limpo.");
+        });
+        document.getElementById("btnSaveCaptureRules").addEventListener("click", () => { saveState(); setStatus("Regras de Captura salvas."); });
+        document.getElementById("btnClearCaptureRules").addEventListener("click", () => {
+            document.getElementById("captureWords").value = "";
+            document.getElementById("captureRegex").value = "";
+            saveState();
+            setStatus("Regras de Captura limpas.");
+        });
+        document.getElementById("btnClearAll").addEventListener("click", async () => {
+            if (!confirm("Limpar tudo?")) return;
+            document.getElementById("raw").value = "";
+            document.getElementById("out").textContent = "[O texto filtrado aparece aqui]";
+            document.getElementById("removedBox").innerHTML = "";
+            setStatus("Pronto.");
+            await saveState({ lastOut: "[O texto filtrado aparece aqui]" });
+        });
+        document.getElementById("btnExportTxt").addEventListener("click", () => {
+            download("filtrado.txt", document.getElementById("out").textContent, "text/plain;charset=utf-8");
+        });
+        document.getElementById("btnExportJson").addEventListener("click", () => {
+            const payload = {
+                createdAt: new Date().toISOString(),
+                rawPreview: document.getElementById("raw").value,
+                output: document.getElementById("out").textContent
+            };
+            download("filtrado.json", JSON.stringify(payload, null, 2), "application/json;charset=utf-8");
+        });
+        document.getElementById("btnExportWord").addEventListener("click", () => {
+            const content = document.getElementById("out").textContent || "";
+            const paragraphs = content.split(/\n\n+/);
+            let htmlBody = "";
+            for (let p of paragraphs) {
+                if (!p.trim()) continue;
+                const safeP = p.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+                htmlBody += `<p style="margin-bottom:12pt; font-family:'Times New Roman', serif; font-size:12pt; line-height:1.5;">${safeP}</p>`;
+            }
+            const htmlContent = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'><title>Filtrado</title></head>
+                <body>${htmlBody}</body>
+                </html>
+            `;
+            download("filtrado.doc", htmlContent, "application/msword");
+        });
+        document.getElementById("btnExportMarkdown").addEventListener("click", () => {
+            const content = document.getElementById("out").textContent || "";
+            download("filtrado.md", content, "text/markdown;charset=utf-8");
+        });
+        document.getElementById("btnCopyText").addEventListener("click", async () => {
+            const text = document.getElementById("out").textContent;
+            try {
+                await navigator.clipboard.writeText(text);
+                setStatus("✅ Texto copiado! Pode colar no Word (Ctrl+V).");
+                const btn = document.getElementById("btnCopyText");
+                const originalText = btn.textContent;
+                btn.textContent = "Copiado!";
+                setTimeout(() => btn.textContent = originalText, 2000);
+            } catch (err) {
+                setStatus("❌ Erro ao copiar. Tente selecionar e copiar manualmente.");
+            }
+        });
+        document.getElementById("btnRun").addEventListener("click", async () => {
+            const raw = document.getElementById("raw").value;
+            if (!raw.trim()) { alert("Cole o texto ou importe arquivos primeiro."); return; }
+            const cfg = {
+                cleanSymbols: document.getElementById("cleanSymbols").checked,
+                dedupeExact: document.getElementById("dedupeExact").checked,
+                dedupeNear: document.getElementById("dedupeNear").checked,
+                keepOrder: document.getElementById("keepOrder").checked,
+                splitLarge: document.getElementById("splitLarge").checked,
+                minChars: Math.max(0, Number(document.getElementById("minChars").value || 0)),
+                sim: Math.max(0.50, Math.min(0.95, Number(document.getElementById("sim").value || 0.72))),
+                shingleSize: Math.max(2, Math.min(5, Number(document.getElementById("shingle").value || 3))),
+                windowN: Math.max(10, Math.min(2000, Number(document.getElementById("windowN").value || 250))),
+                banWords: parseLines(document.getElementById("banWords").value),
+                banRegexList: buildRegexList(parseLines(document.getElementById("banRegex").value)),
+                keepWords: parseLines(document.getElementById("keepWords").value),
+                keepRegexList: buildRegexList(parseLines(document.getElementById("keepRegex").value)),
+                captureWords: parseLines(document.getElementById("captureWords").value),
+                captureRegexList: buildRegexList(parseLines(document.getElementById("captureRegex").value))
+            };
+            ov(true, "Filtrando…", "Removendo repetição e aplicando regras.");
+            setTimeout(async () => {
+                try {
+                    res = filterText(raw, cfg);
+                    document.getElementById("out").textContent = res.outText || "";
+                    const rb = document.getElementById("removedBox");
+                    rb.innerHTML = "";
+                    const sample = res.removed.slice(0, 300);
+                    for (let i = 0; i < sample.length; i++) {
+                        const r = sample[i];
+                        const div = document.createElement("div");
+                        div.className = "removedItem";
+                        div.innerHTML = `<b>${i+1}. ${escapeHtml(r.motivo)}</b><br>${escapeHtml(r.texto)}`;
+                        rb.appendChild(div);
+                    }
+                    if (res.removed.length > sample.length) {
+                        const more = document.createElement("div");
+                        more.className = "small";
+                        more.style.marginTop = "10px";
+                        more.textContent = `… (${res.removed.length} removidos no total)`;
+                        rb.appendChild(more);
+                    }
+                    setStatus(`Concluído. Mantidos: ${res.stats.kept} | Removidos: ${res.stats.removed}`);
+                    await saveState({ lastOut: res.outText });
+                } catch (e) {
+                    console.error(e);
+                    alert("Erro: " + e.message);
+                } finally {
+                    ov(false);
+                }
+            }, 30);
+        });
+        function escapeHtml(s) {
+            return (s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+        }
+        document.getElementById("files").addEventListener("change", async (e) => {
+            const files = Array.from(e.target.files || []);
+            if (!files.length) return;
+            const useOCR = document.getElementById("useOCR").checked;
+            ov(true, "Importando…", useOCR ? "Lendo arquivos com OCR (pode demorar)." : "Lendo arquivos.");
+            try {
+                let combined = document.getElementById("raw").value || "";
+                for (const f of files) {
+                    const name = (f.name || "").toLowerCase();
+                    let text = "";
+                    if (name.endsWith(".txt") || name.endsWith(".md")) text = await f.text();
+                    else if (name.endsWith(".pdf")) text = await extractTextFromPDF(f, useOCR);
+                    else if (name.endsWith(".docx")) text = await extractTextFromDOCX(f);
+                    else if (name.endsWith(".json")) text = await extractTextFromJSON(f);
+                    else text = await f.text();
+                    combined += (combined.trim() ? "\n\n" : "") + `--- ARQUIVO: ${f.name} ---\n` + text;
+                }
+                document.getElementById("raw").value = combined;
+                await saveState();
+                setStatus(`Importação concluída: ${files.length} arquivo(s).`);
+            } catch (err) {
+                alert("Falha ao importar: " + err.message);
+            } finally {
+                ov(false);
+                e.target.value = "";
+            }
+        });
+
+        // Exportação de itens removidos
+        document.getElementById("btnExportRemovedTxt").addEventListener("click", () => {
+            const removedText = res.removed.map((r, i) => `${i+1}. Motivo: ${r.motivo}\n${r.texto}\n\n`).join("");
+            download("removidos.txt", removedText, "text/plain;charset=utf-8");
+        });
+        document.getElementById("btnExportRemovedJson").addEventListener("click", () => {
+            const payload = {
+                createdAt: new Date().toISOString(),
+                removedItems: res.removed
+            };
+            download("removidos.json", JSON.stringify(payload, null, 2), "application/json;charset=utf-8");
+        });
+        document.getElementById("btnExportRemovedMarkdown").addEventListener("click", () => {
+            const removedMd = res.removed.map((r, i) => `**${i+1}. Motivo: ${r.motivo}**\n\n${r.texto}\n\n---`).join("\n");
+            download("removidos.md", removedMd, "text/markdown;charset=utf-8");
+        });
+        document.getElementById("btnExportRemovedWord").addEventListener("click", () => {
+            let htmlBody = "";
+            res.removed.forEach((r, i) => {
+                const safeMotivo = r.motivo.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+                const safeTexto = r.texto.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+                htmlBody += `<p style="margin-bottom:12pt; font-family:'Times New Roman', serif; font-size:12pt; line-height:1.5;"><b>${i+1}. Motivo: ${safeMotivo}</b></p>`;
+                htmlBody += `<p style="margin-bottom:12pt; font-family:'Times New Roman', serif; font-size:12pt; line-height:1.5;">${safeTexto}</p>`;
+                htmlBody += `<hr>`;
+            });
+            const htmlContent = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'><title>Removidos</title></head>
+                <body>${htmlBody}</body>
+                </html>
+            `;
+            download("removidos.doc", htmlContent, "application/msword");
+        });
+
+        loadState();
+    </script>
+</body>
+</html>
