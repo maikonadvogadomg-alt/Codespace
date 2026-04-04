@@ -1,0 +1,2158 @@
+{
+    "openapi" : "3.0.0",
+    "info" : {
+        "description" : "Serviço de notificações",
+        "version" : "183712-oas3",
+        "title" : "PDPJ - Serviço de notificações",
+        "contact" : {
+            "name" : "CNJ",
+            "url" : "https://www.cnj.jus.br",
+            "email" : "dti@cnj.jus.br"
+        },
+        "license" : {
+            "name" : "LICENSE",
+            "url" : "LICENSE URL"
+        }
+    },
+    "tags" : [ {
+        "name" : "Administrador consultas",
+        "description" : "Admin Consulta Rest Controller"
+    }, {
+        "name" : "Eventos",
+        "description" : "Evento Rest Controller"
+    }, {
+        "name" : "Inscrições nos eventos",
+        "description" : "Inscricao Evento Rest Controller"
+    }, {
+        "name" : "Serviços",
+        "description" : "Servico Rest Controller"
+    }, {
+        "name" : "Subscritor consultas",
+        "description" : "Subscritor Consulta Rest Controller"
+    }, {
+        "name" : "Templates",
+        "description" : "Template Rest Controller"
+    }, {
+        "name" : "pdpj-rest-controller",
+        "description" : "Pdpj Rest Controller"
+    }, {
+        "name" : "New Tag 8"
+    }],
+    "paths" : {
+        "/api/v1/admin-consultas" : {
+            "get" : {
+                "tags" : ["Administrador consultas"],
+                "summary" : "Retorna todos os serviços com os eventos e templates associados.",
+                "description" : "Retorna todos os serviços com os eventos e templates associados.",
+                "operationId" : "pesquisarUsingGET",
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_List_AdminConsultaServicoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/eventos" : {
+            "get" : {
+                "tags" : ["Eventos"],
+                "summary" : "Lista os eventos de um serviço",
+                "description" : "Lista os eventos de um serviço. Permite filtrar or diversos campos.",
+                "operationId" : "pesquisarUsingGET_1",
+                "parameters" : [ {
+                    "name" : "servicoId",
+                    "in" : "query",
+                    "description" : "Id do serviço",
+                    "required" : true,
+                    "allowEmptyValue" : false,
+                    "example" : 1,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_List_EventoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            },
+            "post" : {
+                "tags" : ["Eventos"],
+                "summary" : "Registra um evento lançado de um sistema",
+                "description" : "Registra um evento lançado de um sistema. Após o registro do evento, pode-se incluir os formatos e templates pelos quais o evento poderá vir a ser entregue aos seus assinantes.",
+                "operationId" : "registrarUsingPOST",
+                "requestBody" : {
+                    "content" : {
+                        "application/json" : {
+                            "schema" : {
+                                "$ref" : "#/components/schemas/InclusaoEventoDTO"
+                            }
+                        }
+                    },
+                    "description" : "Evento lançado pelo sistema. Uma vez registrado, passará a ser monitorado pelo serviço de notificações."
+                },
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_EventoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/eventos/{id}" : {
+            "get" : {
+                "tags" : ["Eventos"],
+                "summary" : "Recupera um evento por seu id",
+                "description" : "Recupera um evento por seu id",
+                "operationId" : "recuperarUsingGET",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id do evento.",
+                    "required" : true,
+                    "example" : 1234,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_EventoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            },
+            "patch" : {
+                "tags" : ["Eventos"],
+                "summary" : "Edita os dados de um evento lançado de um sistema",
+                "description" : "Edita os dados de um evento lançado de um sistema",
+                "operationId" : "alterarRegistroUsingPATCH",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id do evento.",
+                    "required" : true,
+                    "example" : 1234,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "requestBody" : {
+                    "content" : {
+                        "application/json" : {
+                            "schema" : {
+                                "$ref" : "#/components/schemas/AlteracaoEventoDTO"
+                            }
+                        }
+                    },
+                    "description" : "evento",
+                    "required" : true
+                },
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_EventoDTO_"
+                                }
+                            }
+                        }
+                    },
+                    "204" : {
+                        "description" : "No Content"
+                    },
+                    "401" : {
+                        "description" : "Unauthorized"
+                    },
+                    "403" : {
+                        "description" : "Forbidden"
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/eventos/{id}/ativo" : {
+            "patch" : {
+                "tags" : ["Eventos"],
+                "summary" : "Ativa o monitoramento de um evento inativo",
+                "description" : "Ativa o monitoramento de um evento inativo",
+                "operationId" : "ativarUsingPATCH",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id do evento.",
+                    "required" : true,
+                    "example" : 1234,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_string_"
+                                }
+                            }
+                        }
+                    },
+                    "204" : {
+                        "description" : "No Content"
+                    },
+                    "401" : {
+                        "description" : "Unauthorized"
+                    },
+                    "403" : {
+                        "description" : "Forbidden"
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/eventos/{id}/inativo" : {
+            "patch" : {
+                "tags" : ["Eventos"],
+                "summary" : "Inativa o monitoramento de um evento ativo",
+                "description" : "Inativa o monitoramento de um evento ativo",
+                "operationId" : "desativarUsingPATCH",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id do evento.",
+                    "required" : true,
+                    "example" : 1234,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_string_"
+                                }
+                            }
+                        }
+                    },
+                    "204" : {
+                        "description" : "No Content"
+                    },
+                    "401" : {
+                        "description" : "Unauthorized"
+                    },
+                    "403" : {
+                        "description" : "Forbidden"
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/inscricoes" : {
+            "get" : {
+                "tags" : ["Inscrições nos eventos"],
+                "summary" : "Lista as inscrições de um serviço ou evento, por seu Id",
+                "description" : "Lista as inscrições de um serviço ou evento, por seu Id",
+                "operationId" : "pesquisarUsingGET_2",
+                "parameters" : [ {
+                    "name" : "eventoId",
+                    "in" : "query",
+                    "description" : "Id do evento",
+                    "required" : false,
+                    "allowEmptyValue" : false,
+                    "example" : 1,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }, {
+                    "name" : "servicoId",
+                    "in" : "query",
+                    "description" : "Id do serviço",
+                    "required" : false,
+                    "allowEmptyValue" : false,
+                    "example" : 1,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_List_InscricaoEventoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            },
+            "post" : {
+                "tags" : ["Inscrições nos eventos"],
+                "summary" : "Registra uma inscrição a um evento lançado no sistema",
+                "description" : "Registra uma inscrição a um evento lançado de um sistema. Após o registro da inscrição, pode-se escolher  formatos e templates pelos quais o evento poderá vir a ser entregue aos seus assinantes.",
+                "operationId" : "registrarUsingPOST_1",
+                "requestBody" : {
+                    "content" : {
+                        "application/json" : {
+                            "schema" : {
+                                "$ref" : "#/components/schemas/InclusaoInscricaoEventoDTO"
+                            }
+                        }
+                    },
+                    "description" : "Inscrição a um evento lançado pelo sistema."
+                },
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_InscricaoEventoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/inscricoes/usuario" : {
+            "get" : {
+                "tags" : ["Inscrições nos eventos"],
+                "summary" : "Lista todas as inscrições associadas aos tribunais do usuário logado",
+                "description" : "Lista todas as inscrições associadas aos tribunais do usuário logado",
+                "operationId" : "pesquisarPorTribunaisUsingGET",
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_List_InscricaoEventoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/inscricoes/{id}" : {
+            "get" : {
+                "tags" : ["Inscrições nos eventos"],
+                "summary" : "Recupera uma inscrição por seu id",
+                "description" : "Recupera uma inscrição por seu id",
+                "operationId" : "recuperarUsingGET_1",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id da inscrição",
+                    "required" : true,
+                    "example" : 1,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_InscricaoEventoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            },
+            "patch" : {
+                "tags" : ["Inscrições nos eventos"],
+                "summary" : "Edita os dados de uma inscrição",
+                "description" : "Edita os dados de uma inscrição",
+                "operationId" : "alterarRegistroUsingPATCH_1",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id da inscrição",
+                    "required" : true,
+                    "example" : 1,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "requestBody" : {
+                    "content" : {
+                        "application/json" : {
+                            "schema" : {
+                                "$ref" : "#/components/schemas/AlteracaoInscricaoEventoDTO"
+                            }
+                        }
+                    },
+                    "description" : "inscricao",
+                    "required" : true
+                },
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_InscricaoEventoDTO_"
+                                }
+                            }
+                        }
+                    },
+                    "204" : {
+                        "description" : "No Content"
+                    },
+                    "401" : {
+                        "description" : "Unauthorized"
+                    },
+                    "403" : {
+                        "description" : "Forbidden"
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/inscricoes/{id}/ativo" : {
+            "patch" : {
+                "tags" : ["Inscrições nos eventos"],
+                "summary" : "Ativa uma inscrição de um evento",
+                "description" : "Ativa uma inscrição de um evento",
+                "operationId" : "ativarUsingPATCH_1",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id da inscrição",
+                    "required" : true,
+                    "example" : 1,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_string_"
+                                }
+                            }
+                        }
+                    },
+                    "204" : {
+                        "description" : "No Content"
+                    },
+                    "401" : {
+                        "description" : "Unauthorized"
+                    },
+                    "403" : {
+                        "description" : "Forbidden"
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/inscricoes/{id}/inativo" : {
+            "patch" : {
+                "tags" : ["Inscrições nos eventos"],
+                "summary" : "Inativa uma inscrição de um evento",
+                "description" : "Inativa uma inscrição de um evento",
+                "operationId" : "desativarUsingPATCH_1",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id da inscrição",
+                    "required" : true,
+                    "example" : 1,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_string_"
+                                }
+                            }
+                        }
+                    },
+                    "204" : {
+                        "description" : "No Content"
+                    },
+                    "401" : {
+                        "description" : "Unauthorized"
+                    },
+                    "403" : {
+                        "description" : "Forbidden"
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/servicos" : {
+            "post" : {
+                "tags" : ["Serviços"],
+                "summary" : "Registra um novo serviço que poderá lançar eventos.",
+                "description" : "Registra um novo serviço que poderá lançar eventos.",
+                "operationId" : "registrarUsingPOST_2",
+                "requestBody" : {
+                    "content" : {
+                        "application/json" : {
+                            "schema" : {
+                                "$ref" : "#/components/schemas/InclusaoServicoDTO"
+                            }
+                        }
+                    },
+                    "description" : "servico",
+                    "required" : true
+                },
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_ServicoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/servicos/" : {
+            "get" : {
+                "tags" : ["Serviços"],
+                "summary" : "Retorna todos os serviços, ativos ou não.",
+                "description" : "Retorna todos os serviços, ativos ou não.",
+                "operationId" : "pesquisarUsingGET_3",
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_List_ServicoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/servicos/id/{id}" : {
+            "get" : {
+                "tags" : ["Serviços"],
+                "summary" : "Retorna um serviço pelo seu id.",
+                "description" : "Retorna um serviço pelo seu id.",
+                "operationId" : "recuperarPorIdUsingGET",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id do serviço",
+                    "required" : true,
+                    "example" : 1,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_ServicoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/servicos/{nome}" : {
+            "get" : {
+                "tags" : ["Serviços"],
+                "summary" : "Retorna um serviço pelo seu nome.",
+                "description" : "Retorna um serviço pelo seu nome.",
+                "operationId" : "recuperarUsingGET_2",
+                "parameters" : [ {
+                    "name" : "nome",
+                    "in" : "path",
+                    "description" : "Nome do serviço. É uma string sem espaços",
+                    "required" : true,
+                    "example" : "SISBAJUD",
+                    "schema" : {
+                        "type" : "string"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_ServicoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            },
+            "patch" : {
+                "tags" : ["Serviços"],
+                "summary" : "Atualiza os dados de um serviço.",
+                "description" : "Atualiza os dados de um serviço.",
+                "operationId" : "alterarRegistroUsingPATCH_2",
+                "parameters" : [ {
+                    "name" : "nome",
+                    "in" : "path",
+                    "description" : "Nome do serviço. É uma string sem espaços",
+                    "required" : true,
+                    "example" : "SISBAJUD",
+                    "schema" : {
+                        "type" : "string"
+                    }
+                }],
+                "requestBody" : {
+                    "content" : {
+                        "application/json" : {
+                            "schema" : {
+                                "$ref" : "#/components/schemas/AlteracaoServicoDTO"
+                            }
+                        }
+                    },
+                    "description" : "servico",
+                    "required" : true
+                },
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_ServicoDTO_"
+                                }
+                            }
+                        }
+                    },
+                    "204" : {
+                        "description" : "No Content"
+                    },
+                    "401" : {
+                        "description" : "Unauthorized"
+                    },
+                    "403" : {
+                        "description" : "Forbidden"
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/servicos/{nome}/ativo" : {
+            "patch" : {
+                "tags" : ["Serviços"],
+                "summary" : "Ativa um serviço.",
+                "description" : "Ativa um serviço.",
+                "operationId" : "ativarUsingPATCH_2",
+                "parameters" : [ {
+                    "name" : "nome",
+                    "in" : "path",
+                    "description" : "Nome do serviço. É uma string sem espaços",
+                    "required" : true,
+                    "example" : "SISBAJUD",
+                    "schema" : {
+                        "type" : "string"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_string_"
+                                }
+                            }
+                        }
+                    },
+                    "204" : {
+                        "description" : "No Content"
+                    },
+                    "401" : {
+                        "description" : "Unauthorized"
+                    },
+                    "403" : {
+                        "description" : "Forbidden"
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/servicos/{nome}/inativo" : {
+            "patch" : {
+                "tags" : ["Serviços"],
+                "summary" : "Desativa um serviço.",
+                "description" : "Desativa um serviço.",
+                "operationId" : "inativarUsingPATCH",
+                "parameters" : [ {
+                    "name" : "nome",
+                    "in" : "path",
+                    "description" : "Nome do serviço. É uma string sem espaços",
+                    "required" : true,
+                    "example" : "SISBAJUD",
+                    "schema" : {
+                        "type" : "string"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_string_"
+                                }
+                            }
+                        }
+                    },
+                    "204" : {
+                        "description" : "No Content"
+                    },
+                    "401" : {
+                        "description" : "Unauthorized"
+                    },
+                    "403" : {
+                        "description" : "Forbidden"
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/subscritor-consultas" : {
+            "get" : {
+                "tags" : ["Subscritor consultas"],
+                "summary" : "Consulta as subscrições associadas ao serviço id",
+                "description" : "Consulta as subscrições associadas ao serviço id",
+                "operationId" : "recuperarUsingGET_3",
+                "parameters" : [ {
+                    "name" : "servicoId",
+                    "in" : "query",
+                    "description" : "Id do serviço",
+                    "required" : false,
+                    "allowEmptyValue" : false,
+                    "example" : 1,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_SubscritorConsultaDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/subscritor-consultas/tribunais" : {
+            "get" : {
+                "tags" : ["Subscritor consultas"],
+                "summary" : "Consulta a lista de tribunais associadas ao usuário logado",
+                "description" : "Consulta a lista de tribunais associadas ao usuário logado",
+                "operationId" : "recuperarTribunaisUsingGET",
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_List_TribunalInfoDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/templates" : {
+            "get" : {
+                "tags" : ["Templates"],
+                "summary" : "Lista os templates de um evento",
+                "description" : "Lista os templates de um evento",
+                "operationId" : "pesquisarUsingGET_4",
+                "parameters" : [ {
+                    "name" : "eventoId",
+                    "in" : "query",
+                    "description" : "Id do evento",
+                    "required" : true,
+                    "allowEmptyValue" : false,
+                    "example" : 1,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_List_TemplateDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            },
+            "post" : {
+                "tags" : ["Templates"],
+                "summary" : "Registra um template de um evento",
+                "description" : "Registra um template de um evento",
+                "operationId" : "registrarUsingPOST_3",
+                "requestBody" : {
+                    "content" : {
+                        "application/json" : {
+                            "schema" : {
+                                "$ref" : "#/components/schemas/InclusaoTemplateDTO"
+                            }
+                        }
+                    },
+                    "description" : "Template a ser criado para o evento."
+                },
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_TemplateDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/templates/{id}" : {
+            "get" : {
+                "tags" : ["Templates"],
+                "summary" : "Recupera um template por seu id",
+                "description" : "Recupera um template por seu id",
+                "operationId" : "recuperarUsingGET_4",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id do template.",
+                    "required" : true,
+                    "example" : 1234,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_TemplateDTO_"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            },
+            "patch" : {
+                "tags" : ["Templates"],
+                "summary" : "Edita os dados de um template",
+                "description" : "Edita os dados de um template",
+                "operationId" : "alterarRegistroUsingPATCH_3",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id do template.",
+                    "required" : true,
+                    "example" : 1234,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "requestBody" : {
+                    "content" : {
+                        "application/json" : {
+                            "schema" : {
+                                "$ref" : "#/components/schemas/AlteracaoTemplateDTO"
+                            }
+                        }
+                    },
+                    "description" : "template",
+                    "required" : true
+                },
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_TemplateDTO_"
+                                }
+                            }
+                        }
+                    },
+                    "204" : {
+                        "description" : "No Content"
+                    },
+                    "401" : {
+                        "description" : "Unauthorized"
+                    },
+                    "403" : {
+                        "description" : "Forbidden"
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/templates/{id}/ativo" : {
+            "patch" : {
+                "tags" : ["Templates"],
+                "summary" : "Ativa um template",
+                "description" : "Ativa um template",
+                "operationId" : "ativarUsingPATCH_3",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id do template.",
+                    "required" : true,
+                    "example" : 1234,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_string_"
+                                }
+                            }
+                        }
+                    },
+                    "204" : {
+                        "description" : "No Content"
+                    },
+                    "401" : {
+                        "description" : "Unauthorized"
+                    },
+                    "403" : {
+                        "description" : "Forbidden"
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/api/v1/templates/{id}/inativo" : {
+            "patch" : {
+                "tags" : ["Templates"],
+                "summary" : "Inativa um template",
+                "description" : "Inativa um template",
+                "operationId" : "desativarUsingPATCH_2",
+                "parameters" : [ {
+                    "name" : "id",
+                    "in" : "path",
+                    "description" : "Id do template.",
+                    "required" : true,
+                    "example" : 1234,
+                    "schema" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                }],
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/Response_string_"
+                                }
+                            }
+                        }
+                    },
+                    "204" : {
+                        "description" : "No Content"
+                    },
+                    "401" : {
+                        "description" : "Unauthorized"
+                    },
+                    "403" : {
+                        "description" : "Forbidden"
+                    }
+                },
+                "security" : [ {
+                    "JWT" : ["global"]
+                }],
+                "deprecated" : false
+            }
+        },
+        "/pdpj/info" : {
+            "get" : {
+                "tags" : ["pdpj-rest-controller"],
+                "summary" : "Retorna as informações da aplicacação necessárias à integração com a Plataforma Digital do Poder Judiciário - PDPJ",
+                "operationId" : "obterInfoUsingGET",
+                "responses" : {
+                    "200" : {
+                        "description" : "OK",
+                        "content" : {
+                            "*/*" : {
+                                "schema" : {
+                                    "$ref" : "#/components/schemas/PdpjInfoDTO"
+                                }
+                            }
+                        }
+                    },
+                    "403" : {
+                        "description" : "Usuário não tem permissão para obter as informações do sistema."
+                    }
+                },
+                "deprecated" : false
+            }
+        }
+    },
+    "servers" : [ {
+        "url" : "https://virtserver.swaggerhub.com/MAIKONMG1_12/Maikon_1209/183712"
+    }],
+    "components" : {
+        "securitySchemes" : {
+            "JWT" : {
+                "type" : "apiKey",
+                "name" : "Authorization",
+                "in" : "header"
+            }
+        },
+        "schemas" : {
+            "AdminConsultaEventoDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "ativo" : {
+                        "type" : "boolean",
+                        "description" : "Situação do evento"
+                    },
+                    "id" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "description" : "Id do evento"
+                    },
+                    "nome" : {
+                        "type" : "string",
+                        "description" : "Nome do evento"
+                    },
+                    "templates" : {
+                        "type" : "array",
+                        "description" : "Templates associados ao evento",
+                        "items" : {
+                            "$ref" : "#/components/schemas/AdminConsultaTemplateDTO"
+                        }
+                    }
+                },
+                "title" : "AdminConsultaEventoDTO"
+            },
+            "AdminConsultaServicoDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "eventos" : {
+                        "type" : "array",
+                        "description" : "Eventos associados ao serviço",
+                        "items" : {
+                            "$ref" : "#/components/schemas/AdminConsultaEventoDTO"
+                        }
+                    },
+                    "servico" : {
+                        "$ref" : "#/components/schemas/ServicoDTO"
+                    }
+                },
+                "title" : "AdminConsultaServicoDTO"
+            },
+            "AdminConsultaTemplateDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "ativo" : {
+                        "type" : "boolean",
+                        "description" : "Situação do template"
+                    },
+                    "formato" : {
+                        "type" : "string",
+                        "description" : "Formato do template"
+                    },
+                    "id" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "description" : "Id do template"
+                    },
+                    "nome" : {
+                        "type" : "string",
+                        "description" : "Nome do template"
+                    }
+                },
+                "title" : "AdminConsultaTemplateDTO"
+            },
+            "AlteracaoEventoDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "descricao" : {
+                        "type" : "string",
+                        "example" : "Ordem judicial de bloqueio de valores ou requisição de informações",
+                        "description" : "Descrição mais detalhada do evento"
+                    },
+                    "json" : {
+                        "type" : "string",
+                        "example" : "{\"numeroProcesso\": \"000000000001\"}",
+                        "description" : "Se houver, objeto JSON do payload do evento"
+                    },
+                    "nomeDTO" : {
+                        "type" : "string",
+                        "example" : "OrdemJudicialVO",
+                        "description" : "Nome do DTO/VO do payload lançado no evento"
+                    },
+                    "objetoAfetadoEspecifico" : {
+                        "type" : "string",
+                        "example" : "Processo",
+                        "description" : "Nome do 'objeto' específico a que diz respeito esse evento. Meramente descritivo"
+                    },
+                    "objetoAfetadoPrincipal" : {
+                        "type" : "string",
+                        "example" : "Ordem judicial",
+                        "description" : "Nome do 'objeto' principal a que diz respeito esse evento. Meramente descritivo"
+                    }
+                },
+                "title" : "AlteracaoEventoDTO"
+            },
+            "AlteracaoInscricaoEventoDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "ativo" : {
+                        "type" : "boolean",
+                        "description" : "Se a inscrição encontra-se ativa ou não."
+                    },
+                    "email" : {
+                        "type" : "string",
+                        "description" : "Para o formato EMAIL, o endereço de email que receberá a mensagem encaminhada."
+                    },
+                    "endpointWebhook" : {
+                        "type" : "string",
+                        "description" : "Endpoint para recebimento do evento inscrito. O serviço realizará uma requisição HTTP POST no endpoint informado."
+                    },
+                    "mimeType" : {
+                        "type" : "string",
+                        "description" : "O MIME do documento encaminhado."
+                    },
+                    "nome" : {
+                        "type" : "string",
+                        "description" : "Nome da inscrição."
+                    },
+                    "secretToken" : {
+                        "type" : "string",
+                        "description" : "Secret alfanumérico qualquer, indicado pelo usuário, que será utilizado para criptografar a mensagem encaminhada."
+                    }
+                },
+                "title" : "AlteracaoInscricaoEventoDTO"
+            },
+            "AlteracaoServicoDTO" : {
+                "type" : "object",
+                "required" : ["descricao", "endpointInformacoes", "versao"],
+                "properties" : {
+                    "descricao" : {
+                        "type" : "string",
+                        "description" : "Descrição do serviço."
+                    },
+                    "endpointInformacoes" : {
+                        "type" : "string",
+                        "description" : "URL que aponta para uma página contendo informações sobre o serviço."
+                    },
+                    "versao" : {
+                        "type" : "string",
+                        "example" : "1.0.0",
+                        "description" : "Versão do serviço. Meramente informativo."
+                    }
+                },
+                "title" : "AlteracaoServicoDTO"
+            },
+            "AlteracaoTemplateDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "descricaoDocumento" : {
+                        "type" : "string",
+                        "example" : "Certidão de penhora online positivo",
+                        "description" : "Se o template for de DOCUMENTO, a descrição do documento."
+                    },
+                    "formato" : {
+                        "type" : "string",
+                        "example" : "DOCUMENTO",
+                        "description" : "Formato do template. Admite apenas DOCUMENTO, ALERTA e EMAIL."
+                    },
+                    "nome" : {
+                        "type" : "string",
+                        "description" : "Nome do template."
+                    },
+                    "sigiloNivel" : {
+                        "type" : "integer",
+                        "format" : "int32",
+                        "example" : 0,
+                        "description" : "Se o template for de DOCUMENTO, o seu nível de sigilo.",
+                        "minimum" : 0,
+                        "maximum" : 5,
+                        "exclusiveMinimum" : false,
+                        "exclusiveMaximum" : false
+                    },
+                    "sigiloNome" : {
+                        "type" : "string",
+                        "example" : "Sem sigilo",
+                        "description" : "Se o template for de DOCUMENTO, o nome do nível de sigilo."
+                    },
+                    "textoParametrizado" : {
+                        "type" : "string",
+                        "description" : "O texto em si do template. Pode conter variáveis com os campos do payload do evento, a serem preenchidas no momento do envio da notificação."
+                    },
+                    "tipoDocumentoCodigoNacional" : {
+                        "type" : "string",
+                        "example" : 14438,
+                        "description" : "Se o template for de DOCUMENTO, o código nacional do tipo do documento."
+                    },
+                    "tipoDocumentoNome" : {
+                        "type" : "string",
+                        "example" : "Bloqueio/Penhora On Line Positivo",
+                        "description" : "Se o template for de DOCUMENTO, o nome do tipo do documento."
+                    }
+                },
+                "title" : "AlteracaoTemplateDTO"
+            },
+            "EventoCampoDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "id" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    },
+                    "nome" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "EventoCampoDTO"
+            },
+            "EventoConsultaDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "evento" : {
+                        "$ref" : "#/components/schemas/EventoDTO"
+                    },
+                    "inscricoes" : {
+                        "type" : "array",
+                        "description" : "Inscrições cadastradas",
+                        "items" : {
+                            "$ref" : "#/components/schemas/InscricaoEventoDTO"
+                        }
+                    }
+                },
+                "title" : "EventoConsultaDTO"
+            },
+            "EventoDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "ativo" : {
+                        "type" : "boolean"
+                    },
+                    "campos" : {
+                        "type" : "array",
+                        "items" : {
+                            "$ref" : "#/components/schemas/EventoCampoDTO"
+                        }
+                    },
+                    "dataRegistro" : {
+                        "type" : "string",
+                        "format" : "date-time"
+                    },
+                    "dataUltimaAlteracao" : {
+                        "type" : "string",
+                        "format" : "date-time"
+                    },
+                    "descricao" : {
+                        "type" : "string"
+                    },
+                    "id" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    },
+                    "json" : {
+                        "type" : "string"
+                    },
+                    "nome" : {
+                        "type" : "string"
+                    },
+                    "nomeDTO" : {
+                        "type" : "string"
+                    },
+                    "objetoAfetadoEspecifico" : {
+                        "type" : "string"
+                    },
+                    "objetoAfetadoPrincipal" : {
+                        "type" : "string"
+                    },
+                    "responsavelRegistro" : {
+                        "type" : "string"
+                    },
+                    "responsavelUltimaAlteracao" : {
+                        "type" : "string"
+                    },
+                    "servicoId" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    }
+                },
+                "title" : "EventoDTO"
+            },
+            "InclusaoEventoDTO" : {
+                "type" : "object",
+                "required" : ["descricao", "nome", "nomeDTO", "objetoAfetadoEspecifico", "objetoAfetadoPrincipal", "servicoId"],
+                "properties" : {
+                    "descricao" : {
+                        "type" : "string",
+                        "example" : "Ordem judicial de bloqueio de valores ou requisição de informações",
+                        "description" : "Descrição mais detalhada do evento"
+                    },
+                    "json" : {
+                        "type" : "string",
+                        "example" : "{\"numeroProcesso\": \"000000000001\"}",
+                        "description" : "Se houver, objeto JSON do payload do evento"
+                    },
+                    "nome" : {
+                        "type" : "string",
+                        "example" : "OrdemProtocolada",
+                        "description" : "Nome do evento lançado pelo sistema. É uma string sem espaços."
+                    },
+                    "nomeDTO" : {
+                        "type" : "string",
+                        "example" : "OrdemJudicialVO",
+                        "description" : "Nome do DTO/VO do payload lançado no evento"
+                    },
+                    "objetoAfetadoEspecifico" : {
+                        "type" : "string",
+                        "example" : "Processo",
+                        "description" : "Nome do 'objeto' específico a que diz respeito esse evento. Meramente descritivo"
+                    },
+                    "objetoAfetadoPrincipal" : {
+                        "type" : "string",
+                        "example" : "Ordem judicial",
+                        "description" : "Nome do 'objeto' principal a que diz respeito esse evento. Meramente descritivo"
+                    },
+                    "servicoId" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "example" : 1,
+                        "description" : "Id do sistema que lança este evento"
+                    }
+                },
+                "title" : "InclusaoEventoDTO"
+            },
+            "InclusaoInscricaoEventoDTO" : {
+                "type" : "object",
+                "required" : ["eventoId", "formato", "nome", "servicoId", "tribunalId"],
+                "properties" : {
+                    "email" : {
+                        "type" : "string",
+                        "description" : "Para o formato EMAIL, o endereço de email que receberá a mensagem encaminhada."
+                    },
+                    "endpointWebhook" : {
+                        "type" : "string",
+                        "description" : "Endpoint para recebimento do evento inscrito. O serviço realizará uma requisição HTTP POST no endpoint informado."
+                    },
+                    "eventoId" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "description" : "Id da evento."
+                    },
+                    "formato" : {
+                        "type" : "string",
+                        "description" : "Formato de entrega (RAW, ALERTA, DOCUMENTO ou EMAIL)."
+                    },
+                    "mimeType" : {
+                        "type" : "string",
+                        "description" : "O MIME do documento encaminhado."
+                    },
+                    "nome" : {
+                        "type" : "string",
+                        "description" : "Nome da inscrição."
+                    },
+                    "secretToken" : {
+                        "type" : "string",
+                        "description" : "Secret alfanumérico qualquer, indicado pelo usuário, que será utilizado para criptografar a mensagem encaminhada."
+                    },
+                    "servicoId" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "description" : "Id do serviço."
+                    },
+                    "templateId" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "description" : "Id do template (para todos os formatos, com exceção de RAW)."
+                    },
+                    "tribunalId" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "description" : "Id do Tribunal do usuário que realizou a inscrição (é o mesmo id que advém do CNJ Corporativo)."
+                    }
+                },
+                "title" : "InclusaoInscricaoEventoDTO"
+            },
+            "InclusaoServicoDTO" : {
+                "type" : "object",
+                "required" : ["descricao", "endpointInformacoes", "nome", "versao"],
+                "properties" : {
+                    "descricao" : {
+                        "type" : "string",
+                        "example" : "Sistema que faz alguma coisa",
+                        "description" : "Descrição do serviço."
+                    },
+                    "endpointInformacoes" : {
+                        "type" : "string",
+                        "example" : "http://teste",
+                        "description" : "URL que aponta para uma página contendo informações sobre o serviço."
+                    },
+                    "nome" : {
+                        "type" : "string",
+                        "example" : "SISBAJUD",
+                        "description" : "Nome do serviço que servirá como identificado único. É uma string sem espaços"
+                    },
+                    "versao" : {
+                        "type" : "string",
+                        "example" : "1.0.0",
+                        "description" : "Versão do serviço. Meramente informativo."
+                    }
+                },
+                "title" : "InclusaoServicoDTO"
+            },
+            "InclusaoTemplateDTO" : {
+                "type" : "object",
+                "required" : ["eventoId", "formato", "nome"],
+                "properties" : {
+                    "descricaoDocumento" : {
+                        "type" : "string",
+                        "example" : "Certidão de penhora online positivo",
+                        "description" : "Se o template for de DOCUMENTO, a descrição do documento."
+                    },
+                    "eventoId" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "example" : 1,
+                        "description" : "Id do evento."
+                    },
+                    "formato" : {
+                        "type" : "string",
+                        "example" : "DOCUMENTO",
+                        "description" : "Formato do template. Admite apenas DOCUMENTO, ALERTA e EMAIL."
+                    },
+                    "nome" : {
+                        "type" : "string",
+                        "example" : "Template de teste",
+                        "description" : "Nome do template."
+                    },
+                    "sigiloNivel" : {
+                        "type" : "integer",
+                        "format" : "int32",
+                        "example" : 0,
+                        "description" : "Se o template for de DOCUMENTO, o seu nível de sigilo.",
+                        "minimum" : 0,
+                        "maximum" : 5,
+                        "exclusiveMinimum" : false,
+                        "exclusiveMaximum" : false
+                    },
+                    "sigiloNome" : {
+                        "type" : "string",
+                        "example" : "Sem sigilo",
+                        "description" : "Se o template for de DOCUMENTO, o nome do nível de sigilo."
+                    },
+                    "textoParametrizado" : {
+                        "type" : "string",
+                        "description" : "O texto em si do template. Pode conter variáveis com os campos do payload do evento, a serem preenchidas no momento do envio da notificação."
+                    },
+                    "tipoDocumentoCodigoNacional" : {
+                        "type" : "string",
+                        "example" : 14438,
+                        "description" : "Se o template for de DOCUMENTO, o código nacional do tipo do documento."
+                    },
+                    "tipoDocumentoNome" : {
+                        "type" : "string",
+                        "example" : "Bloqueio/Penhora On Line Positivo",
+                        "description" : "Se o template for de DOCUMENTO, o nome do tipo do documento."
+                    }
+                },
+                "title" : "InclusaoTemplateDTO"
+            },
+            "InscricaoEventoDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "ativo" : {
+                        "type" : "boolean",
+                        "description" : "Se a inscrição encontra-se ativa ou não."
+                    },
+                    "dataAlteracao" : {
+                        "type" : "string",
+                        "format" : "date-time",
+                        "description" : "Data de alteração da inscrição"
+                    },
+                    "dataInscricao" : {
+                        "type" : "string",
+                        "format" : "date-time",
+                        "description" : "Data da realização da inscrição"
+                    },
+                    "email" : {
+                        "type" : "string",
+                        "description" : "Para o formato EMAIL, o endereço de email que receberá a mensagem encaminhada."
+                    },
+                    "endpointWebhook" : {
+                        "type" : "string",
+                        "description" : "Endpoint para recebimento do evento inscrito. O serviço realizará uma requisição HTTP POST no endpoint informado."
+                    },
+                    "eventoId" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "description" : "Id da evento."
+                    },
+                    "formato" : {
+                        "type" : "string",
+                        "description" : "Formato de entrega (RAW, ALERTA, DOCUMENTO ou EMAIL).",
+                        "enum" : ["RAW", "DOCUMENTO", "ALERTA", "EMAIL"]
+                    },
+                    "id" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "description" : "Id da inscrição."
+                    },
+                    "jtr" : {
+                        "type" : "string",
+                        "description" : "JTR do Tribunal do usuário que realizou a inscrição, conforme Res. 65/2008."
+                    },
+                    "mimeType" : {
+                        "type" : "string",
+                        "description" : "O MIME do documento encaminhado.",
+                        "enum" : ["HTML", "TEXT", "PDF"]
+                    },
+                    "nome" : {
+                        "type" : "string",
+                        "description" : "Nome da inscrição."
+                    },
+                    "secretToken" : {
+                        "type" : "string",
+                        "description" : "Secret alfanumérico qualquer, indicado pelo usuário, que será utilizado para criptografar a mensagem encaminhada."
+                    },
+                    "servicoId" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "description" : "Id do serviço."
+                    },
+                    "templateId" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "description" : "Id do template (para todos os formatos, com exceção de RAW)."
+                    },
+                    "tribunalId" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "description" : "Id do Tribunal do usuário que realizou a inscrição (é o mesmo id que advém do CNJ Corporativo)."
+                    },
+                    "usuarioInscricaoId" : {
+                        "type" : "string",
+                        "description" : "O CPF/CNPJ do usuário que fez a inscrição."
+                    }
+                },
+                "title" : "InscricaoEventoDTO"
+            },
+            "PdpjInfoDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "descricao" : {
+                        "type" : "string"
+                    },
+                    "documentacaoTecnicaUrl" : {
+                        "type" : "string"
+                    },
+                    "documentacaoUsuarioUrl" : {
+                        "type" : "string"
+                    },
+                    "frontendUrl" : {
+                        "type" : "string"
+                    },
+                    "iconeGrandeUrl" : {
+                        "type" : "string"
+                    },
+                    "iconePequenoUrl" : {
+                        "type" : "string"
+                    },
+                    "nomeServico" : {
+                        "type" : "string"
+                    },
+                    "swaggerUrl" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "PdpjInfoDTO"
+            },
+            "ServicoDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "ativo" : {
+                        "type" : "boolean"
+                    },
+                    "dataRegistro" : {
+                        "type" : "string",
+                        "format" : "date-time"
+                    },
+                    "dataUltimaAlteracao" : {
+                        "type" : "string",
+                        "format" : "date-time"
+                    },
+                    "descricao" : {
+                        "type" : "string"
+                    },
+                    "endpointInformacoes" : {
+                        "type" : "string"
+                    },
+                    "id" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    },
+                    "nome" : {
+                        "type" : "string"
+                    },
+                    "responsavelRegistro" : {
+                        "type" : "string"
+                    },
+                    "responsavelUltimaAlteracao" : {
+                        "type" : "string"
+                    },
+                    "versao" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "ServicoDTO"
+            },
+            "SubscritorConsultaDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "eventos" : {
+                        "type" : "array",
+                        "description" : "Lista de eventos",
+                        "items" : {
+                            "$ref" : "#/components/schemas/EventoConsultaDTO"
+                        }
+                    },
+                    "servico" : {
+                        "$ref" : "#/components/schemas/ServicoDTO"
+                    }
+                },
+                "title" : "SubscritorConsultaDTO"
+            },
+            "TemplateDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "ativo" : {
+                        "type" : "boolean"
+                    },
+                    "descricaoDocumento" : {
+                        "type" : "string"
+                    },
+                    "eventoId" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    },
+                    "formato" : {
+                        "type" : "string",
+                        "enum" : ["DOCUMENTO", "ALERTA", "EMAIL"]
+                    },
+                    "id" : {
+                        "type" : "integer",
+                        "format" : "int64"
+                    },
+                    "nome" : {
+                        "type" : "string"
+                    },
+                    "sigiloNivel" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "sigiloNome" : {
+                        "type" : "string"
+                    },
+                    "textoParametrizado" : {
+                        "type" : "string"
+                    },
+                    "tipoDocumentoCodigoNacional" : {
+                        "type" : "string"
+                    },
+                    "tipoDocumentoNome" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "TemplateDTO"
+            },
+            "TribunalInfoDTO" : {
+                "type" : "object",
+                "properties" : {
+                    "id" : {
+                        "type" : "integer",
+                        "format" : "int64",
+                        "description" : "Id do Tribunal."
+                    },
+                    "nome" : {
+                        "type" : "string",
+                        "description" : "Nome do Tribunal"
+                    }
+                },
+                "title" : "TribunalInfoDTO"
+            },
+            "Response_EventoDTO_" : {
+                "type" : "object",
+                "properties" : {
+                    "code" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "messages" : {
+                        "type" : "array",
+                        "items" : {
+                            "type" : "string"
+                        }
+                    },
+                    "result" : {
+                        "$ref" : "#/components/schemas/EventoDTO"
+                    },
+                    "status" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "Response«EventoDTO»"
+            },
+            "Response_InscricaoEventoDTO_" : {
+                "type" : "object",
+                "properties" : {
+                    "code" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "messages" : {
+                        "type" : "array",
+                        "items" : {
+                            "type" : "string"
+                        }
+                    },
+                    "result" : {
+                        "$ref" : "#/components/schemas/InscricaoEventoDTO"
+                    },
+                    "status" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "Response«InscricaoEventoDTO»"
+            },
+            "Response_List_AdminConsultaServicoDTO_" : {
+                "type" : "object",
+                "properties" : {
+                    "code" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "messages" : {
+                        "type" : "array",
+                        "items" : {
+                            "type" : "string"
+                        }
+                    },
+                    "result" : {
+                        "type" : "array",
+                        "items" : {
+                            "$ref" : "#/components/schemas/AdminConsultaServicoDTO"
+                        }
+                    },
+                    "status" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "Response«List«AdminConsultaServicoDTO»»"
+            },
+            "Response_List_EventoDTO_" : {
+                "type" : "object",
+                "properties" : {
+                    "code" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "messages" : {
+                        "type" : "array",
+                        "items" : {
+                            "type" : "string"
+                        }
+                    },
+                    "result" : {
+                        "type" : "array",
+                        "items" : {
+                            "$ref" : "#/components/schemas/EventoDTO"
+                        }
+                    },
+                    "status" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "Response«List«EventoDTO»»"
+            },
+            "Response_List_InscricaoEventoDTO_" : {
+                "type" : "object",
+                "properties" : {
+                    "code" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "messages" : {
+                        "type" : "array",
+                        "items" : {
+                            "type" : "string"
+                        }
+                    },
+                    "result" : {
+                        "type" : "array",
+                        "items" : {
+                            "$ref" : "#/components/schemas/InscricaoEventoDTO"
+                        }
+                    },
+                    "status" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "Response«List«InscricaoEventoDTO»»"
+            },
+            "Response_List_ServicoDTO_" : {
+                "type" : "object",
+                "properties" : {
+                    "code" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "messages" : {
+                        "type" : "array",
+                        "items" : {
+                            "type" : "string"
+                        }
+                    },
+                    "result" : {
+                        "type" : "array",
+                        "items" : {
+                            "$ref" : "#/components/schemas/ServicoDTO"
+                        }
+                    },
+                    "status" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "Response«List«ServicoDTO»»"
+            },
+            "Response_List_TemplateDTO_" : {
+                "type" : "object",
+                "properties" : {
+                    "code" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "messages" : {
+                        "type" : "array",
+                        "items" : {
+                            "type" : "string"
+                        }
+                    },
+                    "result" : {
+                        "type" : "array",
+                        "items" : {
+                            "$ref" : "#/components/schemas/TemplateDTO"
+                        }
+                    },
+                    "status" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "Response«List«TemplateDTO»»"
+            },
+            "Response_List_TribunalInfoDTO_" : {
+                "type" : "object",
+                "properties" : {
+                    "code" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "messages" : {
+                        "type" : "array",
+                        "items" : {
+                            "type" : "string"
+                        }
+                    },
+                    "result" : {
+                        "type" : "array",
+                        "items" : {
+                            "$ref" : "#/components/schemas/TribunalInfoDTO"
+                        }
+                    },
+                    "status" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "Response«List«TribunalInfoDTO»»"
+            },
+            "Response_ServicoDTO_" : {
+                "type" : "object",
+                "properties" : {
+                    "code" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "messages" : {
+                        "type" : "array",
+                        "items" : {
+                            "type" : "string"
+                        }
+                    },
+                    "result" : {
+                        "$ref" : "#/components/schemas/ServicoDTO"
+                    },
+                    "status" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "Response«ServicoDTO»"
+            },
+            "Response_SubscritorConsultaDTO_" : {
+                "type" : "object",
+                "properties" : {
+                    "code" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "messages" : {
+                        "type" : "array",
+                        "items" : {
+                            "type" : "string"
+                        }
+                    },
+                    "result" : {
+                        "$ref" : "#/components/schemas/SubscritorConsultaDTO"
+                    },
+                    "status" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "Response«SubscritorConsultaDTO»"
+            },
+            "Response_TemplateDTO_" : {
+                "type" : "object",
+                "properties" : {
+                    "code" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "messages" : {
+                        "type" : "array",
+                        "items" : {
+                            "type" : "string"
+                        }
+                    },
+                    "result" : {
+                        "$ref" : "#/components/schemas/TemplateDTO"
+                    },
+                    "status" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "Response«TemplateDTO»"
+            },
+            "Response_string_" : {
+                "type" : "object",
+                "properties" : {
+                    "code" : {
+                        "type" : "integer",
+                        "format" : "int32"
+                    },
+                    "messages" : {
+                        "type" : "array",
+                        "items" : {
+                            "type" : "string"
+                        }
+                    },
+                    "result" : {
+                        "type" : "string"
+                    },
+                    "status" : {
+                        "type" : "string"
+                    }
+                },
+                "title" : "Response«string»"
+            }
+        }
+    }
+}   
