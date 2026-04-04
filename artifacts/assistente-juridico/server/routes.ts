@@ -157,6 +157,27 @@ async function geminiStream(
     client = new GoogleGenAI({ apiKey: customKey });
   }
 
+  const replitKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const replitUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  if (!customKey && replitKey && replitUrl) {
+    const replitOpenAI = new OpenAI({ apiKey: replitKey, baseURL: replitUrl });
+    const stream = await replitOpenAI.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent },
+      ],
+      stream: true,
+      max_tokens: Math.min(maxOutputTokens, 32000),
+      temperature: 0.7,
+    });
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+    }
+    return;
+  }
+
   const fullPrompt = `${systemPrompt}\n\n${userContent}`;
   const stream = await client.models.generateContentStream({
     model,
@@ -203,6 +224,28 @@ async function geminiStreamMessages(
   let client = gemini;
   if (customKey && !customUrl) {
     client = new GoogleGenAI({ apiKey: customKey });
+  }
+
+  const replitKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const replitUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  if (!customKey && replitKey && replitUrl) {
+    const replitOpenAI = new OpenAI({ apiKey: replitKey, baseURL: replitUrl });
+    const openAiMessages = messages.map(m => ({
+      role: m.role === "model" ? "assistant" as const : "user" as const,
+      content: m.parts[0].text,
+    }));
+    const stream = await replitOpenAI.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: openAiMessages,
+      stream: true,
+      max_tokens: Math.min(maxOutputTokens, 32000),
+      temperature: 0.7,
+    });
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+    }
+    return;
   }
 
   const stream = await client.models.generateContentStream({
@@ -1016,8 +1059,36 @@ REGRAS PARA RESPOSTAS POR VOZ:
         }
       }
 
-      // Sem chave ou chave inválida → Gemini do Replit
-      console.log(`[Voice Chat] Sem chave válida — usando Gemini`);
+      // Sem chave ou chave inválida → Replit AI Integrations (OpenAI proxy) ou Gemini
+      const replitKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+      const replitUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+      if (replitKey && replitUrl) {
+        console.log(`[Voice Chat] Sem chave válida — usando Replit AI Integration`);
+        const chatMsgs: Array<{ role: string; content: string }> = [
+          { role: "system", content: systemPrompt },
+        ];
+        if (Array.isArray(history) && history.length > 0) {
+          for (const msg of history) {
+            chatMsgs.push({ role: msg.role === "assistant" ? "assistant" : "user", content: msg.text || msg.content || "" });
+          }
+        }
+        chatMsgs.push({ role: "user", content: message });
+        const rRes = await fetch(`${replitUrl}/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${replitKey}` },
+          body: JSON.stringify({ model: "gpt-4o-mini", messages: chatMsgs, max_tokens: 1500, temperature: 0.7 }),
+        });
+        if (rRes.ok) {
+          const data = await rRes.json() as any;
+          const reply = data.choices?.[0]?.message?.content || "Desculpe, não consegui responder.";
+          const clean = reply.replace(/\*\*/g, "").replace(/#{1,3}\s/g, "").replace(/\*/g, "").replace(/\n{2,}/g, " ").trim();
+          console.log(`[Voice Chat Replit] ${Date.now() - startMs}ms — "${clean.substring(0, 80)}"`);
+          return res.json({ reply: clean });
+        }
+        console.error(`[Voice Chat Replit] Error: ${rRes.status}`);
+      }
+
+      console.log(`[Voice Chat] Fallback — usando Gemini direto`);
       const contents: Array<{ role: "user" | "model"; parts: [{ text: string }] }> = [];
       if (Array.isArray(history) && history.length > 0) {
         let first = true;
