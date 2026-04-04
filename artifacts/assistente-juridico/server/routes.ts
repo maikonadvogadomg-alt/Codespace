@@ -1319,14 +1319,24 @@ REGRAS PARA RESPOSTAS POR VOZ:
         Array.isArray(tribunais) && tribunais.length > 0 ? tribunais : [];
 
       const tribunalMap: Record<string, string> = {
-        STJ: "stj", STF: "stf",
+        STJ: "stj", STF: "stf", STM: "stm", TST: "tst", TSE: "tse",
         TRF1: "trf1", TRF2: "trf2", TRF3: "trf3", TRF4: "trf4", TRF5: "trf5", TRF6: "trf6",
-        TJMG: "tjmg", TJSP: "tjsp", TJRJ: "tjrj",
+        TJAC: "tjac", TJAL: "tjal", TJAM: "tjam", TJAP: "tjap", TJBA: "tjba",
+        TJCE: "tjce", TJDFT: "tjdft", TJES: "tjes", TJGO: "tjgo", TJMA: "tjma",
+        TJMG: "tjmg", TJMS: "tjms", TJMT: "tjmt", TJPA: "tjpa", TJPB: "tjpb",
+        TJPE: "tjpe", TJPI: "tjpi", TJPR: "tjpr", TJRJ: "tjrj", TJRN: "tjrn",
+        TJRO: "tjro", TJRR: "tjrr", TJRS: "tjrs", TJSC: "tjsc", TJSE: "tjse",
+        TJSP: "tjsp", TJTO: "tjto",
+        TRT1: "trt1", TRT2: "trt2", TRT3: "trt3", TRT4: "trt4", TRT5: "trt5",
+        TRT6: "trt6", TRT7: "trt7", TRT8: "trt8", TRT9: "trt9", TRT10: "trt10",
+        TRT11: "trt11", TRT12: "trt12", TRT13: "trt13", TRT14: "trt14", TRT15: "trt15",
+        TRT16: "trt16", TRT17: "trt17", TRT18: "trt18", TRT19: "trt19", TRT20: "trt20",
+        TRT21: "trt21", TRT22: "trt22", TRT23: "trt23", TRT24: "trt24",
       };
 
       const indices = tribunaisList.length > 0
-        ? tribunaisList.map(t => tribunalMap[t] || t.toLowerCase()).map(i => `api_publica_${i}`)
-        : ["api_publica_stj", "api_publica_trf1", "api_publica_trf6"];
+        ? tribunaisList.map(t => tribunalMap[t] || t.toLowerCase()).map(i => i.startsWith("api_publica_") ? i : `api_publica_${i}`)
+        : ["api_publica_tjmg", "api_publica_stj", "api_publica_trf6"];
 
       const payload = {
         size: 10,

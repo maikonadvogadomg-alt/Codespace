@@ -159,7 +159,7 @@ export default function Jurisprudencia() {
   const [ementaSearchTerm, setEmentaSearchTerm] = useState("");
   const [ementaFilterCat, setEmentaFilterCat] = useState<string | null>(null);
   const [juriQuery, setJuriQuery] = useState("");
-  const [juriTribunais, setJuriTribunais] = useState<string[]>(["STJ", "STF", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6"]);
+  const [juriTribunais, setJuriTribunais] = useState<string[]>(["TJMG", "STJ", "TRF6"]);
   const [juriResults, setJuriResults] = useState<any[]>([]);
   const [juriLoading, setJuriLoading] = useState(false);
   const [datajudKey, setDatajudKey] = useState(() => localStorage.getItem("datajud_api_key") || "");
@@ -3069,7 +3069,30 @@ export default function Jurisprudencia() {
                 </Button>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {["STJ", "STF", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6"].map(t => (
+                <span className="text-[10px] text-muted-foreground w-full">Superiores:</span>
+                {["STJ", "STF", "STM", "TST", "TSE"].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => toggleJuriTribunal(t)}
+                    className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${juriTribunais.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:border-primary"}`}
+                    data-testid={`toggle-tribunal-${t.toLowerCase()}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+                <span className="text-[10px] text-muted-foreground w-full mt-1">Federais:</span>
+                {["TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6"].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => toggleJuriTribunal(t)}
+                    className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${juriTribunais.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:border-primary"}`}
+                    data-testid={`toggle-tribunal-${t.toLowerCase()}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+                <span className="text-[10px] text-muted-foreground w-full mt-1">Estaduais:</span>
+                {["TJMG", "TJSP", "TJRJ", "TJRS", "TJPR", "TJSC", "TJBA", "TJCE", "TJPE", "TJGO", "TJDFT", "TJES", "TJMA", "TJMT", "TJMS", "TJPA", "TJPB", "TJPI", "TJRN", "TJRO", "TJRR", "TJSE", "TJTO", "TJAC", "TJAL", "TJAM", "TJAP"].map(t => (
                   <button
                     key={t}
                     onClick={() => toggleJuriTribunal(t)}
