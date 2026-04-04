@@ -667,14 +667,18 @@ export default function LegalAssistant() {
     const startMic = () => {
       const rec = new SR();
       rec.lang = "pt-BR";
-      rec.continuous = true;
-      rec.interimResults = true;
-      let finalTranscript = "";
-      let alreadySent = false; // guarda contra envio duplo
+      rec.continuous = false;
+      rec.interimResults = false;
+      let alreadySent = false;
       rec.onresult = (e: any) => {
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) {
-            finalTranscript += (finalTranscript ? " " : "") + e.results[i][0].transcript;
+        if (alreadySent) return;
+        const last = e.results[e.results.length - 1];
+        if (last && last.isFinal) {
+          const text = last[0].transcript.trim();
+          if (text) {
+            alreadySent = true;
+            try { rec.stop(); } catch {}
+            setTimeout(() => voiceChatSend(text), 300);
           }
         }
       };
@@ -686,13 +690,6 @@ export default function LegalAssistant() {
       };
       rec.onend = () => {
         setVoiceChatListening(false);
-        if (alreadySent) return; // evita envio duplo
-        const text = finalTranscript.trim();
-        if (text) {
-          alreadySent = true;
-          // Pequena pausa antes de enviar — dá "respiro" natural na conversa
-          setTimeout(() => voiceChatSend(text), 300);
-        }
       };
       voiceChatRecRef.current = rec;
       try {
