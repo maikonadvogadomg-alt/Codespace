@@ -514,10 +514,11 @@ export default function LegalAssistant() {
     setTimeout(() => {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "pt-BR";
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
+      utterance.rate = 1.15;
+      utterance.pitch = 1.05;
       const voices = window.speechSynthesis.getVoices();
-      const ptVoice = voices.find(v => v.lang.startsWith("pt-BR") || v.lang.startsWith("pt_BR"));
+      const ptVoice = voices.find(v => v.lang === "pt-BR" && v.name.includes("Google"))
+        || voices.find(v => v.lang.startsWith("pt-BR") || v.lang.startsWith("pt_BR"));
       if (ptVoice) utterance.voice = ptVoice;
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => setIsSpeaking(false);

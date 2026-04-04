@@ -905,7 +905,7 @@ table.mem tr.cap{background:#dbeafe !important;font-weight:700}
       fs.writeFileSync(txtFile, truncated, "utf8");
 
       await execFileAsync(
-        "python",
+        "python3",
         [
           "-m",
           "edge_tts",
@@ -913,6 +913,7 @@ table.mem tr.cap{background:#dbeafe !important;font-weight:700}
           txtFile,
           "--voice",
           "pt-BR-FranciscaNeural",
+          "--rate=+18%",
           "--write-media",
           mp3File,
         ],
