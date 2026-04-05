@@ -163,49 +163,73 @@ async function callGeminiCortesia(
   return content;
 }
 
+async function callUserKey(
+  settings: { aiApiKey: string; aiBaseUrl: string | null; aiModel: string | null },
+  messages: Array<{ role: string; content: string }>
+): Promise<string> {
+  const baseUrl = settings.aiBaseUrl ?? "https://api.openai.com/v1";
+  const model = settings.aiModel ?? "gpt-4o";
+  const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${settings.aiApiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      max_tokens: 8000,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`AI API error (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json() as {
+    choices: Array<{ message: { content: string } }>;
+    model: string;
+  };
+
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("AI returned empty response");
+  }
+  return content;
+}
+
 async function callAi(
   settings: { aiApiKey: string | null; aiBaseUrl: string | null; aiModel: string | null },
   messages: Array<{ role: string; content: string }>
-): Promise<string> {
-  const hasUserKey = !!settings.aiApiKey;
-
-  if (hasUserKey) {
-    const baseUrl = settings.aiBaseUrl ?? "https://api.openai.com/v1";
-    const model = settings.aiModel ?? "gpt-4o";
-    const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${settings.aiApiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        max_tokens: 8000,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`AI API error (${response.status}): ${errorText}`);
+): Promise<{ text: string; provider: string }> {
+  if (geminiCortesiaClient) {
+    try {
+      const text = await callGeminiCortesia(messages);
+      return { text, provider: "gemini-cortesia" };
+    } catch (geminiErr) {
+      if (settings.aiApiKey) {
+        const text = await callUserKey(
+          { aiApiKey: settings.aiApiKey, aiBaseUrl: settings.aiBaseUrl, aiModel: settings.aiModel },
+          messages
+        );
+        return { text, provider: "user" };
+      }
+      throw geminiErr;
     }
-
-    const data = await response.json() as {
-      choices: Array<{ message: { content: string } }>;
-      model: string;
-    };
-
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("AI returned empty response");
-    }
-
-    return content;
   }
 
-  return callGeminiCortesia(messages);
+  if (settings.aiApiKey) {
+    const text = await callUserKey(
+      { aiApiKey: settings.aiApiKey, aiBaseUrl: settings.aiBaseUrl, aiModel: settings.aiModel },
+      messages
+    );
+    return { text, provider: "user" };
+  }
+
+  throw new Error("Nenhuma IA disponível. Configure uma chave de API nas Configurações (engrenagem no canto inferior esquerdo).");
 }
 
 router.post("/ai/chat", async (req, res): Promise<void> => {
@@ -339,9 +363,9 @@ Use esse contexto para entender erros recentes e ajudar o usuário a corrigir os
       aiBaseUrl: settings?.aiBaseUrl ?? null,
       aiModel: settings?.aiModel ?? null,
     };
-    const reply = await callAi(aiSettings, allMessages);
-    const usedModel = aiSettings.aiApiKey ? (aiSettings.aiModel ?? "gpt-4o") : GEMINI_CORTESIA_MODEL;
-    res.json({ reply, model: usedModel });
+    const result = await callAi(aiSettings, allMessages);
+    const usedModel = result.provider === "user" ? (aiSettings.aiModel ?? "gpt-4o") : GEMINI_CORTESIA_MODEL;
+    res.json({ reply: result.text, model: usedModel, provider: result.provider });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erro na IA";
     req.log.error({ err }, "AI chat failed");
@@ -381,13 +405,13 @@ Provide a clear, structured analysis. Be concise but thorough.`;
 
   try {
     const aiS = { aiApiKey: settings?.aiApiKey ?? null, aiBaseUrl: settings?.aiBaseUrl ?? null, aiModel: settings?.aiModel ?? null };
-    const analysis = await callAi(aiS, [
+    const result = await callAi(aiS, [
       { role: "user", content: prompt }
     ]);
 
     res.json({
-      analysis,
-      model: aiS.aiApiKey ? (aiS.aiModel ?? "gpt-4o") : GEMINI_CORTESIA_MODEL,
+      analysis: result.text,
+      model: result.provider === "user" ? (aiS.aiModel ?? "gpt-4o") : GEMINI_CORTESIA_MODEL,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown AI error";
@@ -493,13 +517,13 @@ Provide a clear, structured analysis of what this folder's role is in the projec
 
   try {
     const aiS = { aiApiKey: settings?.aiApiKey ?? null, aiBaseUrl: settings?.aiBaseUrl ?? null, aiModel: settings?.aiModel ?? null };
-    const analysis = await callAi(aiS, [
+    const result = await callAi(aiS, [
       { role: "user", content: prompt }
     ]);
 
     res.json({
-      analysis,
-      model: aiS.aiApiKey ? (aiS.aiModel ?? "gpt-4o") : GEMINI_CORTESIA_MODEL,
+      analysis: result.text,
+      model: result.provider === "user" ? (aiS.aiModel ?? "gpt-4o") : GEMINI_CORTESIA_MODEL,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown AI error";
