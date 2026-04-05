@@ -132,44 +132,48 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Garante que todas as tabelas existam (desenvolvimento e produção)
   try {
-    const migratePool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const migrateDb = drizzle(migratePool);
-    const migrationsFolder = process.env.NODE_ENV === "production"
-      ? path.join(process.cwd(), "migrations")
-      : path.join(import.meta.dirname ?? __dirname, "..", "migrations");
-    await migrate(migrateDb, { migrationsFolder });
-    await migratePool.end();
-  } catch (e) {
-    console.warn("[migrate] Aviso:", (e as Error).message);
-  }
-
-  await ensureSessionTable();
-  await registerRoutes(httpServer, app);
-
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    console.error("Internal Server Error:", err);
-
-    if (res.headersSent) {
-      return next(err);
+    try {
+      const migratePool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+      const migrateDb = drizzle(migratePool);
+      const migrationsFolder = process.env.NODE_ENV === "production"
+        ? path.join(process.cwd(), "migrations")
+        : path.join(import.meta.dirname ?? __dirname, "..", "migrations");
+      await migrate(migrateDb, { migrationsFolder });
+      await migratePool.end();
+    } catch (e) {
+      console.warn("[migrate] Aviso:", (e as Error).message);
     }
 
-    return res.status(status).json({ message });
-  });
+    await ensureSessionTable();
+    await registerRoutes(httpServer, app);
 
-  if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
-  } else {
-    const { setupVite } = await import("./vite");
-    await setupVite(httpServer, app);
+    app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+
+      console.error("Internal Server Error:", err);
+
+      if (res.headersSent) {
+        return next(err);
+      }
+
+      return res.status(status).json({ message });
+    });
+
+    if (process.env.NODE_ENV === "production") {
+      serveStatic(app);
+    } else {
+      const { setupVite } = await import("./vite");
+      await setupVite(httpServer, app);
+    }
+
+    const port = parseInt(process.env.PORT || "5000", 10);
+    httpServer.listen(port, "0.0.0.0", () => {
+      log(`serving on port ${port}`);
+    });
+  } catch (fatalErr) {
+    console.error("[FATAL] Server failed to start:", fatalErr);
+    process.exit(1);
   }
-
-  const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(port, "0.0.0.0", () => {
-    log(`serving on port ${port}`);
-  });
 })();
