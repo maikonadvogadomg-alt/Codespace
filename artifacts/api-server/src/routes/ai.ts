@@ -661,8 +661,8 @@ router.get("/ai/status", async (_req, res): Promise<void> => {
   const available = hasUserKey || hasGeminiCortesia;
   res.json({
     available,
-    provider: hasUserKey ? "user" : hasGeminiCortesia ? "gemini-cortesia" : "none",
-    model: hasUserKey ? (settings?.aiModel ?? "gpt-4o") : hasGeminiCortesia ? GEMINI_CORTESIA_MODEL : null,
+    provider: hasGeminiCortesia ? "gemini-cortesia" : hasUserKey ? "user" : "none",
+    model: hasGeminiCortesia ? GEMINI_CORTESIA_MODEL : hasUserKey ? (settings?.aiModel ?? "gpt-4o") : null,
   });
 });
 

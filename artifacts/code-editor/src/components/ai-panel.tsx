@@ -499,20 +499,27 @@ const CONTEXT_ICONS: Record<ContextMode, React.ReactNode> = {
 
 // Read active AI profile name from localStorage
 function useActiveModel(): string {
-  const [model, setModel] = useState<string>(() => {
-    try {
-      const profiles = JSON.parse(localStorage.getItem("codelens_ai_profiles") ?? "[]");
-      const slot = parseInt(localStorage.getItem("codelens_ai_active_slot") ?? "0", 10);
-      return profiles[slot]?.model ?? "";
-    } catch { return ""; }
-  });
+  const [model, setModel] = useState<string>("");
+  useEffect(() => {
+    const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+    fetch(`${BASE}/api/ai/status`)
+      .then(r => r.json())
+      .then((data: { available: boolean; provider: string; model: string | null }) => {
+        if (data.available && data.model) {
+          const label = data.provider === "gemini-cortesia" ? `Gemini ${data.model.replace("gemini-", "")}` : data.model;
+          setModel(label);
+        }
+      })
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     const update = () => {
       try {
         const profiles = JSON.parse(localStorage.getItem("codelens_ai_profiles") ?? "[]");
         const slot = parseInt(localStorage.getItem("codelens_ai_active_slot") ?? "0", 10);
-        setModel(profiles[slot]?.model ?? "");
-      } catch { setModel(""); }
+        const userModel = profiles[slot]?.model ?? "";
+        if (userModel) setModel(userModel);
+      } catch {}
     };
     window.addEventListener("storage", update);
     window.addEventListener("codelens-settings-saved", update);
