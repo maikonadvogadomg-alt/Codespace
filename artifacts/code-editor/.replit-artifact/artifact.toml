@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/"
+previewPath = "/code-editor"
 title = "Code Editor"
 version = "1.0.0"
 id = "artifacts/code-editor"
@@ -11,7 +11,7 @@ version = "1.0.0"
 
 [[services]]
 name = "web"
-paths = [ "/" ]
+paths = [ "/code-editor" ]
 localPort = 22595
 
 [services.development]
@@ -28,4 +28,4 @@ to = "/index.html"
 
 [services.env]
 PORT = "22595"
-BASE_PATH = "/"
+BASE_PATH = "/code-editor"

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'assistente-v20';
+const CACHE_NAME = 'assistente-v21';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
