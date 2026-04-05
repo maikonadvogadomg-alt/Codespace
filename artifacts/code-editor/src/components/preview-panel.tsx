@@ -459,11 +459,16 @@ function LiveEmptyState({
         </>
       ) : status?.status === "error" ? (
         <>
-          <div>
+          <div className="w-full">
             <p className="text-sm font-semibold text-red-400 mb-1">Erro ao iniciar servidor</p>
-            <p className="text-xs text-[#8b949e]">
-              Verifique o terminal para mais detalhes.
+            <p className="text-xs text-[#8b949e] mb-2">
+              O servidor não conseguiu iniciar. Veja o log abaixo:
             </p>
+            {status.log && (
+              <pre className="text-left text-[10px] bg-black/40 rounded p-2 max-h-32 overflow-auto whitespace-pre-wrap text-red-300/80 border border-red-500/20">
+                {status.log}
+              </pre>
+            )}
           </div>
           <button
             onClick={onStart}

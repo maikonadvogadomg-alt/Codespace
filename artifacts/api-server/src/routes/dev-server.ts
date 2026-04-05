@@ -159,7 +159,7 @@ router.get("/projects/:projectId/dev-server/status", async (req, res): Promise<v
   if (!project) { res.status(404).json({ error: "Projeto não encontrado" }); return; }
   const server = getDevServer(project.id);
   if (!server) {
-    res.json({ running: false, port: null, status: "stopped", log: [] });
+    res.json({ running: false, port: null, status: "stopped", log: "", hasProcess: false });
     return;
   }
   res.json({
@@ -167,7 +167,8 @@ router.get("/projects/:projectId/dev-server/status", async (req, res): Promise<v
     port: server.port,
     status: server.status,
     command: server.command,
-    log: server.log.slice(-20).join(""),
+    log: server.log.slice(-30).join(""),
+    hasProcess: !!server.process && server.process.exitCode === null,
   });
 });
 

@@ -172,13 +172,14 @@ export async function startDevServer(projectId: number, cwd: string, command?: s
   const autoInstall = needsInstall(cwd);
 
   const cleanEnv = buildCleanEnv();
+  const randomPort = 3000 + Math.floor(Math.random() * 7000);
   const projectEnv: Record<string, string> = {
     ...cleanEnv,
     BROWSER: "none",
     CI: "false",
     NO_COLOR: "1",
     FORCE_COLOR: "0",
-    PORT: "3000",
+    PORT: String(randomPort),
     npm_config_userconfig: "/dev/null",
     NPM_CONFIG_UPDATE_NOTIFIER: "false",
   };
@@ -216,7 +217,7 @@ export async function startDevServer(projectId: number, cwd: string, command?: s
     });
   };
 
-  const targetPort = parseInt(projectEnv.PORT, 10) || 3000;
+  const targetPort = randomPort;
 
   const launchServer = async () => {
     await waitForPortFree(targetPort);
@@ -226,6 +227,7 @@ export async function startDevServer(projectId: number, cwd: string, command?: s
 
     proc.on("close", (code) => {
       server.status = code === 0 ? "stopped" : "error";
+      server.log.push(`\n[sistema] Processo encerrou com código ${code}\n`);
       server.process = null;
       setTimeout(() => {
         const current = registry.get(projectId);
@@ -237,7 +239,7 @@ export async function startDevServer(projectId: number, cwd: string, command?: s
 
     const timer = setTimeout(() => {
       if (server.status === "starting" && !server.port) {
-        server.port = 3000;
+        server.port = targetPort;
         server.status = "running";
       }
     }, 30_000);
