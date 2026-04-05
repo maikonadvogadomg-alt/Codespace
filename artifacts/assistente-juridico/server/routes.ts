@@ -1425,7 +1425,7 @@ REGRAS PARA RESPOSTAS POR VOZ:
       if (!q?.trim())
         return res.status(400).json({ message: "Termo de busca obrigatório" });
 
-      const rawKey = clientKey?.trim() || process.env.DATAJUD_API_KEY || "";
+      const rawKey = clientKey?.trim() || process.env.DATAJUD_API_KEY || "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
       if (!rawKey) {
         return res.status(400).json({
           message: "Chave DataJud não configurada. Acesse as Configurações e insira sua chave do CNJ (datajud-wiki.cnj.jus.br).",
