@@ -261,29 +261,102 @@ function FileChangeCard({ segment, projectId, onApplied }: FileChangeCardProps) 
 function ExecCommandCard({
   command,
   onRun,
+  projectId,
 }: {
   command: string;
   onRun?: (cmd: string) => void;
+  projectId: string;
 }) {
+  const [status, setStatus] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [output, setOutput] = useState<string>("");
+
+  const handleExec = async () => {
+    setStatus("running");
+    setOutput("");
+    onRun?.(command);
+    try {
+      const res = await fetch(`${(import.meta.env.BASE_URL ?? "/").replace(/\/$/, "")}/api/projects/${projectId}/exec-stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command }),
+      });
+      const reader = res.body?.getReader();
+      if (!reader) { setStatus("done"); return; }
+      const decoder = new TextDecoder();
+      let fullOutput = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        for (const line of chunk.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const evt = JSON.parse(line.slice(6));
+            if (evt.type === "stdout" || evt.type === "stderr") {
+              fullOutput += evt.data;
+              setOutput(fullOutput.slice(-2000));
+            }
+            if (evt.type === "exit") {
+              setStatus(evt.code === 0 ? "done" : "error");
+            }
+          } catch {}
+        }
+      }
+      setStatus(prev => prev === "running" ? "done" : prev);
+    } catch (e: any) {
+      setOutput(e.message ?? "Erro ao executar");
+      setStatus("error");
+    }
+  };
+
   return (
     <div className="rounded-lg border border-green-500/30 bg-green-500/5 overflow-hidden my-1">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-green-500/20 bg-green-500/10">
         <Terminal className="w-3.5 h-3.5 text-green-400 shrink-0" />
         <span className="font-mono text-[11px] text-green-300 truncate flex-1">{command}</span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-300 shrink-0">
-          terminal
+        <span className={cn(
+          "text-[10px] px-1.5 py-0.5 rounded-full shrink-0",
+          status === "done" ? "bg-green-500/30 text-green-200" :
+          status === "error" ? "bg-red-500/30 text-red-300" :
+          status === "running" ? "bg-yellow-500/30 text-yellow-300" :
+          "bg-green-500/20 text-green-300"
+        )}>
+          {status === "done" ? "concluído" : status === "error" ? "erro" : status === "running" ? "executando..." : "terminal"}
         </span>
       </div>
-      <div className="px-3 py-2 flex justify-end">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 text-[10px] px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10"
-          onClick={() => onRun?.(command)}
-        >
-          <Play className="w-3 h-3 mr-1" />
-          Executar no terminal
-        </Button>
+      {output && (
+        <pre className="p-2 text-[10px] font-mono text-foreground/70 overflow-auto max-h-40 leading-relaxed whitespace-pre-wrap bg-black/30">
+          {output}
+        </pre>
+      )}
+      <div className="px-3 py-2 flex items-center justify-between">
+        {status === "done" && (
+          <span className="flex items-center gap-1 text-green-400 text-[10px]">
+            <Check className="w-3 h-3" /> Executado com sucesso
+          </span>
+        )}
+        {status === "error" && (
+          <span className="flex items-center gap-1 text-red-400 text-[10px]">
+            <AlertCircle className="w-3 h-3" /> Erro na execução
+          </span>
+        )}
+        {status === "running" && (
+          <span className="flex items-center gap-1 text-yellow-400 text-[10px]">
+            <Loader2 className="w-3 h-3 animate-spin" /> Executando...
+          </span>
+        )}
+        {status === "idle" && <span />}
+        {(status === "idle" || status === "error") && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 text-[10px] px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 ml-auto"
+            onClick={handleExec}
+          >
+            <Play className="w-3 h-3 mr-1" />
+            Executar
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -335,6 +408,7 @@ function AssistantMessage({
                 key={i}
                 command={seg.command}
                 onRun={onRunCommand}
+                projectId={projectId}
               />
             );
           }
