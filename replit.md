@@ -53,6 +53,7 @@ Standalone legal assistant app running on port 5000. Express + Vite + React. Use
 - **Correct auth flow** (from jwt-tools/pjud_token.txt): `grant_type=client_credentials` + `client_assertion_type=jwt-bearer` + `client_assertion=(JWT signed with PEM)` → does NOT require MFA
 - **Current code issue**: routes.ts `generatePdpjToken()` uses JWT directly as Bearer token instead of exchanging at Keycloak first
 - **DataJud** (public API): Already works for basic process consultation
+- **CNJ Comunicações (PCP)**: INTEGRATED — endpoint `/api/cnj/comunicacoes` queries real communications by OAB, party name, process number, date range. Uses homologação URL `hcomunicaapi.cnj.jus.br` (production URL `comunicaapi.pje.jus.br` blocks international access via CloudFront geo-restriction). Frontend page at `/comunicacoes`. Certidão PDF download via `/api/cnj/comunicacoes/certidao/:hash`.
 - **Swagger APIs available**: Notifications service (events, subscriptions, templates, tribunals) — file `MAIKONMG1_12-Maikon_1209-183712-oas3-swagger.json`
 
 #### Old Project (ReplitExport project 36 in CodeSpace)

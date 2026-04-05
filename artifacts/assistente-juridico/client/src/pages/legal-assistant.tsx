@@ -2546,6 +2546,12 @@ export default function LegalAssistant() {
               Token PDPJ
             </Button>
           </Link>
+          <Link href="/comunicacoes">
+            <Button size="sm" variant="ghost" className="h-9 gap-1.5 text-xs text-muted-foreground px-3" data-testid="button-go-comunicacoes">
+              <FileText className="w-3.5 h-3.5 shrink-0" />
+              Comunicações
+            </Button>
+          </Link>
           <Link href="/pdpj">
             <Button size="sm" variant="ghost" className="h-9 gap-1.5 text-xs text-muted-foreground px-3" data-testid="button-go-pdpj">
               <Scale className="w-3.5 h-3.5 shrink-0" />

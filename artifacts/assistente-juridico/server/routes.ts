@@ -500,6 +500,126 @@ table.mem tr.cap{background:#dbeafe !important;font-weight:700}
     }
   });
 
+  const COMUNICAAPI_PROD = "https://comunicaapi.pje.jus.br/api/v1";
+  const COMUNICAAPI_HML = "https://hcomunicaapi.cnj.jus.br/api/v1";
+
+  app.post("/api/cnj/comunicacoes", requireAuth, async (req, res) => {
+    try {
+      const {
+        numeroOab, ufOab, nomeAdvogado, nomeParte, numeroProcesso,
+        dataDisponibilizacaoInicio, dataDisponibilizacaoFim,
+        ambiente
+      } = req.body;
+
+      if (!numeroOab && !nomeAdvogado && !nomeParte && !numeroProcesso) {
+        return res.status(400).json({
+          message: "Informe pelo menos um critério: OAB, nome do advogado, nome da parte ou número do processo."
+        });
+      }
+
+      const baseUrl = ambiente === "producao" ? COMUNICAAPI_PROD : COMUNICAAPI_HML;
+      const url = new URL(`${baseUrl}/comunicacao`);
+
+      if (numeroOab) url.searchParams.append("numeroOab", numeroOab.toString().replace(/\D/g, ""));
+      if (ufOab) url.searchParams.append("ufOab", ufOab.toUpperCase());
+      if (nomeAdvogado) url.searchParams.append("nomeAdvogado", nomeAdvogado);
+      if (nomeParte) url.searchParams.append("nomeParte", nomeParte);
+      if (numeroProcesso) url.searchParams.append("numeroProcesso", numeroProcesso.replace(/[.\-\s]/g, ""));
+      if (dataDisponibilizacaoInicio) url.searchParams.append("dataDisponibilizacaoInicio", dataDisponibilizacaoInicio);
+      if (dataDisponibilizacaoFim) url.searchParams.append("dataDisponibilizacaoFim", dataDisponibilizacaoFim);
+
+      const response = await fetch(url.toString(), {
+        headers: { Accept: "application/json" },
+      });
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "");
+        const isGeoBlocked = errText.includes("block access from your country") || errText.includes("CloudFront");
+        if (isGeoBlocked && ambiente === "producao") {
+          return res.status(403).json({
+            message: "A API de produção do CNJ bloqueia acesso internacional. Use o ambiente de homologação ou acesse de um servidor brasileiro.",
+            geoBlocked: true,
+          });
+        }
+        return res.status(response.status).json({
+          message: `Erro na API CNJ (${response.status}): ${errText.substring(0, 200)}`,
+        });
+      }
+
+      const data = await response.json();
+
+      const items = (data.items || []).map((item: any) => ({
+        id: item.id,
+        dataDisponibilizacao: item.data_disponibilizacao || item.datadisponibilizacao,
+        tribunal: item.siglaTribunal,
+        tipo: item.tipoComunicacao,
+        orgao: item.nomeOrgao,
+        processo: item.numeroprocessocommascara || item.numero_processo,
+        classe: item.nomeClasse,
+        codigoClasse: item.codigoClasse,
+        tipoDocumento: item.tipoDocumento,
+        texto: item.texto,
+        link: item.link,
+        meio: item.meiocompleto || item.meio,
+        status: item.status,
+        hash: item.hash,
+        numeroComunicacao: item.numeroComunicacao,
+        destinatarios: (item.destinatarios || []).map((d: any) => ({
+          nome: d.nome,
+          polo: d.polo === "A" ? "Ativo" : d.polo === "P" ? "Passivo" : d.polo,
+        })),
+        advogados: (item.destinatarioadvogados || []).map((da: any) => ({
+          nome: da.advogado?.nome,
+          oab: da.advogado?.numero_oab,
+          uf: da.advogado?.uf_oab,
+        })),
+      }));
+
+      res.json({
+        status: data.status || "success",
+        message: data.message || "Sucesso",
+        total: data.count || items.length,
+        items,
+        fonte: "CNJ Comunicações Processuais (PCP)",
+        ambiente: ambiente === "producao" ? "Produção" : "Homologação",
+      });
+    } catch (error: any) {
+      console.error("CNJ Comunicações error:", error.message);
+      res.status(500).json({
+        message: "Erro ao consultar comunicações no CNJ: " + (error.message || "erro desconhecido"),
+      });
+    }
+  });
+
+  app.get("/api/cnj/comunicacoes/certidao/:hash", requireAuth, async (req, res) => {
+    try {
+      const hash = (req.params.hash || "").replace(/[^a-zA-Z0-9]/g, "");
+      if (!hash || hash.length < 5) {
+        return res.status(400).json({ message: "Hash inválido" });
+      }
+      const ambiente = (req.query.ambiente as string) === "producao" ? "producao" : "homologacao";
+      const baseUrl = ambiente === "producao" ? COMUNICAAPI_PROD : COMUNICAAPI_HML;
+
+      const response = await fetch(`${baseUrl}/comunicacao/${hash}/certidao`, {
+        headers: { Accept: "application/pdf" },
+      });
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          message: `Erro ao obter certidão (${response.status})`,
+        });
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename=certidao_${hash}.pdf`);
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("CNJ Certidão error:", error.message);
+      res.status(500).json({ message: "Erro ao obter certidão: " + error.message });
+    }
+  });
+
   app.post("/api/pdpj/test-connection", async (req, res) => {
     try {
       const { cpf, modo, tribunal, ambiente } = req.body;
@@ -1386,7 +1506,13 @@ REGRAS PARA RESPOSTAS POR VOZ:
             const ultimoMov = (s.movimentos || []).slice(-1)[0];
             const orgao = s.orgaoJulgador?.nome || ultimoMov?.orgaoJulgador?.nome || "";
             const dataMov = s.dataAjuizamento
-              ? (() => { const d = s.dataAjuizamento; return `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`; })()
+              ? (() => {
+                  const d = s.dataAjuizamento;
+                  if (d.length === 14) return `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`;
+                  if (d.includes("-")) { const p = d.split("-"); return `${p[2]?.slice(0,2)}/${p[1]}/${p[0]}`; }
+                  if (d.length >= 8) return `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`;
+                  return d;
+                })()
               : ultimoMov?.dataHora
                 ? new Date(ultimoMov.dataHora).toLocaleDateString("pt-BR")
                 : "Não informado";

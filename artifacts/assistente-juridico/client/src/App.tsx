@@ -86,6 +86,7 @@ import PrevidenciarioPage from "@/pages/previdenciario";
 import RoboDjenPage from "@/pages/robo-djen";
 import LoginPage from "@/pages/login";
 import Jurisprudencia from "@/pages/jurisprudencia";
+import ComunicacoesCnj from "@/pages/comunicacoes-cnj";
 import CodeAssistant from "@/pages/code-assistant";
 
 function Router() {
@@ -106,6 +107,7 @@ function Router() {
       <Route path="/filtrador" component={FiltradorJuridico} />
       <Route path="/previdenciario" component={PrevidenciarioPage} />
       <Route path="/robo-djen" component={RoboDjenPage} />
+      <Route path="/comunicacoes" component={ComunicacoesCnj} />
       <Route path="/codigo" component={CodeAssistant} />
       <Route component={NotFound} />
     </Switch>
