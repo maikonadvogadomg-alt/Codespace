@@ -118,7 +118,6 @@ function buildEnv(cwd?: string) {
     NPM_CONFIG_PROGRESS: "true",
     PYTHONUNBUFFERED: "1",
     npm_config_userconfig: "/dev/null",
-    npm_config_globalconfig: "/dev/null",
     npm_config_prefix: cwd ?? "",
   };
 }
