@@ -6,6 +6,7 @@ import { isBinaryFile, detectLanguage } from "../lib/storage.js";
 import { ensureProjectOnDisk } from "../lib/persistFiles.js";
 import path from "path";
 import fs from "fs/promises";
+import { GoogleGenAI } from "@google/genai";
 
 async function buildProjectContext(projectId: string): Promise<{ text: string; fileCount: number; truncated: boolean }> {
   const numId = parseInt(projectId, 10);
@@ -69,48 +70,86 @@ async function getAiSettings() {
   return rows[0] ?? null;
 }
 
+const GEMINI_CORTESIA_KEY = process.env.AI_INTEGRATIONS_GEMINI_API_KEY ?? null;
+const GEMINI_CORTESIA_URL = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL ?? null;
+const GEMINI_CORTESIA_MODEL = "gemini-2.5-flash";
+
+const geminiCortesiaClient = (GEMINI_CORTESIA_KEY && GEMINI_CORTESIA_URL)
+  ? new GoogleGenAI({
+      apiKey: GEMINI_CORTESIA_KEY,
+      httpOptions: { apiVersion: "", baseUrl: GEMINI_CORTESIA_URL },
+    })
+  : null;
+
+async function callGeminiCortesia(
+  messages: Array<{ role: string; content: string }>
+): Promise<string> {
+  if (!geminiCortesiaClient) {
+    throw new Error("Gemini cortesia não disponível. Configure uma chave de IA nas Configurações.");
+  }
+
+  const systemMsgs = messages.filter(m => m.role === "system").map(m => m.content);
+  const nonSystemMsgs = messages.filter(m => m.role !== "system");
+
+  const fullPrompt = [
+    ...systemMsgs,
+    ...nonSystemMsgs.map(m => `${m.role === "user" ? "Usuário" : "Assistente"}: ${m.content}`),
+  ].join("\n\n");
+
+  const result = await geminiCortesiaClient.models.generateContent({
+    model: GEMINI_CORTESIA_MODEL,
+    contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+    config: { maxOutputTokens: 8000, temperature: 0.7 },
+  });
+
+  const content = result.text;
+  if (!content) throw new Error("Gemini retornou resposta vazia");
+  return content;
+}
+
 async function callAi(
   settings: { aiApiKey: string | null; aiBaseUrl: string | null; aiModel: string | null },
   messages: Array<{ role: string; content: string }>
 ): Promise<string> {
-  if (!settings.aiApiKey) {
-    throw new Error("AI API key not configured. Please go to Settings and add your API key.");
+  const hasUserKey = !!settings.aiApiKey;
+
+  if (hasUserKey) {
+    const baseUrl = settings.aiBaseUrl ?? "https://api.openai.com/v1";
+    const model = settings.aiModel ?? "gpt-4o";
+    const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${settings.aiApiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        max_tokens: 8000,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`AI API error (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json() as {
+      choices: Array<{ message: { content: string } }>;
+      model: string;
+    };
+
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error("AI returned empty response");
+    }
+
+    return content;
   }
 
-  const baseUrl = settings.aiBaseUrl ?? "https://api.openai.com/v1";
-  const model = settings.aiModel ?? "gpt-4o";
-
-  const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${settings.aiApiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      max_tokens: 8000,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI API error (${response.status}): ${errorText}`);
-  }
-
-  const data = await response.json() as {
-    choices: Array<{ message: { content: string } }>;
-    model: string;
-  };
-
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error("AI returned empty response");
-  }
-
-  return content;
+  return callGeminiCortesia(messages);
 }
 
 router.post("/ai/chat", async (req, res): Promise<void> => {
@@ -123,10 +162,6 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
   const { messages, fileContext, filePath, projectId, projectContext, terminalContext, agentMode } = parsed.data;
 
   const settings = await getAiSettings();
-  if (!settings?.aiApiKey) {
-    res.status(400).json({ error: "Chave de API da IA não configurada. Vá em Configurações." });
-    return;
-  }
 
   const systemMessages: Array<{ role: string; content: string }> = [];
 
@@ -229,8 +264,14 @@ Use esse contexto para entender erros recentes e ajudar o usuário a corrigir os
   ];
 
   try {
-    const reply = await callAi(settings, allMessages);
-    res.json({ reply, model: settings.aiModel ?? "gpt-4o" });
+    const aiSettings = {
+      aiApiKey: settings?.aiApiKey ?? null,
+      aiBaseUrl: settings?.aiBaseUrl ?? null,
+      aiModel: settings?.aiModel ?? null,
+    };
+    const reply = await callAi(aiSettings, allMessages);
+    const usedModel = aiSettings.aiApiKey ? (aiSettings.aiModel ?? "gpt-4o") : GEMINI_CORTESIA_MODEL;
+    res.json({ reply, model: usedModel });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erro na IA";
     req.log.error({ err }, "AI chat failed");
@@ -249,10 +290,6 @@ router.post("/ai/analyze-file", async (req, res): Promise<void> => {
   const { projectId, filePath, content } = parsed.data;
 
   const settings = await getAiSettings();
-  if (!settings?.aiApiKey) {
-    res.status(400).json({ error: "AI API key not configured. Please go to Settings." });
-    return;
-  }
 
   const language = detectLanguage(filePath);
   const filename = path.basename(filePath);
@@ -273,13 +310,14 @@ ${content.slice(0, 8000)}
 Provide a clear, structured analysis. Be concise but thorough.`;
 
   try {
-    const analysis = await callAi(settings, [
+    const aiS = { aiApiKey: settings?.aiApiKey ?? null, aiBaseUrl: settings?.aiBaseUrl ?? null, aiModel: settings?.aiModel ?? null };
+    const analysis = await callAi(aiS, [
       { role: "user", content: prompt }
     ]);
 
     res.json({
       analysis,
-      model: settings.aiModel ?? "gpt-4o",
+      model: aiS.aiApiKey ? (aiS.aiModel ?? "gpt-4o") : GEMINI_CORTESIA_MODEL,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown AI error";
@@ -311,10 +349,6 @@ router.post("/ai/analyze-folder", async (req, res): Promise<void> => {
   }
 
   const settings = await getAiSettings();
-  if (!settings?.aiApiKey) {
-    res.status(400).json({ error: "AI API key not configured. Please go to Settings." });
-    return;
-  }
 
   const normalizedFolder = folderPath.replace(/^\//, "");
   const fullFolderPath = normalizedFolder
@@ -388,13 +422,14 @@ ${filesOverview}
 Provide a clear, structured analysis of what this folder's role is in the project.`;
 
   try {
-    const analysis = await callAi(settings, [
+    const aiS = { aiApiKey: settings?.aiApiKey ?? null, aiBaseUrl: settings?.aiBaseUrl ?? null, aiModel: settings?.aiModel ?? null };
+    const analysis = await callAi(aiS, [
       { role: "user", content: prompt }
     ]);
 
     res.json({
       analysis,
-      model: settings.aiModel ?? "gpt-4o",
+      model: aiS.aiApiKey ? (aiS.aiModel ?? "gpt-4o") : GEMINI_CORTESIA_MODEL,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown AI error";
@@ -464,6 +499,18 @@ router.post("/ai/agent-exec", async (req, res): Promise<void> => {
 
   proc.on("error", (err) => {
     res.json({ stdout: "", stderr: err.message, exitCode: 1 });
+  });
+});
+
+router.get("/ai/status", async (_req, res): Promise<void> => {
+  const settings = await getAiSettings();
+  const hasUserKey = !!settings?.aiApiKey;
+  const hasGeminiCortesia = !!GEMINI_CORTESIA_KEY && !!GEMINI_CORTESIA_URL;
+  const available = hasUserKey || hasGeminiCortesia;
+  res.json({
+    available,
+    provider: hasUserKey ? "user" : hasGeminiCortesia ? "gemini-cortesia" : "none",
+    model: hasUserKey ? (settings?.aiModel ?? "gpt-4o") : hasGeminiCortesia ? GEMINI_CORTESIA_MODEL : null,
   });
 });
 

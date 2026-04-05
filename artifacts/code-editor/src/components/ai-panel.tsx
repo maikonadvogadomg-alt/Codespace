@@ -20,6 +20,11 @@ import {
   Mic,
   MicOff,
   Zap,
+  Bug,
+  Copy,
+  Lightbulb,
+  Clipboard,
+  GitBranch,
 } from "lucide-react";
 import {
   useAiChat,
@@ -646,13 +651,36 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
               <Bot className="w-6 h-6 text-primary" />
             </div>
             <p className="text-sm font-medium text-foreground mb-1">Chat com sua IA</p>
-            <p className="text-xs leading-relaxed max-w-[210px]">
+            <p className="text-xs leading-relaxed max-w-[240px]">
               Pergunte, peça análises ou diga para a IA modificar, criar e deletar arquivos do projeto. As alterações aparecem como cards com botão Aplicar.
             </p>
-            <div className="mt-4 grid grid-cols-1 gap-1 w-full max-w-[210px] text-[10px] text-left text-muted-foreground">
-              <div className="flex items-center gap-1.5"><FilePlus className="w-3 h-3 shrink-0 text-blue-400" /> Criar novos arquivos</div>
-              <div className="flex items-center gap-1.5"><FilePen className="w-3 h-3 shrink-0 text-blue-400" /> Editar arquivos existentes</div>
+            <div className="mt-3 w-full max-w-[240px] space-y-1.5">
+              <button
+                onClick={() => { changeContextMode("project"); sendMessage("Analise este projeto completo. Identifique todos os bugs, erros, problemas de segurança e melhorias possíveis. Liste cada problema encontrado com o arquivo, a linha (se possível) e a sugestão de correção.", "project"); }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 text-[11px] font-medium transition-colors text-left"
+              >
+                <Bug className="w-4 h-4 shrink-0" />
+                Buscar Bugs no Projeto
+              </button>
+              <button
+                onClick={() => { changeContextMode("project"); sendMessage("Analise este projeto e me dê sugestões de melhorias. O que pode ser melhorado na arquitetura, performance, organização de código, e funcionalidades? Me dê ideias do que posso adicionar.", "project"); }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 text-[11px] font-medium transition-colors text-left"
+              >
+                <Lightbulb className="w-4 h-4 shrink-0" />
+                Sugestões e Ideias
+              </button>
+              <button
+                onClick={() => { changeContextMode("project"); sendMessage("Crie um pequeno projeto de exemplo dentro deste workspace. Pergunte-me primeiro o que eu quero criar — pode ser um site simples, uma calculadora, um formulário, uma landing page, etc. Espere minha resposta antes de criar.", "project"); }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 text-[11px] font-medium transition-colors text-left"
+              >
+                <FilePlus className="w-4 h-4 shrink-0" />
+                Criar Projeto Novo
+              </button>
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-1 w-full max-w-[240px] text-[10px] text-left text-muted-foreground">
+              <div className="flex items-center gap-1.5"><FilePen className="w-3 h-3 shrink-0 text-blue-400" /> Editar e criar arquivos</div>
               <div className="flex items-center gap-1.5"><Trash2 className="w-3 h-3 shrink-0 text-red-400" /> Deletar arquivos</div>
+              <div className="flex items-center gap-1.5"><Terminal className="w-3 h-3 shrink-0 text-green-400" /> Instalar pacotes (npm)</div>
               <div className="flex items-center gap-1.5"><FolderOpen className="w-3 h-3 shrink-0 text-primary" /> Analisar projeto inteiro</div>
             </div>
           </div>
@@ -681,6 +709,29 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                   {agentWorking && <span className="text-[10px] text-amber-400">Agente trabalhando...</span>}
                 </div>
+              </div>
+            )}
+            {!chatMutation.isPending && !agentWorking && messages.length > 0 && (
+              <div className="flex gap-1.5 justify-center pt-2">
+                <button
+                  onClick={() => {
+                    const text = messages.map(m => `[${m.role === "user" ? "Eu" : "IA"}]: ${m.content}`).join("\n\n---\n\n");
+                    navigator.clipboard.writeText(text);
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded bg-muted hover:bg-muted/80 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  title="Copiar toda a conversa para colar em outro lugar"
+                >
+                  <Clipboard className="w-3 h-3" />
+                  Copiar Conversa
+                </button>
+                <button
+                  onClick={() => { sendMessage("Analise os erros e problemas que encontramos até agora nesta conversa. Faça um resumo claro e organizado de tudo que foi identificado, o que foi corrigido, e o que ainda precisa ser feito. Use um formato fácil de copiar.", contextMode); }}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 text-[10px] text-blue-400 transition-colors border border-blue-500/20"
+                  title="Pede para a IA resumir os problemas encontrados"
+                >
+                  <Bug className="w-3 h-3" />
+                  Resumir Problemas
+                </button>
               </div>
             )}
             <div ref={messagesEndRef} />
