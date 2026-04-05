@@ -157,22 +157,21 @@ async function geminiStream(
     client = new GoogleGenAI({ apiKey: customKey });
   }
 
-  const replitKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-  const replitUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
-  if (!customKey && replitKey && replitUrl) {
-    const replitOpenAI = new OpenAI({ apiKey: replitKey, baseURL: replitUrl });
-    const stream = await replitOpenAI.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent },
-      ],
-      stream: true,
-      max_tokens: Math.min(maxOutputTokens, 32000),
-      temperature: 0.7,
+  const geminiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  const geminiUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+  if (!customKey && geminiKey && geminiUrl) {
+    const geminiClient = new GoogleGenAI({
+      apiKey: geminiKey,
+      httpOptions: { apiVersion: "", baseUrl: geminiUrl },
+    });
+    const fullPrompt = `${systemPrompt}\n\n${userContent}`;
+    const stream = await geminiClient.models.generateContentStream({
+      model: "gemini-2.5-flash",
+      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+      config: { maxOutputTokens: Math.min(maxOutputTokens, 65536), temperature: 0.7 },
     });
     for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content || "";
+      const content = chunk.text || "";
       if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
     }
     return;
@@ -226,23 +225,20 @@ async function geminiStreamMessages(
     client = new GoogleGenAI({ apiKey: customKey });
   }
 
-  const replitKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-  const replitUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
-  if (!customKey && replitKey && replitUrl) {
-    const replitOpenAI = new OpenAI({ apiKey: replitKey, baseURL: replitUrl });
-    const openAiMessages = messages.map(m => ({
-      role: m.role === "model" ? "assistant" as const : "user" as const,
-      content: m.parts[0].text,
-    }));
-    const stream = await replitOpenAI.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: openAiMessages,
-      stream: true,
-      max_tokens: Math.min(maxOutputTokens, 32000),
-      temperature: 0.7,
+  const geminiKey2 = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  const geminiUrl2 = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+  if (!customKey && geminiKey2 && geminiUrl2) {
+    const geminiClient2 = new GoogleGenAI({
+      apiKey: geminiKey2,
+      httpOptions: { apiVersion: "", baseUrl: geminiUrl2 },
+    });
+    const stream = await geminiClient2.models.generateContentStream({
+      model: "gemini-2.5-flash",
+      contents: messages,
+      config: { maxOutputTokens: Math.min(maxOutputTokens, 65536), temperature: 0.7 },
     });
     for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content || "";
+      const content = chunk.text || "";
       if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
     }
     return;
