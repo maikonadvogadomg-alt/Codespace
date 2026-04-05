@@ -67,19 +67,34 @@ export async function restoreProjectFromDb(projectId: number, storagePath: strin
 /**
  * Ensure the project directory exists on disk.
  * If it's missing, restore from DB. If DB also has nothing, just create empty dir.
+ * Also auto-installs npm dependencies if package.json exists but node_modules is missing.
  */
 export async function ensureProjectOnDisk(projectId: number, storagePath: string): Promise<void> {
+  let wasRestored = false;
   try {
     await fs.stat(storagePath);
-    // Dir exists — nothing to do
   } catch {
-    // Dir missing — restore from DB
     const restored = await restoreProjectFromDb(projectId, storagePath);
+    wasRestored = restored;
     if (!restored) {
-      // No DB backup either — create empty dir
       await fs.mkdir(storagePath, { recursive: true });
     }
   }
+
+  try {
+    const pkgPath = path.join(storagePath, "package.json");
+    const nmPath = path.join(storagePath, "node_modules");
+    const hasPkg = await fs.stat(pkgPath).then(() => true).catch(() => false);
+    const hasNm = await fs.stat(nmPath).then(() => true).catch(() => false);
+    if (hasPkg && !hasNm) {
+      const { execSync } = await import("child_process");
+      execSync("npm install --no-audit --no-fund 2>/dev/null || true", {
+        cwd: storagePath,
+        timeout: 120_000,
+        stdio: "ignore",
+      });
+    }
+  } catch {}
 }
 
 const SKIP_DIRS = new Set([
