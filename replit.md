@@ -57,7 +57,7 @@ Standalone legal assistant app running on port 5000. Express + Vite + React. Use
 
 #### Old Project (ReplitExport project 36 in CodeSpace)
 - **jwt-tools/**: Created by VS Code Copilot — sign.js, gen_pjud.js, gerar_token.mjs (correct JWT generation scripts)
-- **arquivos diversos/**: Mix of PEM keys, Swagger files, Perplexity examples about RS256/JWT, email draft for PDPJ
+- **arquivos diversos/**: PEM keys, ORIGINAL Swagger files from PDPJ/CNJ (not examples), email draft for PDPJ, plus some Perplexity examples about RS256/JWT
 - **AIEventsSF-1/**: Mastra agents with PDPJ tools (pdpjConsultaTool.ts, pdpjComunicacaoTool.ts, pdpjPeticaoTool.ts)
 - **FalarNoOutroLink/**: Full legal app (PJE, E-Proc, INSS, Intimações pages)
 - **apoia-master/**: APOIA system (runs inside PJud) — has jwt.ts, swagger.json reference implementations
