@@ -25,7 +25,7 @@ All UI is in **Portuguese (pt-BR)**. User is on mobile.
 
 ### Code Editor (CodeLens) — `/`
 Personal code editor like SPCK Editor. Features:
-- Upload ZIP files or import from GitHub to create projects
+- Upload ZIP files, import from GitHub, or import directly from Replit to create projects
 - Browse file trees, view/edit files with syntax highlighting
 - AI chat with Gemini cortesia (free, no key needed) + 4 configurable profiles (user provides own API keys)
 - Web content reading: paste any URL in chat and AI reads the page content automatically
