@@ -81,7 +81,8 @@ function buildEnv(cwd?: string) {
     "/usr/local/go/bin",
   ];
   const currentPath = process.env.PATH ?? "";
-  const pathSet = new Set([...currentPath.split(":"), ...extraPaths]);
+  const pathParts = currentPath.split(":").filter(p => !p.includes("/workspace/node_modules/"));
+  const pathSet = new Set([...pathParts, ...extraPaths]);
 
   // Filter out pnpm workspace config vars that bleed into user project processes
   // These cause "Unknown env config" warnings when npm runs in user projects
@@ -102,16 +103,11 @@ function buildEnv(cwd?: string) {
   const filteredEnv: Record<string, string> = {};
   for (const [key, val] of Object.entries(process.env)) {
     if (typeof val !== "string") continue;
-    // Drop pnpm lifecycle vars and pnpm-specific npm_config_* that cause warnings
+    if (key.toLowerCase().startsWith("npm_config_")) continue;
+    if (key.toLowerCase().startsWith("npm_lifecycle_")) continue;
+    if (key.toLowerCase().startsWith("npm_package_")) continue;
+    if (key === "npm_execpath" || key === "npm_node_execpath") continue;
     if (PNPM_CONFIG_KEYS.has(key.toLowerCase())) continue;
-    // Also drop pnpm-specific config keys not meant for regular npm
-    if (key.toLowerCase().startsWith("npm_config_") && (
-      key.toLowerCase().includes("jsr") ||
-      key.toLowerCase().includes("catalog") ||
-      key.toLowerCase().includes("release_age") ||
-      key.toLowerCase().includes("globalconfig") ||
-      key.toLowerCase().includes("verify_deps")
-    )) continue;
     filteredEnv[key] = val;
   }
 
@@ -121,8 +117,9 @@ function buildEnv(cwd?: string) {
     NPM_CONFIG_UPDATE_NOTIFIER: "false",
     NPM_CONFIG_PROGRESS: "true",
     PYTHONUNBUFFERED: "1",
-    // Point npm config to /dev/null so it ignores the workspace .npmrc
     npm_config_userconfig: "/dev/null",
+    npm_config_globalconfig: "/dev/null",
+    npm_config_prefix: cwd ?? "",
   };
 }
 
