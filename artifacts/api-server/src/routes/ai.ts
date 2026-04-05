@@ -206,19 +206,8 @@ async function callAi(
   messages: Array<{ role: string; content: string }>
 ): Promise<{ text: string; provider: string }> {
   if (geminiCortesiaClient) {
-    try {
-      const text = await callGeminiCortesia(messages);
-      return { text, provider: "gemini-cortesia" };
-    } catch (geminiErr) {
-      if (settings.aiApiKey) {
-        const text = await callUserKey(
-          { aiApiKey: settings.aiApiKey, aiBaseUrl: settings.aiBaseUrl, aiModel: settings.aiModel },
-          messages
-        );
-        return { text, provider: "user" };
-      }
-      throw geminiErr;
-    }
+    const text = await callGeminiCortesia(messages);
+    return { text, provider: "gemini-cortesia" };
   }
 
   if (settings.aiApiKey) {
