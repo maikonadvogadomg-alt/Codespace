@@ -292,6 +292,7 @@ export default function ProjectExplorer() {
                 fileContext={fileContextForAi}
                 externalMessage={externalMessage}
                 onRunCommand={handleRunCommand}
+                onRefreshTree={refreshProjectTree}
                 terminalLog={aiTerminalLog}
               />
             </div>
@@ -467,6 +468,7 @@ export default function ProjectExplorer() {
                     fileContext={fileContextForAi}
                     externalMessage={externalMessage}
                     onRunCommand={handleRunCommand}
+                    onRefreshTree={refreshProjectTree}
                     terminalLog={aiTerminalLog}
                   />
                 </ResizablePanel>

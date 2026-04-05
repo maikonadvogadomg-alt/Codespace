@@ -94,7 +94,7 @@ interface AiPanelProps {
   fileContext?: { path: string; content: string; language: string } | null;
   externalMessage?: { text: string; id: number; contextMode?: ContextMode } | null;
   onRunCommand?: (cmd: string) => void;
-  /** Recent terminal entries - sent automatically as context with every message */
+  onRefreshTree?: () => void;
   terminalLog?: TerminalLogEntry[];
 }
 
@@ -262,10 +262,12 @@ function ExecCommandCard({
   command,
   onRun,
   projectId,
+  onDone,
 }: {
   command: string;
   onRun?: (cmd: string) => void;
   projectId: string;
+  onDone?: () => void;
 }) {
   const [status, setStatus] = useState<"idle" | "running" | "done" | "error">("idle");
   const [output, setOutput] = useState<string>("");
@@ -281,7 +283,7 @@ function ExecCommandCard({
         body: JSON.stringify({ command }),
       });
       const reader = res.body?.getReader();
-      if (!reader) { setStatus("done"); return; }
+      if (!reader) { setStatus("done"); onDone?.(); return; }
       const decoder = new TextDecoder();
       let fullOutput = "";
       while (true) {
@@ -298,14 +300,19 @@ function ExecCommandCard({
             }
             if (evt.type === "exit") {
               setStatus(evt.code === 0 ? "done" : "error");
+              onDone?.();
             }
           } catch {}
         }
       }
-      setStatus(prev => prev === "running" ? "done" : prev);
+      setStatus(prev => {
+        if (prev === "running") { onDone?.(); return "done"; }
+        return prev;
+      });
     } catch (e: any) {
       setOutput(e.message ?? "Erro ao executar");
       setStatus("error");
+      onDone?.();
     }
   };
 
@@ -368,10 +375,12 @@ function AssistantMessage({
   content,
   projectId,
   onRunCommand,
+  onRefreshTree,
 }: {
   content: string;
   projectId: string;
   onRunCommand?: (cmd: string) => void;
+  onRefreshTree?: () => void;
 }) {
   const segments = parseAiMessage(content);
 
@@ -398,7 +407,7 @@ function AssistantMessage({
                 key={i}
                 segment={seg}
                 projectId={projectId}
-                onApplied={() => {}}
+                onApplied={() => { onRefreshTree?.(); }}
               />
             );
           }
@@ -409,6 +418,7 @@ function AssistantMessage({
                 command={seg.command}
                 onRun={onRunCommand}
                 projectId={projectId}
+                onDone={onRefreshTree}
               />
             );
           }
@@ -482,7 +492,7 @@ async function agentWriteFile(projectId: string, filePath: string, content: stri
   } catch { return false; }
 }
 
-export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand, terminalLog }: AiPanelProps) {
+export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand, onRefreshTree, terminalLog }: AiPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [contextMode, setContextMode] = useState<ContextMode>(() => {
@@ -540,12 +550,14 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
         } catch (e: any) {
           results.push(`Comando: ${cmd}\nErro: ${e.message}`);
         }
+        onRefreshTree?.();
       } else if (seg.type === "write") {
         const ok = await agentWriteFile(projectId, seg.path, seg.content);
         results.push(`Arquivo ${seg.path}: ${ok ? "salvo" : "erro ao salvar"}`);
         if (ok) {
           setMessages(prev => [...prev, { role: "assistant", content: `📝 Arquivo \`${seg.path}\` aplicado automaticamente.` }]);
         }
+        onRefreshTree?.();
       }
     }
 
@@ -561,7 +573,7 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
       });
     }
     setAgentWorking(false);
-  }, [agentMode, projectId, onRunCommand]);
+  }, [agentMode, projectId, onRunCommand, onRefreshTree]);
 
   const chatMutation = useAiChat({
     mutation: {
@@ -774,7 +786,7 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
                   </div>
                 </div>
               ) : (
-                <AssistantMessage key={i} content={msg.content} projectId={projectId} onRunCommand={onRunCommand} />
+                <AssistantMessage key={i} content={msg.content} projectId={projectId} onRunCommand={onRunCommand} onRefreshTree={onRefreshTree} />
               )
             )}
             {(chatMutation.isPending || agentWorking) && (
