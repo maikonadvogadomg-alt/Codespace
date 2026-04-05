@@ -369,6 +369,46 @@ function ExecCommandCard({
   );
 }
 
+// ─── Markdown renderer ───────────────────────────────────────────────────────
+
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function renderMarkdown(text: string): string {
+  let html = text;
+
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) =>
+    `<pre class="bg-black/40 rounded p-2 my-1 overflow-x-auto text-[10px]"><code class="language-${lang || "text"}">${escapeHtml(code.trim())}</code></pre>`
+  );
+
+  html = html.replace(/`([^`]+)`/g, '<code class="bg-black/30 px-1 py-0.5 rounded text-[10px] text-green-300">$1</code>');
+
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,
+    '<img src="$2" alt="$1" class="max-w-full rounded my-1 max-h-64 object-contain" loading="lazy" />'
+  );
+
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener" class="text-blue-400 underline hover:text-blue-300">$1</a>'
+  );
+
+  html = html.replace(/^### (.+)$/gm, '<h3 class="font-bold text-sm mt-2 mb-1">$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2 class="font-bold text-sm mt-2 mb-1">$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1 class="font-bold text-base mt-2 mb-1">$1</h1>');
+
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+  html = html.replace(/^[-*] (.+)$/gm, '<li class="ml-3 list-disc">$1</li>');
+  html = html.replace(/^(\d+)\. (.+)$/gm, '<li class="ml-3 list-decimal">$2</li>');
+
+  html = html.replace(/^---$/gm, '<hr class="border-border/30 my-2" />');
+
+  html = html.replace(/\n/g, '<br/>');
+
+  return html;
+}
+
 // ─── Message Renderer ─────────────────────────────────────────────────────────
 
 function AssistantMessage({
@@ -395,10 +435,9 @@ function AssistantMessage({
             return (
               <div
                 key={i}
-                className="bg-muted rounded-lg rounded-bl-sm px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-words text-foreground"
-              >
-                {seg.content}
-              </div>
+                className="bg-muted rounded-lg rounded-bl-sm px-3 py-2 text-xs leading-relaxed break-words text-foreground prose prose-invert prose-xs max-w-none"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(seg.content) }}
+              />
             );
           }
           if (seg.type === "write" || seg.type === "delete") {
