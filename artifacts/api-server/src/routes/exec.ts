@@ -5,25 +5,9 @@ import { ExecCommandBody } from "@workspace/api-zod";
 import { spawn, execSync } from "child_process";
 import path from "path";
 import { registerTerminalProcess } from "../lib/devServerRegistry.js";
-import { ensureProjectOnDisk, dbSaveDirectoryTree } from "../lib/persistFiles.js";
-import { countFiles } from "../lib/storage.js";
-import fs from "fs/promises";
+import { ensureProjectOnDisk } from "../lib/persistFiles.js";
 
 const router: IRouter = Router();
-
-function resolveNodeModulesBin(cwd: string): string[] {
-  const bins: string[] = [];
-  let dir = cwd;
-  const seen = new Set<string>();
-  while (dir && !seen.has(dir)) {
-    seen.add(dir);
-    bins.push(path.join(dir, "node_modules", ".bin"));
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return bins;
-}
 
 function detectBinPaths(): string[] {
   const extra: string[] = [];
@@ -42,35 +26,6 @@ function detectBinPaths(): string[] {
 }
 
 const DETECTED_BIN_PATHS = detectBinPaths();
-
-const FILE_MODIFYING_PATTERNS = [
-  /\brm\b/, /\bmv\b/, /\bcp\b/, /\bmkdir\b/, /\btouch\b/,
-  /\btar\b/, /\bunzip\b/, /\bgunzip\b/,
-  /\bnpm\s+(install|i|uninstall|remove|init)\b/,
-  /\byarn\s+(add|remove|install)\b/,
-  /\bpnpm\s+(add|remove|install)\b/,
-  /\bpip3?\s+install\b/,
-  /\bgit\s+(clone|pull|checkout)\b/,
-  /\bwget\b/, /\bcurl\b.*-[oO]\b/,
-  /\bsed\b.*-i/, /\bchmod\b/, /\bchown\b/,
-  />\s/, />>/, /\btee\b/,
-];
-
-function isFileModifyingCommand(cmd: string): boolean {
-  return FILE_MODIFYING_PATTERNS.some(p => p.test(cmd));
-}
-
-async function syncProjectToDb(projectId: number, storagePath: string): Promise<void> {
-  try {
-    await dbSaveDirectoryTree(projectId, storagePath);
-    const { count, sizeBytes } = await countFiles(storagePath);
-    await db.update(projectsTable)
-      .set({ fileCount: count, sizeBytes })
-      .where(eq(projectsTable.id, projectId));
-  } catch (err) {
-    console.error(`Failed to sync project ${projectId} to DB:`, err);
-  }
-}
 
 const BLOCKED_PATTERNS = [
   /rm\s+-rf\s+\//,
@@ -96,9 +51,8 @@ function normalizeCommand(cmd: string): string {
     .replace(/poetry run python\b/, "poetry run python3");
 }
 
-function buildEnv(cwd?: string) {
+function buildEnv() {
   const extraPaths = [
-    ...(cwd ? resolveNodeModulesBin(cwd) : []),
     ...DETECTED_BIN_PATHS,
     "/usr/local/bin",
     "/usr/bin",
@@ -112,8 +66,7 @@ function buildEnv(cwd?: string) {
     "/usr/local/go/bin",
   ];
   const currentPath = process.env.PATH ?? "";
-  const pathParts = currentPath.split(":").filter(p => !p.includes("/workspace/node_modules/"));
-  const pathSet = new Set([...pathParts, ...extraPaths]);
+  const pathSet = new Set([...currentPath.split(":"), ...extraPaths]);
 
   // Filter out pnpm workspace config vars that bleed into user project processes
   // These cause "Unknown env config" warnings when npm runs in user projects
@@ -134,11 +87,16 @@ function buildEnv(cwd?: string) {
   const filteredEnv: Record<string, string> = {};
   for (const [key, val] of Object.entries(process.env)) {
     if (typeof val !== "string") continue;
-    if (key.toLowerCase().startsWith("npm_config_")) continue;
-    if (key.toLowerCase().startsWith("npm_lifecycle_")) continue;
-    if (key.toLowerCase().startsWith("npm_package_")) continue;
-    if (key === "npm_execpath" || key === "npm_node_execpath") continue;
+    // Drop pnpm lifecycle vars and pnpm-specific npm_config_* that cause warnings
     if (PNPM_CONFIG_KEYS.has(key.toLowerCase())) continue;
+    // Also drop pnpm-specific config keys not meant for regular npm
+    if (key.toLowerCase().startsWith("npm_config_") && (
+      key.toLowerCase().includes("jsr") ||
+      key.toLowerCase().includes("catalog") ||
+      key.toLowerCase().includes("release_age") ||
+      key.toLowerCase().includes("globalconfig") ||
+      key.toLowerCase().includes("verify_deps")
+    )) continue;
     filteredEnv[key] = val;
   }
 
@@ -148,8 +106,8 @@ function buildEnv(cwd?: string) {
     NPM_CONFIG_UPDATE_NOTIFIER: "false",
     NPM_CONFIG_PROGRESS: "true",
     PYTHONUNBUFFERED: "1",
+    // Point npm config to /dev/null so it ignores the workspace .npmrc
     npm_config_userconfig: "/dev/null",
-    npm_config_prefix: cwd ?? "",
   };
 }
 
@@ -241,7 +199,7 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
 
   const proc = spawn("sh", ["-c", normalized], {
     cwd,
-    env: buildEnv(cwd),
+    env: buildEnv(),
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -277,10 +235,11 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
     send("stderr", { data: `\nErro ao iniciar processo: ${err.message}\n` });
   });
 
-  proc.on("close", async (code, signal) => {
+  proc.on("close", (code, signal) => {
     const exitCode = code ?? (signal ? 1 : 0);
     const durationMs = Date.now() - start;
 
+    // Only send enriched stderr / exit if not handed off (server processes run forever)
     if (detectedPort === null) {
       const enriched = enrichStderr(stderrBuffer, exitCode, normalized);
       const extraHint = enriched.slice(stderrBuffer.length);
@@ -288,15 +247,9 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
       if (signal === "SIGTERM" && durationMs >= maxTimeout - 1000) {
         send("stderr", { data: `\n\n⏱️  Comando interrompido após ${Math.round(durationMs / 1000)}s (limite atingido).` });
       }
-
-      if (exitCode === 0 && isFileModifyingCommand(normalized)) {
-        send("stdout", { data: "\n🔄 Salvando alterações...\n" });
-        await syncProjectToDb(id, cwd);
-        send("stdout", { data: "✅ Alterações salvas permanentemente.\n" });
-      }
-
       send("exit", { exitCode, durationMs });
     } else {
+      // Server was killed externally (Ctrl+C or stopDevServer)
       send("server_stopped", { exitCode, durationMs });
     }
     if (!clientDisconnected) res.end();
@@ -345,7 +298,7 @@ router.post("/projects/:projectId/exec", async (req, res): Promise<void> => {
   const cwd = path.resolve(project.storagePath);
   const start = Date.now();
 
-  const proc = spawn("sh", ["-c", normalized], { cwd, env: buildEnv(cwd), stdio: ["ignore", "pipe", "pipe"] });
+  const proc = spawn("sh", ["-c", normalized], { cwd, env: buildEnv(), stdio: ["ignore", "pipe", "pipe"] });
   let stdout = "";
   let stderr = "";
   proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
@@ -353,13 +306,10 @@ router.post("/projects/:projectId/exec", async (req, res): Promise<void> => {
 
   const timer = setTimeout(() => { try { proc.kill("SIGTERM"); } catch {} }, timeout);
 
-  proc.on("close", async (code) => {
+  proc.on("close", (code) => {
     clearTimeout(timer);
     const exitCode = code ?? 1;
     const enriched = enrichStderr(stderr, exitCode, normalized);
-    if (exitCode === 0 && isFileModifyingCommand(normalized)) {
-      await syncProjectToDb(id, cwd);
-    }
     res.json({ stdout, stderr: enriched, exitCode, durationMs: Date.now() - start });
   });
 

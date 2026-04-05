@@ -6,71 +6,6 @@ import { isBinaryFile, detectLanguage } from "../lib/storage.js";
 import { ensureProjectOnDisk } from "../lib/persistFiles.js";
 import path from "path";
 import fs from "fs/promises";
-import { GoogleGenAI } from "@google/genai";
-
-const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
-
-async function fetchUrlContent(url: string): Promise<string | null> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; CodeSpace/1.0)",
-        "Accept": "text/html,application/xhtml+xml,text/plain,application/json,*/*",
-      },
-    });
-    clearTimeout(timeout);
-    if (!res.ok) return null;
-    const contentType = res.headers.get("content-type") ?? "";
-    if (contentType.includes("image") || contentType.includes("video") || contentType.includes("audio") || contentType.includes("octet-stream")) {
-      return null;
-    }
-    const raw = await res.text();
-    const text = raw
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-      .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "")
-      .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
-      .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/g, " ")
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/\s+/g, " ")
-      .trim();
-    return text.slice(0, 30000);
-  } catch {
-    return null;
-  }
-}
-
-async function extractUrlContents(text: string): Promise<Array<{ url: string; content: string }>> {
-  const urls = [...new Set(text.match(URL_REGEX) ?? [])].slice(0, 3);
-  if (urls.length === 0) return [];
-  const results: Array<{ url: string; content: string }> = [];
-  await Promise.all(
-    urls.map(async (url) => {
-      const content = await fetchUrlContent(url);
-      if (content && content.length > 50) {
-        results.push({ url, content });
-      }
-    })
-  );
-  return results;
-}
-
-const SKIP_DIRS = new Set([
-  "node_modules", ".git", "dist", "build", ".next", ".nuxt", "__pycache__",
-  ".cache", "coverage", ".turbo", ".parcel-cache", "vendor", "bower_components",
-]);
-
-const MAX_FILE_SIZE = 50_000;
-const MAX_TOTAL_CHARS = 150_000;
 
 async function buildProjectContext(projectId: string): Promise<{ text: string; fileCount: number; truncated: boolean }> {
   const numId = parseInt(projectId, 10);
@@ -79,20 +14,20 @@ async function buildProjectContext(projectId: string): Promise<{ text: string; f
   const project = rows[0];
   if (!project) throw new Error("Projeto não encontrado");
 
+  // Restore from DB if /tmp was wiped
   await ensureProjectOnDisk(project.id, project.storagePath);
 
   const projectDir = project.storagePath;
   const parts: string[] = [];
   let fileCount = 0;
   let totalChars = 0;
+  const MAX_CHARS = 200_000;
   let truncated = false;
-  let skippedFiles: string[] = [];
 
   async function walk(dir: string, relBase: string) {
-    let entries;
-    try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
+    const entries = await fs.readdir(dir, { withFileTypes: true });
     const sorted = entries
-      .filter(e => !e.name.startsWith(".") && !SKIP_DIRS.has(e.name))
+      .filter(e => !e.name.startsWith("."))
       .sort((a, b) => {
         if (a.isDirectory() && !b.isDirectory()) return -1;
         if (!a.isDirectory() && b.isDirectory()) return 1;
@@ -100,26 +35,19 @@ async function buildProjectContext(projectId: string): Promise<{ text: string; f
       });
 
     for (const entry of sorted) {
-      if (totalChars >= MAX_TOTAL_CHARS) { truncated = true; return; }
       const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         await walk(fullPath, relPath);
       } else if (!isBinaryFile(relPath)) {
+        if (totalChars >= MAX_CHARS) {
+          truncated = true;
+          continue;
+        }
         try {
-          const stat = await fs.stat(fullPath);
-          if (stat.size > MAX_FILE_SIZE) {
-            skippedFiles.push(relPath);
-            continue;
-          }
           const content = await fs.readFile(fullPath, "utf-8");
           const lang = detectLanguage(relPath);
-          const trimmed = content.length > MAX_FILE_SIZE ? content.slice(0, MAX_FILE_SIZE) + "\n... [arquivo truncado]" : content;
-          const block = `// ═══ FILE: ${relPath} ═══\n\`\`\`${lang}\n${trimmed}\n\`\`\`\n`;
-          if (totalChars + block.length > MAX_TOTAL_CHARS) {
-            truncated = true;
-            return;
-          }
+          const block = `// ═══ FILE: ${relPath} ═══\n\`\`\`${lang}\n${content}\n\`\`\`\n`;
           parts.push(block);
           totalChars += block.length;
           fileCount++;
@@ -131,11 +59,7 @@ async function buildProjectContext(projectId: string): Promise<{ text: string; f
   }
 
   await walk(projectDir, "");
-  let summary = parts.join("\n");
-  if (skippedFiles.length > 0) {
-    summary += `\n\n// ═══ ARQUIVOS GRANDES OMITIDOS (>${MAX_FILE_SIZE} bytes) ═══\n// ${skippedFiles.join(", ")}\n`;
-  }
-  return { text: summary, fileCount, truncated };
+  return { text: parts.join("\n"), fileCount, truncated };
 }
 
 const router: IRouter = Router();
@@ -145,63 +69,17 @@ async function getAiSettings() {
   return rows[0] ?? null;
 }
 
-const GEMINI_CORTESIA_KEY = process.env.AI_INTEGRATIONS_GEMINI_API_KEY ?? null;
-const GEMINI_CORTESIA_URL = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL ?? null;
-const GEMINI_CORTESIA_MODEL = "gemini-2.5-flash";
-
-const geminiCortesiaClient = (GEMINI_CORTESIA_KEY && GEMINI_CORTESIA_URL)
-  ? new GoogleGenAI({
-      apiKey: GEMINI_CORTESIA_KEY,
-      httpOptions: { apiVersion: "", baseUrl: GEMINI_CORTESIA_URL },
-    })
-  : null;
-
-async function callGeminiCortesia(
-  messages: Array<{ role: string; content: string }>,
-  maxRetries = 3
-): Promise<string> {
-  if (!geminiCortesiaClient) {
-    throw new Error("Gemini cortesia não disponível. Configure uma chave de IA nas Configurações.");
-  }
-
-  const systemMsgs = messages.filter(m => m.role === "system").map(m => m.content);
-  const nonSystemMsgs = messages.filter(m => m.role !== "system");
-
-  const fullPrompt = [
-    ...systemMsgs,
-    ...nonSystemMsgs.map(m => `${m.role === "user" ? "Usuário" : "Assistente"}: ${m.content}`),
-  ].join("\n\n");
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const result = await geminiCortesiaClient.models.generateContent({
-        model: GEMINI_CORTESIA_MODEL,
-        contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
-        config: { maxOutputTokens: 8000, temperature: 0.7 },
-      });
-
-      const content = result.text;
-      if (!content) throw new Error("Gemini retornou resposta vazia");
-      return content;
-    } catch (err: any) {
-      const isRateLimit = err?.status === 429 || err?.message?.includes("RATELIMIT") || err?.message?.includes("rate limit") || err?.message?.includes("429");
-      if (isRateLimit && attempt < maxRetries) {
-        const delay = (attempt + 1) * 3000;
-        await new Promise(r => setTimeout(r, delay));
-        continue;
-      }
-      throw err;
-    }
-  }
-  throw new Error("Gemini: todas as tentativas falharam");
-}
-
-async function callUserKey(
-  settings: { aiApiKey: string; aiBaseUrl: string | null; aiModel: string | null },
+async function callAi(
+  settings: { aiApiKey: string | null; aiBaseUrl: string | null; aiModel: string | null },
   messages: Array<{ role: string; content: string }>
 ): Promise<string> {
+  if (!settings.aiApiKey) {
+    throw new Error("AI API key not configured. Please go to Settings and add your API key.");
+  }
+
   const baseUrl = settings.aiBaseUrl ?? "https://api.openai.com/v1";
   const model = settings.aiModel ?? "gpt-4o";
+
   const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
 
   const response = await fetch(url, {
@@ -231,27 +109,8 @@ async function callUserKey(
   if (!content) {
     throw new Error("AI returned empty response");
   }
+
   return content;
-}
-
-async function callAi(
-  settings: { aiApiKey: string | null; aiBaseUrl: string | null; aiModel: string | null },
-  messages: Array<{ role: string; content: string }>
-): Promise<{ text: string; provider: string }> {
-  if (geminiCortesiaClient) {
-    const text = await callGeminiCortesia(messages);
-    return { text, provider: "gemini-cortesia" };
-  }
-
-  if (settings.aiApiKey) {
-    const text = await callUserKey(
-      { aiApiKey: settings.aiApiKey, aiBaseUrl: settings.aiBaseUrl, aiModel: settings.aiModel },
-      messages
-    );
-    return { text, provider: "user" };
-  }
-
-  throw new Error("Nenhuma IA disponível. Configure uma chave de API nas Configurações (engrenagem no canto inferior esquerdo).");
 }
 
 router.post("/ai/chat", async (req, res): Promise<void> => {
@@ -261,9 +120,13 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
     return;
   }
 
-  const { messages, fileContext, filePath, projectId, projectContext, terminalContext, agentMode } = parsed.data;
+  const { messages, fileContext, filePath, projectId, projectContext, terminalContext } = parsed.data;
 
   const settings = await getAiSettings();
+  if (!settings?.aiApiKey) {
+    res.status(400).json({ error: "Chave de API da IA não configurada. Vá em Configurações." });
+    return;
+  }
 
   const systemMessages: Array<{ role: string; content: string }> = [];
 
@@ -278,74 +141,17 @@ conteúdo completo do arquivo aqui
 2. DELETAR arquivo:
 <codelens-delete path="caminho/do/arquivo.ts"/>
 
-3. EXECUTAR COMANDO no terminal (qualquer comando do sistema):
+3. SUGERIR COMANDO para o terminal (npm install, git, node, etc.):
 <codelens-exec>npm install axios</codelens-exec>
 
-⚠️ VOCÊ TEM ACESSO TOTAL AO TERMINAL E AO SISTEMA DE ARQUIVOS DO PROJETO.
-Você PODE e DEVE executar qualquer comando necessário:
-- Listar arquivos: <codelens-exec>ls -la</codelens-exec>
-- Mover arquivos: <codelens-exec>mv arquivo.txt pasta/</codelens-exec>
-- Copiar arquivos: <codelens-exec>cp arquivo.txt copia.txt</codelens-exec>
-- Renomear arquivos: <codelens-exec>mv nome_antigo.txt nome_novo.txt</codelens-exec>
-- Criar pastas: <codelens-exec>mkdir -p nova_pasta</codelens-exec>
-- Deletar arquivos/pastas: <codelens-exec>rm -rf pasta_antiga</codelens-exec>
-- Descompactar arquivos: <codelens-exec>tar -xzf arquivo.tar.gz</codelens-exec> ou <codelens-exec>unzip arquivo.zip</codelens-exec>
-- Buscar arquivos: <codelens-exec>find . -name "*.tar.gz"</codelens-exec>
-- Ver conteúdo: <codelens-exec>cat arquivo.txt</codelens-exec>
-- Instalar pacotes: <codelens-exec>npm install pacote</codelens-exec>
-- Rodar scripts: <codelens-exec>node script.js</codelens-exec>
-- Git: <codelens-exec>git clone URL</codelens-exec>, <codelens-exec>git add . && git commit -m "msg"</codelens-exec>
-- Qualquer outro comando bash/shell
-
-NUNCA diga "eu não tenho acesso ao sistema de arquivos" — você TEM acesso via <codelens-exec>.
-NUNCA peça para o usuário executar comandos manualmente — EXECUTE você mesmo via <codelens-exec>.
-Se o usuário pedir para mover, copiar, renomear, deletar, descompactar, ou organizar arquivos — FAÇA DIRETAMENTE.
-Se não souber onde está um arquivo, use <codelens-exec>find . -name "nome*"</codelens-exec> para procurar.
-
-REGRAS ADICIONAIS:
+REGRAS IMPORTANTES:
 - Caminhos sempre relativos à raiz do projeto, sem / inicial
 - Conteúdo COMPLETO no bloco write (nunca use "..." ou "resto do código aqui")
 - Pode combinar múltiplos blocos write + exec em uma única resposta
 - Para instalar pacotes: use <codelens-exec>npm install nome-do-pacote</codelens-exec>
+- Para banco de dados: SQLite usa "better-sqlite3" ou "drizzle-orm", Postgres usa "pg" ou "drizzle-orm/node-postgres"
 - Explique em PORTUGUÊS o que você está fazendo antes de cada bloco
-- Quando houver múltiplas etapas (instalar + criar arquivo + configurar), faça tudo em sequência na mesma resposta
-- O usuário NÃO entende de código — explique de forma simples e faça tudo por ele
-
-4. MOSTRAR IMAGENS, DIAGRAMAS E FIGURAS:
-Você pode exibir imagens e diagramas usando Markdown:
-- Imagem da web: ![descrição](https://url-da-imagem.com/imagem.png)
-- Diagrama SVG inline: Escreva o código SVG diretamente na resposta usando \`\`\`svg ... \`\`\` e o sistema renderizará o diagrama
-- Use diagramas para explicar arquiteturas, fluxos, estruturas de pastas, etc.
-- Use tabelas Markdown para comparações e dados organizados
-- Use formatação rica: **negrito**, *itálico*, listas, títulos (## ##), linhas (---), blocos de código
-
-Exemplo de diagrama SVG:
-\`\`\`svg
-<svg width="300" height="100" xmlns="http://www.w3.org/2000/svg">
-  <rect x="10" y="10" width="120" height="40" rx="8" fill="#3b82f6" />
-  <text x="70" y="35" text-anchor="middle" fill="white" font-size="14">Frontend</text>
-  <line x1="130" y1="30" x2="170" y2="30" stroke="#888" stroke-width="2" marker-end="url(#arrow)"/>
-  <rect x="170" y="10" width="120" height="40" rx="8" fill="#10b981" />
-  <text x="230" y="35" text-anchor="middle" fill="white" font-size="14">Backend</text>
-</svg>
-\`\`\`
-
-SEMPRE que puder ilustrar algo visualmente, USE diagramas SVG ou imagens para facilitar o entendimento.`;
-
-  const AGENT_MODE_INSTRUCTIONS = `
-🤖 MODO AGENTE ATIVO — Você tem execução AUTOMÁTICA de comandos e arquivos.
-Quando você usa <codelens-exec> ou <codelens-write>, o sistema EXECUTA automaticamente e te mostra o resultado.
-Você DEVE agir como um agente autônomo:
-- Diagnostique o problema executando comandos (ls, cat, npm ls, etc.)
-- Instale dependências se necessário (npm install)
-- Crie ou edite arquivos para corrigir erros
-- Após cada ação, analise o resultado e continue até resolver
-- Se um comando falhar, tente outra abordagem
-- NUNCA peça permissão — EXECUTE diretamente
-- Quando terminar, diga claramente "✅ Pronto!" e explique o que fez
-- Limite: máximo 10 ações por turno para evitar loops infinitos`;
-
-  const agentInstructions = agentMode ? AGENT_MODE_INSTRUCTIONS : "";
+- Quando houver múltiplas etapas (instalar + criar arquivo + configurar), faça tudo em sequência na mesma resposta`;
 
   if (projectContext && projectId) {
     try {
@@ -360,8 +166,7 @@ Abaixo está o conteúdo completo do projeto:
 ${text}
 
 Use markdown quando útil. Ao referenciar código, cite o arquivo pelo caminho.
-${FILE_CHANGE_INSTRUCTIONS}
-${agentInstructions}`,
+${FILE_CHANGE_INSTRUCTIONS}`,
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erro ao carregar projeto";
@@ -402,34 +207,14 @@ Use esse contexto para entender erros recentes e ajudar o usuário a corrigir os
     });
   }
 
-  const lastUserMsg = messages.filter(m => m.role === "user").pop();
-  if (lastUserMsg) {
-    const urlContents = await extractUrlContents(lastUserMsg.content);
-    if (urlContents.length > 0) {
-      const urlContext = urlContents.map(u =>
-        `🌐 CONTEÚDO DO LINK: ${u.url}\n\`\`\`\n${u.content.slice(0, 15000)}\n\`\`\``
-      ).join("\n\n");
-      systemMessages.push({
-        role: "system",
-        content: `O usuário enviou link(s). Abaixo está o conteúdo extraído das páginas web. Use este conteúdo para responder de forma precisa.\n\n${urlContext}`,
-      });
-    }
-  }
-
   const allMessages = [
     ...systemMessages,
     ...messages.map((m) => ({ role: m.role, content: m.content })),
   ];
 
   try {
-    const aiSettings = {
-      aiApiKey: settings?.aiApiKey ?? null,
-      aiBaseUrl: settings?.aiBaseUrl ?? null,
-      aiModel: settings?.aiModel ?? null,
-    };
-    const result = await callAi(aiSettings, allMessages);
-    const usedModel = result.provider === "user" ? (aiSettings.aiModel ?? "gpt-4o") : GEMINI_CORTESIA_MODEL;
-    res.json({ reply: result.text, model: usedModel, provider: result.provider });
+    const reply = await callAi(settings, allMessages);
+    res.json({ reply, model: settings.aiModel ?? "gpt-4o" });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erro na IA";
     req.log.error({ err }, "AI chat failed");
@@ -448,6 +233,10 @@ router.post("/ai/analyze-file", async (req, res): Promise<void> => {
   const { projectId, filePath, content } = parsed.data;
 
   const settings = await getAiSettings();
+  if (!settings?.aiApiKey) {
+    res.status(400).json({ error: "AI API key not configured. Please go to Settings." });
+    return;
+  }
 
   const language = detectLanguage(filePath);
   const filename = path.basename(filePath);
@@ -468,14 +257,13 @@ ${content.slice(0, 8000)}
 Provide a clear, structured analysis. Be concise but thorough.`;
 
   try {
-    const aiS = { aiApiKey: settings?.aiApiKey ?? null, aiBaseUrl: settings?.aiBaseUrl ?? null, aiModel: settings?.aiModel ?? null };
-    const result = await callAi(aiS, [
+    const analysis = await callAi(settings, [
       { role: "user", content: prompt }
     ]);
 
     res.json({
-      analysis: result.text,
-      model: result.provider === "user" ? (aiS.aiModel ?? "gpt-4o") : GEMINI_CORTESIA_MODEL,
+      analysis,
+      model: settings.aiModel ?? "gpt-4o",
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown AI error";
@@ -507,6 +295,10 @@ router.post("/ai/analyze-folder", async (req, res): Promise<void> => {
   }
 
   const settings = await getAiSettings();
+  if (!settings?.aiApiKey) {
+    res.status(400).json({ error: "AI API key not configured. Please go to Settings." });
+    return;
+  }
 
   const normalizedFolder = folderPath.replace(/^\//, "");
   const fullFolderPath = normalizedFolder
@@ -580,14 +372,13 @@ ${filesOverview}
 Provide a clear, structured analysis of what this folder's role is in the project.`;
 
   try {
-    const aiS = { aiApiKey: settings?.aiApiKey ?? null, aiBaseUrl: settings?.aiBaseUrl ?? null, aiModel: settings?.aiModel ?? null };
-    const result = await callAi(aiS, [
+    const analysis = await callAi(settings, [
       { role: "user", content: prompt }
     ]);
 
     res.json({
-      analysis: result.text,
-      model: result.provider === "user" ? (aiS.aiModel ?? "gpt-4o") : GEMINI_CORTESIA_MODEL,
+      analysis,
+      model: settings.aiModel ?? "gpt-4o",
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown AI error";
@@ -595,94 +386,6 @@ Provide a clear, structured analysis of what this folder's role is in the projec
     res.status(400).json({ error: message });
     return;
   }
-});
-
-router.post("/ai/agent-exec", async (req, res): Promise<void> => {
-  const { projectId, command } = req.body;
-  if (!projectId || !command) {
-    res.status(400).json({ error: "projectId and command are required" });
-    return;
-  }
-
-  const numId = parseInt(projectId, 10);
-  if (isNaN(numId)) {
-    res.status(400).json({ error: "Invalid project ID" });
-    return;
-  }
-
-  const rows = await db.select().from(projectsTable).where(eq(projectsTable.id, numId)).limit(1);
-  const project = rows[0];
-  if (!project) {
-    res.status(404).json({ error: "Project not found" });
-    return;
-  }
-
-  await ensureProjectOnDisk(project.id, project.storagePath);
-
-  const BLOCKED = [
-    /rm\s+-rf\s+\//,
-    /mkfs/,
-    /dd\s+if=.*of=\/dev/,
-    /shutdown|reboot|halt|poweroff/,
-    /curl.*\|\s*(bash|sh)/,
-  ];
-  if (BLOCKED.some(p => p.test(command))) {
-    res.json({ stdout: "", stderr: "Comando bloqueado por segurança.", exitCode: 1 });
-    return;
-  }
-
-  const { spawn } = await import("child_process");
-  const { dbSaveDirectoryTree } = await import("../lib/persistFiles.js");
-  const { countFiles } = await import("../lib/storage.js");
-
-  const proc = spawn("bash", ["-c", command], {
-    cwd: project.storagePath,
-    env: {
-      ...process.env,
-      PATH: `${project.storagePath}/node_modules/.bin:${process.env.PATH}`,
-      HOME: process.env.HOME || "/home/runner",
-    },
-    timeout: 120_000,
-  });
-
-  let stdout = "";
-  let stderr = "";
-  proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
-  proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
-
-  proc.on("close", async (code) => {
-    const exitCode = code ?? 1;
-    if (exitCode === 0) {
-      try {
-        await dbSaveDirectoryTree(numId, project.storagePath);
-        const { count, sizeBytes } = await countFiles(project.storagePath);
-        await db.update(projectsTable)
-          .set({ fileCount: count, sizeBytes })
-          .where(eq(projectsTable.id, numId));
-      } catch {}
-    }
-    res.json({
-      stdout: stdout.slice(-8000),
-      stderr: stderr.slice(-4000),
-      exitCode,
-    });
-  });
-
-  proc.on("error", (err) => {
-    res.json({ stdout: "", stderr: err.message, exitCode: 1 });
-  });
-});
-
-router.get("/ai/status", async (_req, res): Promise<void> => {
-  const settings = await getAiSettings();
-  const hasUserKey = !!settings?.aiApiKey;
-  const hasGeminiCortesia = !!GEMINI_CORTESIA_KEY && !!GEMINI_CORTESIA_URL;
-  const available = hasUserKey || hasGeminiCortesia;
-  res.json({
-    available,
-    provider: hasGeminiCortesia ? "gemini-cortesia" : hasUserKey ? "user" : "none",
-    model: hasGeminiCortesia ? GEMINI_CORTESIA_MODEL : hasUserKey ? (settings?.aiModel ?? "gpt-4o") : null,
-  });
 });
 
 export default router;

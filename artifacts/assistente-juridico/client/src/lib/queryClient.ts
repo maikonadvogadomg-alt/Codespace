@@ -12,12 +12,7 @@ function resolveUrl(url: string): string {
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    let text = "";
-    try {
-      text = (await res.text()) || res.statusText;
-    } catch {
-      text = res.statusText;
-    }
+    const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
 }
@@ -60,16 +55,14 @@ export const getQueryFn: <T>(options: {
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "returnNull" }),
+      queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
       retry: false,
-      throwOnError: false,
     },
     mutations: {
       retry: false,
-      throwOnError: false,
     },
   },
 });

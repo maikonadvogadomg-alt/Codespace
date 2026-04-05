@@ -105,12 +105,9 @@ export default function Home() {
   const queryClient = useQueryClient();
 
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
-  const [replitDialogOpen, setReplitDialogOpen] = useState(false);
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
   const [repoUrl, setRepoUrl] = useState("");
   const [branch, setBranch] = useState("");
-  const [replitUrl, setReplitUrl] = useState("");
-  const [isImportingReplit, setIsImportingReplit] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectTemplate, setNewProjectTemplate] = useState("html");
   const [isCreatingBlank, setIsCreatingBlank] = useState(false);
@@ -219,34 +216,6 @@ export default function Home() {
     });
   };
 
-  const handleReplitImport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!replitUrl.trim()) return;
-    setIsImportingReplit(true);
-    try {
-      const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-      const resp = await fetch(`${base}/api/projects/import-replit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ replitUrl: replitUrl.trim() }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.error || "Falha ao importar do Replit");
-      }
-      const data = await resp.json();
-      queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
-      toast({ title: `Projeto "${data.name}" importado do Replit` });
-      setReplitDialogOpen(false);
-      setReplitUrl("");
-      setLocation(`/projects/${data.id}`);
-    } catch (err: any) {
-      toast({ title: "Erro ao importar", description: err.message, variant: "destructive" });
-    } finally {
-      setIsImportingReplit(false);
-    }
-  };
-
   const handleCreateBlank = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = newProjectName.trim() || "Novo Projeto";
@@ -276,7 +245,7 @@ export default function Home() {
     }
   };
 
-  const isUploading = uploadMutation.isPending || importGithubMutation.isPending || isImportingReplit;
+  const isUploading = uploadMutation.isPending || importGithubMutation.isPending;
 
   return (
     <AppLayout>
@@ -311,16 +280,6 @@ export default function Home() {
                 <Github className="w-4 h-4" />
                 <span className="hidden sm:inline">Importar do GitHub</span>
                 <span className="sm:hidden">GitHub</span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setReplitDialogOpen(true)}
-                disabled={isUploading}
-                className="gap-2"
-              >
-                <Globe className="w-4 h-4" />
-                <span className="hidden sm:inline">Importar do Replit</span>
-                <span className="sm:hidden">Replit</span>
               </Button>
               {uploadMutation.isPending ? (
                 <Button variant="outline" disabled className="gap-2">
@@ -608,66 +567,6 @@ export default function Home() {
                 ) : (
                   <>
                     <Github className="w-4 h-4" />
-                    Importar
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─── Replit Import Dialog ───────────────────────────────────────────── */}
-      <Dialog open={replitDialogOpen} onOpenChange={setReplitDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Globe className="w-5 h-5" />
-              Importar do Replit
-            </DialogTitle>
-            <DialogDescription>
-              Cole o link de um projeto público do Replit para importar todo o código-fonte.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleReplitImport}>
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label htmlFor="replitUrl">URL do Projeto</Label>
-                <Input
-                  id="replitUrl"
-                  placeholder="https://replit.com/@usuario/projeto"
-                  value={replitUrl}
-                  onChange={(e) => setReplitUrl(e.target.value)}
-                  disabled={isImportingReplit}
-                  autoFocus
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                O projeto precisa ser público. Formatos aceitos: https://replit.com/@usuario/projeto
-              </p>
-            </div>
-            <DialogFooter className="mt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setReplitDialogOpen(false)}
-                disabled={isImportingReplit}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={!replitUrl.trim() || isImportingReplit}
-                className="gap-2"
-              >
-                {isImportingReplit ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Importando...
-                  </>
-                ) : (
-                  <>
-                    <Globe className="w-4 h-4" />
                     Importar
                   </>
                 )}

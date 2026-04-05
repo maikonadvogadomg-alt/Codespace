@@ -10,7 +10,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^1.48.0",
     "@octokit/rest": "^22.0.1",
     "@types/adm-zip": "^0.5.8",
     "@types/mime-types": "^3.0.1",

@@ -90,7 +90,7 @@ router.post(
 
         const targetPath = path.join(projectDir, entryName);
         const resolvedTarget = path.resolve(targetPath);
-        const resolvedBase = path.resolve(projectDir) + path.sep;
+        const resolvedBase = path.resolve(projectDir);
         if (!resolvedTarget.startsWith(resolvedBase)) continue;
 
         const targetDir = path.dirname(targetPath);

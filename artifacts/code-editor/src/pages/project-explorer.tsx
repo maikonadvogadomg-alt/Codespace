@@ -17,7 +17,6 @@ import { TerminalPanel, type TerminalEntry } from "@/components/terminal-panel";
 import { PackagesPanel } from "@/components/packages-panel";
 import { PreviewPanel } from "@/components/preview-panel";
 import { GithubDeployModal } from "@/components/github-deploy-modal";
-import { GitCommitModal } from "@/components/git-commit-modal";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -26,7 +25,6 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   Github,
-  GitBranch,
   Loader2,
   ArrowLeft,
   TerminalSquare,
@@ -37,7 +35,6 @@ import {
   FilePlus,
   FolderPlus,
   Monitor,
-  Upload,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -77,7 +74,6 @@ export default function ProjectExplorer() {
   }, [fileHistory.length]);
 
   const [githubModalOpen, setGithubModalOpen] = useState(false);
-  const [gitCommitModalOpen, setGitCommitModalOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("files");
   const [mobilePreviewPath, setMobilePreviewPath] = useState<string | undefined>(undefined);
@@ -108,38 +104,6 @@ export default function ProjectExplorer() {
   const refreshProjectTree = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(projectId) });
   }, [queryClient, projectId]);
-
-  const uploadInputRef = useRef<HTMLInputElement>(null);
-  const [isUploading, setIsUploading] = useState(false);
-
-  const handleUploadFiles = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    setIsUploading(true);
-    try {
-      const formData = new FormData();
-      for (let i = 0; i < files.length; i++) {
-        formData.append("files", files[i]);
-      }
-      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-      const resp = await fetch(`${base}/api/projects/${projectId}/files/upload`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.error || "Falha no upload");
-      }
-      const data = await resp.json();
-      toast({ title: `${data.count} arquivo(s) enviado(s) com sucesso` });
-      refreshProjectTree();
-    } catch (err: any) {
-      toast({ title: "Erro no upload", description: err.message, variant: "destructive" });
-    } finally {
-      setIsUploading(false);
-      if (e.target) e.target.value = "";
-    }
-  }, [projectId, toast, refreshProjectTree]);
 
   const { data: project, isLoading: isProjectLoading } = useGetProject(projectId, {
     query: { queryKey: getGetProjectQueryKey(projectId) },
@@ -260,15 +224,6 @@ export default function ProjectExplorer() {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setGitCommitModalOpen(true)}
-              className="h-8 w-8 p-0 shrink-0 text-muted-foreground"
-              title="Commit & Push"
-            >
-              <GitBranch className="w-4 h-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
               onClick={() => setGithubModalOpen(true)}
               className="h-8 w-8 p-0 shrink-0 text-muted-foreground"
             >
@@ -283,16 +238,6 @@ export default function ProjectExplorer() {
             <div className={cn("h-full overflow-hidden flex flex-col", mobileTab !== "files" && "hidden")}>
               <div className="h-9 shrink-0 flex items-center px-3 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30 gap-2">
                 <span className="flex-1 tracking-wider">Explorer</span>
-                <input
-                  ref={uploadInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={handleUploadFiles}
-                />
-                <button title="Upload de arquivos" onClick={() => uploadInputRef.current?.click()} disabled={isUploading} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
-                  {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                </button>
                 <button title="Novo arquivo" onClick={() => fileOps.createFile("novo-arquivo.txt", "")} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                   <FilePlus className="w-3.5 h-3.5" />
                 </button>
@@ -347,7 +292,6 @@ export default function ProjectExplorer() {
                 fileContext={fileContextForAi}
                 externalMessage={externalMessage}
                 onRunCommand={handleRunCommand}
-                onRefreshTree={refreshProjectTree}
                 terminalLog={aiTerminalLog}
               />
             </div>
@@ -416,11 +360,6 @@ export default function ProjectExplorer() {
           projectId={project.id}
           defaultName={project.name}
         />
-        <GitCommitModal
-          open={gitCommitModalOpen}
-          onOpenChange={setGitCommitModalOpen}
-          projectId={project.id}
-        />
       </AppLayout>
     );
   }
@@ -452,15 +391,6 @@ export default function ProjectExplorer() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setGitCommitModalOpen(true)}
-              className="h-7 gap-1.5 text-xs"
-            >
-              <GitBranch className="w-3.5 h-3.5" />
-              Commit
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
               onClick={() => setGithubModalOpen(true)}
               className="h-7 gap-1.5 text-xs"
             >
@@ -481,9 +411,6 @@ export default function ProjectExplorer() {
                   <div className="h-full flex flex-col border-r border-border overflow-hidden">
                     <div className="h-9 shrink-0 flex items-center px-3 border-b border-border/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background/30 gap-2">
                       <span className="flex-1 tracking-wider">Explorer</span>
-                      <button title="Upload de arquivos" onClick={() => uploadInputRef.current?.click()} disabled={isUploading} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
-                        {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                      </button>
                       <button title="Novo arquivo" onClick={() => fileOps.createFile("novo-arquivo.txt", "")} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                         <FilePlus className="w-3.5 h-3.5" />
                       </button>
@@ -540,7 +467,6 @@ export default function ProjectExplorer() {
                     fileContext={fileContextForAi}
                     externalMessage={externalMessage}
                     onRunCommand={handleRunCommand}
-                    onRefreshTree={refreshProjectTree}
                     terminalLog={aiTerminalLog}
                   />
                 </ResizablePanel>
@@ -578,11 +504,6 @@ export default function ProjectExplorer() {
         onOpenChange={setGithubModalOpen}
         projectId={project.id}
         defaultName={project.name}
-      />
-      <GitCommitModal
-        open={gitCommitModalOpen}
-        onOpenChange={setGitCommitModalOpen}
-        projectId={project.id}
       />
     </AppLayout>
   );

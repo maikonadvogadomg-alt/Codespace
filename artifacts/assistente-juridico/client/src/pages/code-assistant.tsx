@@ -7,15 +7,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   MessageSquare, Settings, Send, Trash2, ArrowLeft, Eye, EyeOff, Loader2,
   StopCircle, RotateCcw, Check, ClipboardCopy, Save, Key, X,
-  Download, Upload, Globe, Mic, MicOff, AudioLines, Volume2, VolumeX,
+  Download, Upload, Globe, Mic, MicOff,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { Link } from "wouter";  
 
 
@@ -140,162 +133,7 @@ export default function CodeAssistant() {
   const recognitionRef = useRef<any>(null);
   const wantsListeningRef = useRef(false);
 
-  const [showVoiceChat, setShowVoiceChat] = useState(false);
-  const [voiceMsgs, setVoiceMsgs] = useState<Array<{role: "user"|"assistant"; text: string}>>([]);
-  const [voiceListening, setVoiceListening] = useState(false);
-  const [voiceProcessing, setVoiceProcessing] = useState(false);
-  const [voiceInput, setVoiceInput] = useState("");
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const voiceRecRef = useRef<any>(null);
-  const voiceScrollRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
   const hasSpeechRecognition = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
-
-  const stopAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    setIsSpeaking(false);
-  }, []);
-
-  const playTtsFallback = useCallback((text: string) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(text.replace(/<[^>]*>/g, '').substring(0, 500));
-    utt.lang = "pt-BR";
-    utt.rate = 1.1;
-    const voices = window.speechSynthesis.getVoices();
-    const ptVoice = voices.find(v => v.lang.startsWith("pt"));
-    if (ptVoice) utt.voice = ptVoice;
-    utt.onend = () => setIsSpeaking(false);
-    utt.onerror = () => setIsSpeaking(false);
-    setIsSpeaking(true);
-    window.speechSynthesis.speak(utt);
-  }, []);
-
-  const playTts = useCallback(async (text: string) => {
-    stopAudio();
-    const cleanText = text.replace(/<[^>]*>/g, '').replace(/```[\s\S]*?```/g, '').substring(0, 1000);
-    setIsSpeaking(true);
-    try {
-      const resp = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: cleanText }),
-      });
-      const contentType = resp.headers.get("content-type") || "";
-      if (!resp.ok || !contentType.includes("audio")) {
-        playTtsFallback(cleanText);
-        return;
-      }
-      const blob = await resp.blob();
-      if (!blob || blob.size < 100) {
-        playTtsFallback(cleanText);
-        return;
-      }
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onended = () => { setIsSpeaking(false); audioRef.current = null; URL.revokeObjectURL(url); };
-      audio.onerror = () => { setIsSpeaking(false); audioRef.current = null; URL.revokeObjectURL(url); playTtsFallback(cleanText); };
-      await audio.play();
-    } catch {
-      setIsSpeaking(false);
-      playTtsFallback(cleanText);
-    }
-  }, [stopAudio, playTtsFallback]);
-
-  const voiceChatSend = useCallback(async (userText: string) => {
-    if (!userText.trim() || voiceProcessing) return;
-    const msgs = [...voiceMsgs, { role: "user" as const, text: userText.trim() }];
-    setVoiceMsgs(msgs);
-    setVoiceProcessing(true);
-    try {
-      const resp = await fetch("/api/code-assistant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userText.trim(),
-          history: msgs.map(m => ({ role: m.role, content: m.text })),
-          apiKey: apiKey.trim(),
-          apiUrl: apiUrl.trim().replace(/\/$/, ""),
-          apiModel: apiModel.trim(),
-        }),
-      });
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({})) as any;
-        setVoiceMsgs(prev => [...prev, { role: "assistant", text: `Erro: ${errData?.message || resp.status}` }]);
-        return;
-      }
-      const reader = resp.body?.getReader();
-      if (!reader) throw new Error("Sem resposta");
-      const decoder = new TextDecoder();
-      let fullText = "";
-      let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const delta = parsed.text || parsed.content || parsed.choices?.[0]?.delta?.content || "";
-            if (delta) fullText += delta;
-          } catch {}
-        }
-      }
-      const reply = fullText.trim() || "Desculpe, nao consegui responder.";
-      setVoiceMsgs(prev => [...prev, { role: "assistant", text: reply }]);
-      playTts(reply);
-    } catch {
-      setVoiceMsgs(prev => [...prev, { role: "assistant", text: "Erro de conexao. Tente novamente." }]);
-    } finally {
-      setVoiceProcessing(false);
-    }
-  }, [voiceMsgs, voiceProcessing, apiKey, apiUrl, apiModel, playTts]);
-
-  useEffect(() => {
-    if (voiceScrollRef.current) voiceScrollRef.current.scrollTop = voiceScrollRef.current.scrollHeight;
-  }, [voiceMsgs, voiceProcessing]);
-
-  const voiceToggleMic = useCallback(() => {
-    if (voiceListening) {
-      voiceRecRef.current?.stop();
-      setVoiceListening(false);
-      return;
-    }
-    if (isSpeaking) stopAudio();
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { toast({ title: "Use Chrome ou Edge para ditar por voz.", variant: "destructive" }); return; }
-    const rec = new SR();
-    rec.lang = "pt-BR";
-    rec.continuous = false;
-    rec.interimResults = false;
-    let captured = false;
-    rec.onresult = (e: any) => {
-      if (captured) return;
-      const last = e.results[e.results.length - 1];
-      if (last?.isFinal) {
-        const text = last[0].transcript.trim();
-        if (text) { captured = true; setTimeout(() => voiceChatSend(text), 300); }
-      }
-    };
-    rec.onerror = (e: any) => {
-      if (e.error === "not-allowed") toast({ title: "Microfone bloqueado", variant: "destructive" });
-      setVoiceListening(false);
-    };
-    rec.onend = () => { voiceRecRef.current = null; setVoiceListening(false); };
-    voiceRecRef.current = rec;
-    try { rec.start(); setVoiceListening(true); } catch { setVoiceListening(false); }
-  }, [voiceListening, voiceChatSend, toast, isSpeaking, stopAudio]);
 
   useEffect(() => {
     if (apiKey) localStorage.setItem("code_api_key", apiKey);
@@ -637,19 +475,6 @@ const startVoice = useCallback(() => {
               <Key className="w-3.5 h-3.5" />
               {savedKeys.length > 0 && <span className="text-[10px]">{savedKeys.length}</span>}
             </Button>
-            {hasSpeechRecognition && (
-              <Button
-                size="sm"
-                variant={showVoiceChat ? "default" : "outline"}
-                className="h-7 gap-1 text-xs"
-                onClick={() => setShowVoiceChat(true)}
-                data-testid="button-voice-chat-open"
-                title="Conversa por voz"
-              >
-                <AudioLines className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">VOZ</span>
-              </Button>
-            )}
             <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950" onClick={clearHistory} data-testid="button-clear-code" title="Limpar conversa">
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
@@ -918,80 +743,6 @@ const startVoice = useCallback(() => {
           </div>
         </div>
       </div>
-
-      <Dialog open={showVoiceChat} onOpenChange={(v) => { setShowVoiceChat(v); if (!v) { stopAudio(); voiceRecRef.current?.stop(); setVoiceListening(false); } }}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AudioLines className="w-5 h-5 text-emerald-500" />
-              Conversa por Voz — Livre
-            </DialogTitle>
-            <DialogDescription>Fale livremente — qualquer assunto. A IA ouve e responde por voz.</DialogDescription>
-          </DialogHeader>
-          <div ref={voiceScrollRef} className="flex-1 overflow-y-auto space-y-3 min-h-[200px] max-h-[400px] p-2">
-            {voiceMsgs.length === 0 && (
-              <div className="text-center text-muted-foreground text-sm py-8">
-                Clique no microfone e comece a falar.<br/>Ou digite abaixo. A IA vai ouvir e responder por voz.
-              </div>
-            )}
-            {voiceMsgs.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${m.role === "user" ? "bg-emerald-600 text-white" : "bg-muted"}`}>
-                  {m.role === "assistant" ? <RenderContent text={m.text} /> : m.text}
-                </div>
-              </div>
-            ))}
-            {voiceProcessing && (
-              <div className="flex justify-start">
-                <div className="bg-muted rounded-xl px-3 py-2 text-sm flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Pensando...
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="space-y-2 pt-2 border-t">
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                className="flex-1 h-10 rounded-md border border-input bg-background px-3 text-sm"
-                placeholder="Ou digite aqui..."
-                value={voiceInput}
-                onChange={(e) => setVoiceInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && voiceInput.trim() && !voiceProcessing) {
-                    voiceChatSend(voiceInput.trim());
-                    setVoiceInput("");
-                  }
-                }}
-                disabled={voiceProcessing}
-              />
-              <Button
-                size="icon"
-                variant={voiceListening ? "destructive" : "default"}
-                className={`h-10 w-10 rounded-full ${voiceListening ? "animate-pulse" : ""}`}
-                onClick={voiceToggleMic}
-                disabled={voiceProcessing}
-              >
-                {voiceListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-              </Button>
-              {isSpeaking && (
-                <Button size="icon" variant="outline" className="h-10 w-10 rounded-full" onClick={stopAudio}>
-                  <VolumeX className="w-5 h-5 text-red-500" />
-                </Button>
-              )}
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground px-1">
-              <span>{voiceMsgs.filter(m => m.role === "user").length} mensagens</span>
-              <div className="flex items-center gap-2">
-                <span>{activeProvider?.name || "Gemini (Replit)"}</span>
-                {voiceMsgs.length > 0 && (
-                  <button onClick={() => { setVoiceMsgs([]); }} className="text-red-400 hover:text-red-600">Limpar</button>
-                )}
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

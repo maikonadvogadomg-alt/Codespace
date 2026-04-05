@@ -13,7 +13,7 @@ import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 import multer from "multer";
 import mammoth from "mammoth";
-import pdf from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 import { Document, Paragraph, TextRun, Packer, AlignmentType } from "docx";
 import fs from "fs";
 import path from "path";
@@ -157,26 +157,6 @@ async function geminiStream(
     client = new GoogleGenAI({ apiKey: customKey });
   }
 
-  const geminiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
-  const geminiUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
-  if (!customKey && geminiKey && geminiUrl) {
-    const geminiClient = new GoogleGenAI({
-      apiKey: geminiKey,
-      httpOptions: { apiVersion: "", baseUrl: geminiUrl },
-    });
-    const fullPrompt = `${systemPrompt}\n\n${userContent}`;
-    const stream = await geminiClient.models.generateContentStream({
-      model: "gemini-2.5-flash",
-      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
-      config: { maxOutputTokens: Math.min(maxOutputTokens, 65536), temperature: 0.7 },
-    });
-    for await (const chunk of stream) {
-      const content = chunk.text || "";
-      if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
-    }
-    return;
-  }
-
   const fullPrompt = `${systemPrompt}\n\n${userContent}`;
   const stream = await client.models.generateContentStream({
     model,
@@ -223,25 +203,6 @@ async function geminiStreamMessages(
   let client = gemini;
   if (customKey && !customUrl) {
     client = new GoogleGenAI({ apiKey: customKey });
-  }
-
-  const geminiKey2 = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
-  const geminiUrl2 = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
-  if (!customKey && geminiKey2 && geminiUrl2) {
-    const geminiClient2 = new GoogleGenAI({
-      apiKey: geminiKey2,
-      httpOptions: { apiVersion: "", baseUrl: geminiUrl2 },
-    });
-    const stream = await geminiClient2.models.generateContentStream({
-      model: "gemini-2.5-flash",
-      contents: messages,
-      config: { maxOutputTokens: Math.min(maxOutputTokens, 65536), temperature: 0.7 },
-    });
-    for await (const chunk of stream) {
-      const content = chunk.text || "";
-      if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
-    }
-    return;
   }
 
   const stream = await client.models.generateContentStream({
@@ -493,126 +454,6 @@ table.mem tr.cap{background:#dbeafe !important;font-weight:700}
             "Erro ao buscar fatores TJMG: " +
             (error.message || "erro desconhecido"),
         });
-    }
-  });
-
-  const COMUNICAAPI_PROD = "https://comunicaapi.pje.jus.br/api/v1";
-  const COMUNICAAPI_HML = "https://hcomunicaapi.cnj.jus.br/api/v1";
-
-  app.post("/api/cnj/comunicacoes", requireAuth, async (req, res) => {
-    try {
-      const {
-        numeroOab, ufOab, nomeAdvogado, nomeParte, numeroProcesso,
-        dataDisponibilizacaoInicio, dataDisponibilizacaoFim,
-        ambiente
-      } = req.body;
-
-      if (!numeroOab && !nomeAdvogado && !nomeParte && !numeroProcesso) {
-        return res.status(400).json({
-          message: "Informe pelo menos um critério: OAB, nome do advogado, nome da parte ou número do processo."
-        });
-      }
-
-      const baseUrl = ambiente === "producao" ? COMUNICAAPI_PROD : COMUNICAAPI_HML;
-      const url = new URL(`${baseUrl}/comunicacao`);
-
-      if (numeroOab) url.searchParams.append("numeroOab", numeroOab.toString().replace(/\D/g, ""));
-      if (ufOab) url.searchParams.append("ufOab", ufOab.toUpperCase());
-      if (nomeAdvogado) url.searchParams.append("nomeAdvogado", nomeAdvogado);
-      if (nomeParte) url.searchParams.append("nomeParte", nomeParte);
-      if (numeroProcesso) url.searchParams.append("numeroProcesso", numeroProcesso.replace(/[.\-\s]/g, ""));
-      if (dataDisponibilizacaoInicio) url.searchParams.append("dataDisponibilizacaoInicio", dataDisponibilizacaoInicio);
-      if (dataDisponibilizacaoFim) url.searchParams.append("dataDisponibilizacaoFim", dataDisponibilizacaoFim);
-
-      const response = await fetch(url.toString(), {
-        headers: { Accept: "application/json" },
-      });
-
-      if (!response.ok) {
-        const errText = await response.text().catch(() => "");
-        const isGeoBlocked = errText.includes("block access from your country") || errText.includes("CloudFront");
-        if (isGeoBlocked && ambiente === "producao") {
-          return res.status(403).json({
-            message: "A API de produção do CNJ bloqueia acesso internacional. Use o ambiente de homologação ou acesse de um servidor brasileiro.",
-            geoBlocked: true,
-          });
-        }
-        return res.status(response.status).json({
-          message: `Erro na API CNJ (${response.status}): ${errText.substring(0, 200)}`,
-        });
-      }
-
-      const data = await response.json();
-
-      const items = (data.items || []).map((item: any) => ({
-        id: item.id,
-        dataDisponibilizacao: item.data_disponibilizacao || item.datadisponibilizacao,
-        tribunal: item.siglaTribunal,
-        tipo: item.tipoComunicacao,
-        orgao: item.nomeOrgao,
-        processo: item.numeroprocessocommascara || item.numero_processo,
-        classe: item.nomeClasse,
-        codigoClasse: item.codigoClasse,
-        tipoDocumento: item.tipoDocumento,
-        texto: item.texto,
-        link: item.link,
-        meio: item.meiocompleto || item.meio,
-        status: item.status,
-        hash: item.hash,
-        numeroComunicacao: item.numeroComunicacao,
-        destinatarios: (item.destinatarios || []).map((d: any) => ({
-          nome: d.nome,
-          polo: d.polo === "A" ? "Ativo" : d.polo === "P" ? "Passivo" : d.polo,
-        })),
-        advogados: (item.destinatarioadvogados || []).map((da: any) => ({
-          nome: da.advogado?.nome,
-          oab: da.advogado?.numero_oab,
-          uf: da.advogado?.uf_oab,
-        })),
-      }));
-
-      res.json({
-        status: data.status || "success",
-        message: data.message || "Sucesso",
-        total: data.count || items.length,
-        items,
-        fonte: "CNJ Comunicações Processuais (PCP)",
-        ambiente: ambiente === "producao" ? "Produção" : "Homologação",
-      });
-    } catch (error: any) {
-      console.error("CNJ Comunicações error:", error.message);
-      res.status(500).json({
-        message: "Erro ao consultar comunicações no CNJ: " + (error.message || "erro desconhecido"),
-      });
-    }
-  });
-
-  app.get("/api/cnj/comunicacoes/certidao/:hash", requireAuth, async (req, res) => {
-    try {
-      const hash = (req.params.hash || "").replace(/[^a-zA-Z0-9]/g, "");
-      if (!hash || hash.length < 5) {
-        return res.status(400).json({ message: "Hash inválido" });
-      }
-      const ambiente = (req.query.ambiente as string) === "producao" ? "producao" : "homologacao";
-      const baseUrl = ambiente === "producao" ? COMUNICAAPI_PROD : COMUNICAAPI_HML;
-
-      const response = await fetch(`${baseUrl}/comunicacao/${hash}/certidao`, {
-        headers: { Accept: "application/pdf" },
-      });
-
-      if (!response.ok) {
-        return res.status(response.status).json({
-          message: `Erro ao obter certidão (${response.status})`,
-        });
-      }
-
-      const buffer = Buffer.from(await response.arrayBuffer());
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename=certidao_${hash}.pdf`);
-      res.send(buffer);
-    } catch (error: any) {
-      console.error("CNJ Certidão error:", error.message);
-      res.status(500).json({ message: "Erro ao obter certidão: " + error.message });
     }
   });
 
@@ -1021,7 +862,7 @@ table.mem tr.cap{background:#dbeafe !important;font-weight:700}
       fs.writeFileSync(txtFile, truncated, "utf8");
 
       await execFileAsync(
-        "python3",
+        "python",
         [
           "-m",
           "edge_tts",
@@ -1029,7 +870,6 @@ table.mem tr.cap{background:#dbeafe !important;font-weight:700}
           txtFile,
           "--voice",
           "pt-BR-FranciscaNeural",
-          "--rate=+18%",
           "--write-media",
           mp3File,
         ],
@@ -1176,7 +1016,8 @@ REGRAS PARA RESPOSTAS POR VOZ:
         }
       }
 
-      console.log(`[Voice Chat] Usando Gemini direto`);
+      // Sem chave ou chave inválida → Gemini do Replit
+      console.log(`[Voice Chat] Sem chave válida — usando Gemini`);
       const contents: Array<{ role: "user" | "model"; parts: [{ text: string }] }> = [];
       if (Array.isArray(history) && history.length > 0) {
         let first = true;
@@ -1392,7 +1233,7 @@ REGRAS PARA RESPOSTAS POR VOZ:
       if (!q?.trim())
         return res.status(400).json({ message: "Termo de busca obrigatório" });
 
-      const rawKey = clientKey?.trim() || process.env.DATAJUD_API_KEY || "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
+      const rawKey = clientKey?.trim() || process.env.DATAJUD_API_KEY || "";
       if (!rawKey) {
         return res.status(400).json({
           message: "Chave DataJud não configurada. Acesse as Configurações e insira sua chave do CNJ (datajud-wiki.cnj.jus.br).",
@@ -1406,24 +1247,14 @@ REGRAS PARA RESPOSTAS POR VOZ:
         Array.isArray(tribunais) && tribunais.length > 0 ? tribunais : [];
 
       const tribunalMap: Record<string, string> = {
-        STJ: "stj", STF: "stf", STM: "stm", TST: "tst", TSE: "tse",
+        STJ: "stj", STF: "stf",
         TRF1: "trf1", TRF2: "trf2", TRF3: "trf3", TRF4: "trf4", TRF5: "trf5", TRF6: "trf6",
-        TJAC: "tjac", TJAL: "tjal", TJAM: "tjam", TJAP: "tjap", TJBA: "tjba",
-        TJCE: "tjce", TJDFT: "tjdft", TJES: "tjes", TJGO: "tjgo", TJMA: "tjma",
-        TJMG: "tjmg", TJMS: "tjms", TJMT: "tjmt", TJPA: "tjpa", TJPB: "tjpb",
-        TJPE: "tjpe", TJPI: "tjpi", TJPR: "tjpr", TJRJ: "tjrj", TJRN: "tjrn",
-        TJRO: "tjro", TJRR: "tjrr", TJRS: "tjrs", TJSC: "tjsc", TJSE: "tjse",
-        TJSP: "tjsp", TJTO: "tjto",
-        TRT1: "trt1", TRT2: "trt2", TRT3: "trt3", TRT4: "trt4", TRT5: "trt5",
-        TRT6: "trt6", TRT7: "trt7", TRT8: "trt8", TRT9: "trt9", TRT10: "trt10",
-        TRT11: "trt11", TRT12: "trt12", TRT13: "trt13", TRT14: "trt14", TRT15: "trt15",
-        TRT16: "trt16", TRT17: "trt17", TRT18: "trt18", TRT19: "trt19", TRT20: "trt20",
-        TRT21: "trt21", TRT22: "trt22", TRT23: "trt23", TRT24: "trt24",
+        TJMG: "tjmg", TJSP: "tjsp", TJRJ: "tjrj",
       };
 
       const indices = tribunaisList.length > 0
-        ? tribunaisList.map(t => tribunalMap[t] || t.toLowerCase()).map(i => i.startsWith("api_publica_") ? i : `api_publica_${i}`)
-        : ["api_publica_tjmg", "api_publica_stj", "api_publica_trf6"];
+        ? tribunaisList.map(t => tribunalMap[t] || t.toLowerCase()).map(i => `api_publica_${i}`)
+        : ["api_publica_stj", "api_publica_trf1", "api_publica_trf6"];
 
       const payload = {
         size: 10,
@@ -1473,13 +1304,7 @@ REGRAS PARA RESPOSTAS POR VOZ:
             const ultimoMov = (s.movimentos || []).slice(-1)[0];
             const orgao = s.orgaoJulgador?.nome || ultimoMov?.orgaoJulgador?.nome || "";
             const dataMov = s.dataAjuizamento
-              ? (() => {
-                  const d = s.dataAjuizamento;
-                  if (d.length === 14) return `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`;
-                  if (d.includes("-")) { const p = d.split("-"); return `${p[2]?.slice(0,2)}/${p[1]}/${p[0]}`; }
-                  if (d.length >= 8) return `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`;
-                  return d;
-                })()
+              ? (() => { const d = s.dataAjuizamento; return `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`; })()
               : ultimoMov?.dataHora
                 ? new Date(ultimoMov.dataHora).toLocaleDateString("pt-BR")
                 : "Não informado";
@@ -2446,8 +2271,10 @@ REGRAS PARA RESPOSTAS POR VOZ:
               mime.includes("xml");
 
             if (isPdf) {
-              const data = await pdf(file.buffer);
+              const parser = new PDFParse({ data: file.buffer });
+              const data = await parser.getText();
               extractedText = data.text || "";
+              await parser.destroy();
 
               const textLength = extractedText.replace(/\s+/g, "").length;
               const fileSizeKB = file.buffer.length / 1024;
@@ -2455,46 +2282,42 @@ REGRAS PARA RESPOSTAS POR VOZ:
                 textLength < 50 ||
                 (fileSizeKB > 100 && textLength < fileSizeKB * 0.5)
               ) {
+                const ocrTmpDir = fs.mkdtempSync(path.join("/tmp", "ocr-"));
                 try {
-                  const ocrTmpDir = fs.mkdtempSync(path.join("/tmp", "ocr-"));
-                  try {
-                    const pdfPath = path.join(ocrTmpDir, "input.pdf");
-                    fs.writeFileSync(pdfPath, file.buffer);
-                    await execFileAsync(
-                      "pdftoppm",
+                  const pdfPath = path.join(ocrTmpDir, "input.pdf");
+                  fs.writeFileSync(pdfPath, file.buffer);
+                  await execFileAsync(
+                    "pdftoppm",
+                    [
+                      "-png",
+                      "-r",
+                      "300",
+                      pdfPath,
+                      path.join(ocrTmpDir, "page"),
+                    ],
+                    { timeout: 300000 },
+                  );
+                  const pageFiles = fs
+                    .readdirSync(ocrTmpDir)
+                    .filter((f) => f.startsWith("page") && f.endsWith(".png"))
+                    .sort();
+                  let ocrText = "";
+                  for (const pageFile of pageFiles) {
+                    const { stdout } = await execFileAsync(
+                      "tesseract",
                       [
-                        "-png",
-                        "-r",
-                        "300",
-                        pdfPath,
-                        path.join(ocrTmpDir, "page"),
+                        path.join(ocrTmpDir, pageFile),
+                        "stdout",
+                        "-l",
+                        "por+eng",
                       ],
                       { timeout: 60000 },
                     );
-                    const pageFiles = fs
-                      .readdirSync(ocrTmpDir)
-                      .filter((f: string) => f.startsWith("page") && f.endsWith(".png"))
-                      .sort();
-                    let ocrText = "";
-                    for (const pageFile of pageFiles.slice(0, 20)) {
-                      const { stdout } = await execFileAsync(
-                        "tesseract",
-                        [
-                          path.join(ocrTmpDir, pageFile),
-                          "stdout",
-                          "-l",
-                          "por+eng",
-                        ],
-                        { timeout: 30000 },
-                      );
-                      ocrText += stdout + "\n";
-                    }
-                    extractedText = ocrText || extractedText;
-                  } finally {
-                    fs.rmSync(ocrTmpDir, { recursive: true, force: true });
+                    ocrText += stdout + "\n";
                   }
-                } catch (ocrErr) {
-                  console.warn(`[OCR] Falha no OCR para ${file.originalname}: ${(ocrErr as Error).message}. Usando texto extraído pelo pdf-parse.`);
+                  extractedText = ocrText || extractedText;
+                } finally {
+                  fs.rmSync(ocrTmpDir, { recursive: true, force: true });
                 }
               }
             } else if (isDocx) {
@@ -2656,12 +2479,12 @@ REGRAS PARA RESPOSTAS POR VOZ:
                 language: "pt",
               });
             } else {
-              results.push({
-                filename: file.originalname,
-                text: "",
-                error: "Transcrição de áudio requer uma chave de API configurada (Groq ou OpenAI). Acesse Configurações e configure sua Chave Demo.",
+              transcription = await openai.audio.transcriptions.create({
+                model: "gpt-4o-mini-transcribe",
+                file: audioStream,
+                response_format: "json",
+                language: "pt",
               });
-              continue;
             }
 
             const text =
@@ -4900,212 +4723,6 @@ FORMATACAO OBRIGATORIA: Use paragrafos CURTOS, com no maximo 4 a 5 linhas cada. 
     }
   });
 
-  // ===== PDPJ NOTIFICATION SERVICE (notificacoes) =====
-  const NOTIFICACAO_BASE_PROD = "https://gateway.cloud.pje.jus.br/notificacoes";
-  const NOTIFICACAO_BASE_STG = "https://gateway.stg.cloud.pje.jus.br/notificacoes";
-
-  app.post("/api/pdpj/notificacoes/servicos", requireAuth, async (req, res) => {
-    try {
-      const { cpf, modo, tribunal, ambiente } = req.body;
-      const cleanCpf = (cpf || "").replace(/\D/g, "");
-      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
-      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
-      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
-      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
-      const response = await pdpjFetch(`${baseUrl}/api/v1/servicos/`, token, cleanCpf);
-      if (!response.ok) {
-        let errMsg = `Erro ${response.status}`;
-        try { const t = await response.text(); if (t) errMsg = t; } catch {}
-        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
-        if (response.status === 401) errMsg = "Token não autorizado";
-        return res.status(response.status).json({ message: errMsg });
-      }
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error("PDPJ notificacoes/servicos error:", error.message);
-      res.status(500).json({ message: "Erro ao listar serviços: " + (error.message || "desconhecido") });
-    }
-  });
-
-  app.post("/api/pdpj/notificacoes/eventos", requireAuth, async (req, res) => {
-    try {
-      const { cpf, modo, tribunal, ambiente, servicoId } = req.body;
-      const cleanCpf = (cpf || "").replace(/\D/g, "");
-      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
-      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
-      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
-      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
-      let url = `${baseUrl}/api/v1/eventos`;
-      if (servicoId) url += `?servicoId=${servicoId}`;
-      const response = await pdpjFetch(url, token, cleanCpf);
-      if (!response.ok) {
-        let errMsg = `Erro ${response.status}`;
-        try { const t = await response.text(); if (t) errMsg = t; } catch {}
-        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
-        if (response.status === 401) errMsg = "Token não autorizado";
-        return res.status(response.status).json({ message: errMsg });
-      }
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error("PDPJ notificacoes/eventos error:", error.message);
-      res.status(500).json({ message: "Erro ao listar eventos: " + (error.message || "desconhecido") });
-    }
-  });
-
-  app.post("/api/pdpj/notificacoes/inscricoes", requireAuth, async (req, res) => {
-    try {
-      const { cpf, modo, tribunal, ambiente, servicoId, eventoId } = req.body;
-      const cleanCpf = (cpf || "").replace(/\D/g, "");
-      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
-      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
-      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
-      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
-      let url = `${baseUrl}/api/v1/inscricoes`;
-      const params: string[] = [];
-      if (servicoId) params.push(`servicoId=${servicoId}`);
-      if (eventoId) params.push(`eventoId=${eventoId}`);
-      if (params.length) url += `?${params.join("&")}`;
-      const response = await pdpjFetch(url, token, cleanCpf);
-      if (!response.ok) {
-        let errMsg = `Erro ${response.status}`;
-        try { const t = await response.text(); if (t) errMsg = t; } catch {}
-        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
-        if (response.status === 401) errMsg = "Token não autorizado";
-        return res.status(response.status).json({ message: errMsg });
-      }
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error("PDPJ notificacoes/inscricoes error:", error.message);
-      res.status(500).json({ message: "Erro ao listar inscrições: " + (error.message || "desconhecido") });
-    }
-  });
-
-  app.post("/api/pdpj/notificacoes/inscricoes/usuario", requireAuth, async (req, res) => {
-    try {
-      const { cpf, modo, tribunal, ambiente } = req.body;
-      const cleanCpf = (cpf || "").replace(/\D/g, "");
-      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
-      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
-      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
-      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
-      const response = await pdpjFetch(`${baseUrl}/api/v1/inscricoes/usuario`, token, cleanCpf);
-      if (!response.ok) {
-        let errMsg = `Erro ${response.status}`;
-        try { const t = await response.text(); if (t) errMsg = t; } catch {}
-        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
-        if (response.status === 401) errMsg = "Token não autorizado";
-        return res.status(response.status).json({ message: errMsg });
-      }
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error("PDPJ notificacoes/inscricoes/usuario error:", error.message);
-      res.status(500).json({ message: "Erro ao listar inscrições do usuário: " + (error.message || "desconhecido") });
-    }
-  });
-
-  app.post("/api/pdpj/notificacoes/templates", requireAuth, async (req, res) => {
-    try {
-      const { cpf, modo, tribunal, ambiente, eventoId } = req.body;
-      const cleanCpf = (cpf || "").replace(/\D/g, "");
-      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
-      if (!eventoId) return res.status(400).json({ message: "eventoId obrigatório" });
-      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
-      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
-      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
-      const response = await pdpjFetch(`${baseUrl}/api/v1/templates?eventoId=${eventoId}`, token, cleanCpf);
-      if (!response.ok) {
-        let errMsg = `Erro ${response.status}`;
-        try { const t = await response.text(); if (t) errMsg = t; } catch {}
-        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
-        if (response.status === 401) errMsg = "Token não autorizado";
-        return res.status(response.status).json({ message: errMsg });
-      }
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error("PDPJ notificacoes/templates error:", error.message);
-      res.status(500).json({ message: "Erro ao listar templates: " + (error.message || "desconhecido") });
-    }
-  });
-
-  app.post("/api/pdpj/notificacoes/admin-consultas", requireAuth, async (req, res) => {
-    try {
-      const { cpf, modo, tribunal, ambiente } = req.body;
-      const cleanCpf = (cpf || "").replace(/\D/g, "");
-      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
-      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
-      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
-      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
-      const response = await pdpjFetch(`${baseUrl}/api/v1/admin-consultas`, token, cleanCpf);
-      if (!response.ok) {
-        let errMsg = `Erro ${response.status}`;
-        try { const t = await response.text(); if (t) errMsg = t; } catch {}
-        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
-        if (response.status === 401) errMsg = "Token não autorizado";
-        return res.status(response.status).json({ message: errMsg });
-      }
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error("PDPJ notificacoes/admin-consultas error:", error.message);
-      res.status(500).json({ message: "Erro ao consultar admin: " + (error.message || "desconhecido") });
-    }
-  });
-
-  app.post("/api/pdpj/notificacoes/subscritor-consultas", requireAuth, async (req, res) => {
-    try {
-      const { cpf, modo, tribunal, ambiente, servicoId } = req.body;
-      const cleanCpf = (cpf || "").replace(/\D/g, "");
-      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
-      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
-      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
-      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
-      let url = `${baseUrl}/api/v1/subscritor-consultas`;
-      if (servicoId) url += `?servicoId=${servicoId}`;
-      const response = await pdpjFetch(url, token, cleanCpf);
-      if (!response.ok) {
-        let errMsg = `Erro ${response.status}`;
-        try { const t = await response.text(); if (t) errMsg = t; } catch {}
-        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
-        if (response.status === 401) errMsg = "Token não autorizado";
-        return res.status(response.status).json({ message: errMsg });
-      }
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error("PDPJ notificacoes/subscritor-consultas error:", error.message);
-      res.status(500).json({ message: "Erro ao consultar subscrições: " + (error.message || "desconhecido") });
-    }
-  });
-
-  app.post("/api/pdpj/notificacoes/tribunais", requireAuth, async (req, res) => {
-    try {
-      const { cpf, modo, tribunal, ambiente } = req.body;
-      const cleanCpf = (cpf || "").replace(/\D/g, "");
-      if (cleanCpf.length !== 11) return res.status(400).json({ message: "CPF inválido" });
-      const token = generatePdpjToken(cleanCpf, modo || "pdpj", tribunal || "TJMG", 15, ambiente || "homologacao");
-      if (!token) return res.status(400).json({ message: "Chave PEM não configurada" });
-      const baseUrl = ambiente === "producao" ? NOTIFICACAO_BASE_PROD : NOTIFICACAO_BASE_STG;
-      const response = await pdpjFetch(`${baseUrl}/api/v1/subscritor-consultas/tribunais`, token, cleanCpf);
-      if (!response.ok) {
-        let errMsg = `Erro ${response.status}`;
-        try { const t = await response.text(); if (t) errMsg = t; } catch {}
-        if (response.status === 403) errMsg = "API restrita a IPs brasileiros";
-        if (response.status === 401) errMsg = "Token não autorizado";
-        return res.status(response.status).json({ message: errMsg });
-      }
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error("PDPJ notificacoes/tribunais error:", error.message);
-      res.status(500).json({ message: "Erro ao listar tribunais: " + (error.message || "desconhecido") });
-    }
-  });
-
   app.get("/api/datajud/tribunais", requireAuth, (_req, res) => {
     const tribunais = Object.keys(TRIBUNAL_ALIASES).map((key) => ({
       sigla: key,
@@ -5349,11 +4966,7 @@ FORMATACAO OBRIGATORIA: Use paragrafos CURTOS, com no maximo 4 a 5 linhas cada. 
       const pubs = await storage.getTramitacaoPublicacoes(200);
       res.json({ publicacoes: pubs });
     } catch (e: any) {
-      if (e.message?.includes("does not exist")) {
-        res.json({ publicacoes: [] });
-      } else {
-        res.status(500).json({ message: e.message });
-      }
+      res.status(500).json({ message: e.message });
     }
   });
 

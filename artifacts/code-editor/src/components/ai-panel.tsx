@@ -19,12 +19,6 @@ import {
   Play,
   Mic,
   MicOff,
-  Zap,
-  Bug,
-  Copy,
-  Lightbulb,
-  Clipboard,
-  GitBranch,
 } from "lucide-react";
 import {
   useAiChat,
@@ -94,7 +88,7 @@ interface AiPanelProps {
   fileContext?: { path: string; content: string; language: string } | null;
   externalMessage?: { text: string; id: number; contextMode?: ContextMode } | null;
   onRunCommand?: (cmd: string) => void;
-  onRefreshTree?: () => void;
+  /** Recent terminal entries - sent automatically as context with every message */
   terminalLog?: TerminalLogEntry[];
 }
 
@@ -261,165 +255,32 @@ function FileChangeCard({ segment, projectId, onApplied }: FileChangeCardProps) 
 function ExecCommandCard({
   command,
   onRun,
-  projectId,
-  onDone,
 }: {
   command: string;
   onRun?: (cmd: string) => void;
-  projectId: string;
-  onDone?: () => void;
 }) {
-  const [status, setStatus] = useState<"idle" | "running" | "done" | "error">("idle");
-  const [output, setOutput] = useState<string>("");
-
-  const handleExec = async () => {
-    setStatus("running");
-    setOutput("");
-    onRun?.(command);
-    try {
-      const res = await fetch(`${(import.meta.env.BASE_URL ?? "/").replace(/\/$/, "")}/api/projects/${projectId}/exec-stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command }),
-      });
-      const reader = res.body?.getReader();
-      if (!reader) { setStatus("done"); onDone?.(); return; }
-      const decoder = new TextDecoder();
-      let fullOutput = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split("\n")) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const evt = JSON.parse(line.slice(6));
-            if (evt.type === "stdout" || evt.type === "stderr") {
-              fullOutput += evt.data;
-              setOutput(fullOutput.slice(-2000));
-            }
-            if (evt.type === "exit") {
-              setStatus(evt.code === 0 ? "done" : "error");
-              onDone?.();
-            }
-          } catch {}
-        }
-      }
-      setStatus(prev => {
-        if (prev === "running") { onDone?.(); return "done"; }
-        return prev;
-      });
-    } catch (e: any) {
-      setOutput(e.message ?? "Erro ao executar");
-      setStatus("error");
-      onDone?.();
-    }
-  };
-
   return (
     <div className="rounded-lg border border-green-500/30 bg-green-500/5 overflow-hidden my-1">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-green-500/20 bg-green-500/10">
         <Terminal className="w-3.5 h-3.5 text-green-400 shrink-0" />
         <span className="font-mono text-[11px] text-green-300 truncate flex-1">{command}</span>
-        <span className={cn(
-          "text-[10px] px-1.5 py-0.5 rounded-full shrink-0",
-          status === "done" ? "bg-green-500/30 text-green-200" :
-          status === "error" ? "bg-red-500/30 text-red-300" :
-          status === "running" ? "bg-yellow-500/30 text-yellow-300" :
-          "bg-green-500/20 text-green-300"
-        )}>
-          {status === "done" ? "concluído" : status === "error" ? "erro" : status === "running" ? "executando..." : "terminal"}
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-300 shrink-0">
+          terminal
         </span>
       </div>
-      {output && (
-        <pre className="p-2 text-[10px] font-mono text-foreground/70 overflow-auto max-h-40 leading-relaxed whitespace-pre-wrap bg-black/30">
-          {output}
-        </pre>
-      )}
-      <div className="px-3 py-2 flex items-center justify-between">
-        {status === "done" && (
-          <span className="flex items-center gap-1 text-green-400 text-[10px]">
-            <Check className="w-3 h-3" /> Executado com sucesso
-          </span>
-        )}
-        {status === "error" && (
-          <span className="flex items-center gap-1 text-red-400 text-[10px]">
-            <AlertCircle className="w-3 h-3" /> Erro na execução
-          </span>
-        )}
-        {status === "running" && (
-          <span className="flex items-center gap-1 text-yellow-400 text-[10px]">
-            <Loader2 className="w-3 h-3 animate-spin" /> Executando...
-          </span>
-        )}
-        {status === "idle" && <span />}
-        {(status === "idle" || status === "error") && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 text-[10px] px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 ml-auto"
-            onClick={handleExec}
-          >
-            <Play className="w-3 h-3 mr-1" />
-            Executar
-          </Button>
-        )}
+      <div className="px-3 py-2 flex justify-end">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 text-[10px] px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10"
+          onClick={() => onRun?.(command)}
+        >
+          <Play className="w-3 h-3 mr-1" />
+          Executar no terminal
+        </Button>
       </div>
     </div>
   );
-}
-
-// ─── Markdown renderer ───────────────────────────────────────────────────────
-
-function escapeHtml(str: string): string {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function renderMarkdown(text: string): string {
-  let html = text;
-
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
-    if (lang === "svg") {
-      return `<div class="my-2 p-2 bg-white/10 rounded overflow-x-auto flex justify-center">${code.trim()}</div>`;
-    }
-    return `<pre class="bg-black/40 rounded p-2 my-1 overflow-x-auto text-[10px]"><code class="language-${lang || "text"}">${escapeHtml(code.trim())}</code></pre>`;
-  });
-
-  html = html.replace(/`([^`]+)`/g, '<code class="bg-black/30 px-1 py-0.5 rounded text-[10px] text-green-300">$1</code>');
-
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,
-    '<img src="$2" alt="$1" class="max-w-full rounded my-1 max-h-64 object-contain" loading="lazy" />'
-  );
-
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener" class="text-blue-400 underline hover:text-blue-300">$1</a>'
-  );
-
-  html = html.replace(/^### (.+)$/gm, '<h3 class="font-bold text-sm mt-2 mb-1">$1</h3>');
-  html = html.replace(/^## (.+)$/gm, '<h2 class="font-bold text-sm mt-2 mb-1">$1</h2>');
-  html = html.replace(/^# (.+)$/gm, '<h1 class="font-bold text-base mt-2 mb-1">$1</h1>');
-
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-
-  html = html.replace(/^[-*] (.+)$/gm, '<li class="ml-3 list-disc">$1</li>');
-  html = html.replace(/^(\d+)\. (.+)$/gm, '<li class="ml-3 list-decimal">$2</li>');
-
-  html = html.replace(/^---$/gm, '<hr class="border-border/30 my-2" />');
-
-  const tableRegex = /(?:^(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)+))/gm;
-  html = html.replace(tableRegex, (_m, headerRow: string, _sep: string, bodyRows: string) => {
-    const headers = headerRow.split("|").filter((c: string) => c.trim()).map((c: string) => `<th class="border border-border/30 px-2 py-1 text-left text-[10px] font-semibold bg-black/20">${c.trim()}</th>`).join("");
-    const rows = bodyRows.trim().split("\n").map((row: string) => {
-      const cells = row.split("|").filter((c: string) => c.trim()).map((c: string) => `<td class="border border-border/30 px-2 py-1 text-[10px]">${c.trim()}</td>`).join("");
-      return `<tr>${cells}</tr>`;
-    }).join("");
-    return `<table class="w-full border-collapse my-2 text-[10px]"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
-  });
-
-  html = html.replace(/\n/g, '<br/>');
-
-  return html;
 }
 
 // ─── Message Renderer ─────────────────────────────────────────────────────────
@@ -428,12 +289,10 @@ function AssistantMessage({
   content,
   projectId,
   onRunCommand,
-  onRefreshTree,
 }: {
   content: string;
   projectId: string;
   onRunCommand?: (cmd: string) => void;
-  onRefreshTree?: () => void;
 }) {
   const segments = parseAiMessage(content);
 
@@ -448,9 +307,10 @@ function AssistantMessage({
             return (
               <div
                 key={i}
-                className="bg-muted rounded-lg rounded-bl-sm px-3 py-2 text-xs leading-relaxed break-words text-foreground prose prose-invert prose-xs max-w-none"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(seg.content) }}
-              />
+                className="bg-muted rounded-lg rounded-bl-sm px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-words text-foreground"
+              >
+                {seg.content}
+              </div>
             );
           }
           if (seg.type === "write" || seg.type === "delete") {
@@ -459,7 +319,7 @@ function AssistantMessage({
                 key={i}
                 segment={seg}
                 projectId={projectId}
-                onApplied={() => { onRefreshTree?.(); }}
+                onApplied={() => {}}
               />
             );
           }
@@ -469,8 +329,6 @@ function AssistantMessage({
                 key={i}
                 command={seg.command}
                 onRun={onRunCommand}
-                projectId={projectId}
-                onDone={onRefreshTree}
               />
             );
           }
@@ -499,27 +357,20 @@ const CONTEXT_ICONS: Record<ContextMode, React.ReactNode> = {
 
 // Read active AI profile name from localStorage
 function useActiveModel(): string {
-  const [model, setModel] = useState<string>("");
-  useEffect(() => {
-    const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-    fetch(`${BASE}/api/ai/status`)
-      .then(r => r.json())
-      .then((data: { available: boolean; provider: string; model: string | null }) => {
-        if (data.available && data.model) {
-          const label = data.provider === "gemini-cortesia" ? `Gemini ${data.model.replace("gemini-", "")}` : data.model;
-          setModel(label);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const [model, setModel] = useState<string>(() => {
+    try {
+      const profiles = JSON.parse(localStorage.getItem("codelens_ai_profiles") ?? "[]");
+      const slot = parseInt(localStorage.getItem("codelens_ai_active_slot") ?? "0", 10);
+      return profiles[slot]?.model ?? "";
+    } catch { return ""; }
+  });
   useEffect(() => {
     const update = () => {
       try {
         const profiles = JSON.parse(localStorage.getItem("codelens_ai_profiles") ?? "[]");
         const slot = parseInt(localStorage.getItem("codelens_ai_active_slot") ?? "0", 10);
-        const userModel = profiles[slot]?.model ?? "";
-        if (userModel) setModel(userModel);
-      } catch {}
+        setModel(profiles[slot]?.model ?? "");
+      } catch { setModel(""); }
     };
     window.addEventListener("storage", update);
     window.addEventListener("codelens-settings-saved", update);
@@ -529,149 +380,40 @@ function useActiveModel(): string {
 }
 
 const CONTEXT_STORAGE_KEY = "codelens_ai_context_mode";
-const AGENT_MODE_KEY = "codelens_agent_mode";
 
-async function agentExec(projectId: string, command: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const res = await fetch("/api/ai/agent-exec", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ projectId, command }),
-  });
-  return res.json();
-}
-
-async function agentWriteFile(projectId: string, filePath: string, content: string): Promise<boolean> {
-  try {
-    const res = await fetch(`/api/projects/${projectId}/files`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: filePath, content }),
-    });
-    return res.ok;
-  } catch { return false; }
-}
-
-export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand, onRefreshTree, terminalLog }: AiPanelProps) {
+export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand, terminalLog }: AiPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [contextMode, setContextMode] = useState<ContextMode>(() => {
     const saved = localStorage.getItem(CONTEXT_STORAGE_KEY) as ContextMode | null;
     return saved ?? "project";
   });
-  const [agentMode, setAgentMode] = useState(() => localStorage.getItem(AGENT_MODE_KEY) === "true");
-  const [agentWorking, setAgentWorking] = useState(false);
-  const agentAbortRef = useRef(false);
   const [lastExternalId, setLastExternalId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const activeModel = useActiveModel();
-
-  const toggleAgentMode = () => {
-    const next = !agentMode;
-    setAgentMode(next);
-    localStorage.setItem(AGENT_MODE_KEY, String(next));
-  };
 
   const { listening, toggle: toggleVoice } = useVoice((text) => {
     setInput((prev) => (prev ? prev + " " + text : text));
     setTimeout(() => textareaRef.current?.focus(), 50);
   });
 
-  const processAgentActions = useCallback(async (reply: string, allMessages: Message[]) => {
-    if (!agentMode) return;
-    const segments = parseAiMessage(reply);
-    const actionSegments = segments.filter(s => s.type === "exec" || s.type === "write");
-    if (actionSegments.length === 0) return;
-
-    setAgentWorking(true);
-    agentAbortRef.current = false;
-    const results: string[] = [];
-
-    for (const seg of actionSegments) {
-      if (agentAbortRef.current) break;
-
-      if (seg.type === "exec") {
-        const cmd = seg.command.trim();
-        setMessages(prev => [...prev, { role: "assistant", content: `⚡ Executando: \`${cmd}\`` }]);
-        onRunCommand?.(cmd);
-        try {
-          const r = await agentExec(projectId, cmd);
-          const output = [
-            r.stdout && `stdout:\n${r.stdout.slice(-3000)}`,
-            r.stderr && `stderr:\n${r.stderr.slice(-2000)}`,
-            `exit: ${r.exitCode}`,
-          ].filter(Boolean).join("\n");
-          results.push(`Comando: ${cmd}\n${output}`);
-          setMessages(prev => [...prev, {
-            role: "assistant",
-            content: `✅ Resultado de \`${cmd}\`:\n\`\`\`\n${output.slice(0, 2000)}\n\`\`\``
-          }]);
-        } catch (e: any) {
-          results.push(`Comando: ${cmd}\nErro: ${e.message}`);
-        }
-        onRefreshTree?.();
-      } else if (seg.type === "write") {
-        const ok = await agentWriteFile(projectId, seg.path, seg.content);
-        results.push(`Arquivo ${seg.path}: ${ok ? "salvo" : "erro ao salvar"}`);
-        if (ok) {
-          setMessages(prev => [...prev, { role: "assistant", content: `📝 Arquivo \`${seg.path}\` aplicado automaticamente.` }]);
-        }
-        onRefreshTree?.();
-      }
-    }
-
-    if (results.length > 0 && !agentAbortRef.current) {
-      const feedbackMsg: Message = {
-        role: "user",
-        content: `[Agente] Resultados das ações executadas automaticamente:\n\n${results.join("\n\n---\n\n")}\n\nContinue o trabalho se necessário, ou diga que terminou.`
-      };
-      setMessages(prev => {
-        const updated = [...prev, feedbackMsg];
-        triggerAgentFollowUp(updated);
-        return updated;
-      });
-    }
-    setAgentWorking(false);
-  }, [agentMode, projectId, onRunCommand, onRefreshTree]);
-
   const chatMutation = useAiChat({
     mutation: {
       onSuccess: (data) => {
-        setMessages((prev) => {
-          const updated = [...prev, { role: "assistant" as const, content: data.reply }];
-          if (agentMode) {
-            setTimeout(() => processAgentActions(data.reply, updated), 100);
-          }
-          return updated;
-        });
+        setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
       },
       onError: (error) => {
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
-            content: `⚠️ ${error.message?.includes("429") || error.message?.includes("RATELIMIT") ? "A IA está ocupada no momento. Aguarde alguns segundos e tente novamente." : error.message?.includes("token count") || error.message?.includes("exceeds") || error.message?.includes("too large") ? "O projeto é muito grande para analisar de uma vez. Tente selecionar um arquivo específico em vez de 'Projeto completo'." : error.message || "Falha ao conectar com a IA. Verifique as Configurações."}`,
+            content: `Erro: ${error.message || "Falha ao conectar com a IA. Verifique as Configurações."}`,
           },
         ]);
-        setAgentWorking(false);
       },
     },
   });
-
-  const triggerAgentFollowUp = useCallback((msgs: Message[]) => {
-    const tc = buildTerminalContext();
-    chatMutation.mutate({
-      data: {
-        messages: msgs.map(m => ({ role: m.role, content: m.content })),
-        fileContext: null,
-        filePath: null,
-        projectId,
-        projectContext: true,
-        terminalContext: tc ?? null,
-        agentMode: true,
-      },
-    });
-  }, [projectId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -724,7 +466,6 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
         projectId: mode === "project" ? projectId : null,
         projectContext: mode === "project" ? true : null,
         terminalContext: tc ?? null,
-        agentMode: agentMode || null,
       },
     });
   };
@@ -760,27 +501,12 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
           </span>
         )}
         <span className="flex-1" />
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn(
-            "h-6 gap-1 text-[10px] px-2",
-            agentMode
-              ? "text-amber-400 bg-amber-500/10 hover:bg-amber-500/20"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-          onClick={toggleAgentMode}
-          title={agentMode ? "Modo Agente ATIVO — IA executa comandos e aplica arquivos automaticamente" : "Ativar Modo Agente — IA executa ações sozinha"}
-        >
-          <Zap className="w-3 h-3" />
-          {agentMode ? "Agente ON" : "Agente"}
-        </Button>
         {messages.length > 0 && (
           <Button
             variant="ghost"
             size="icon"
             className="h-6 w-6 text-muted-foreground hover:text-foreground"
-            onClick={() => { setMessages([]); agentAbortRef.current = true; setAgentWorking(false); }}
+            onClick={() => setMessages([])}
             title="Limpar conversa"
           >
             <RefreshCw className="w-3 h-3" />
@@ -796,39 +522,13 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
               <Bot className="w-6 h-6 text-primary" />
             </div>
             <p className="text-sm font-medium text-foreground mb-1">Chat com sua IA</p>
-            <p className="text-xs leading-relaxed max-w-[240px]">
+            <p className="text-xs leading-relaxed max-w-[210px]">
               Pergunte, peça análises ou diga para a IA modificar, criar e deletar arquivos do projeto. As alterações aparecem como cards com botão Aplicar.
             </p>
-            <div className="mt-3 w-full max-w-[240px] space-y-1.5">
-              <button
-                onClick={() => { changeContextMode("project"); sendMessage("Analise este projeto completo. Identifique todos os bugs, erros, problemas de segurança e melhorias possíveis. Liste cada problema encontrado com o arquivo, a linha (se possível) e a sugestão de correção.", "project"); }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 text-[11px] font-medium transition-colors text-left"
-              >
-                <Bug className="w-4 h-4 shrink-0" />
-                Buscar Bugs no Projeto
-              </button>
-              <button
-                onClick={() => { changeContextMode("project"); sendMessage("Analise este projeto e me dê sugestões de melhorias. O que pode ser melhorado na arquitetura, performance, organização de código, e funcionalidades? Me dê ideias do que posso adicionar.", "project"); }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 text-[11px] font-medium transition-colors text-left"
-              >
-                <Lightbulb className="w-4 h-4 shrink-0" />
-                Sugestões e Ideias
-              </button>
-              <button
-                onClick={() => { changeContextMode("project"); sendMessage("Crie um pequeno projeto de exemplo dentro deste workspace. Pergunte-me primeiro o que eu quero criar — pode ser um site simples, uma calculadora, um formulário, uma landing page, etc. Espere minha resposta antes de criar.", "project"); }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 text-[11px] font-medium transition-colors text-left"
-              >
-                <FilePlus className="w-4 h-4 shrink-0" />
-                Criar Projeto Novo
-              </button>
-            </div>
-            <div className="mt-2 px-2 py-1.5 rounded-lg bg-blue-500/5 border border-blue-500/10 text-[10px] text-blue-300/70 text-center">
-              Cole links na conversa e a IA lê o conteúdo da página automaticamente
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-1 w-full max-w-[240px] text-[10px] text-left text-muted-foreground">
-              <div className="flex items-center gap-1.5"><FilePen className="w-3 h-3 shrink-0 text-blue-400" /> Editar e criar arquivos</div>
+            <div className="mt-4 grid grid-cols-1 gap-1 w-full max-w-[210px] text-[10px] text-left text-muted-foreground">
+              <div className="flex items-center gap-1.5"><FilePlus className="w-3 h-3 shrink-0 text-blue-400" /> Criar novos arquivos</div>
+              <div className="flex items-center gap-1.5"><FilePen className="w-3 h-3 shrink-0 text-blue-400" /> Editar arquivos existentes</div>
               <div className="flex items-center gap-1.5"><Trash2 className="w-3 h-3 shrink-0 text-red-400" /> Deletar arquivos</div>
-              <div className="flex items-center gap-1.5"><Terminal className="w-3 h-3 shrink-0 text-green-400" /> Instalar pacotes (npm)</div>
               <div className="flex items-center gap-1.5"><FolderOpen className="w-3 h-3 shrink-0 text-primary" /> Analisar projeto inteiro</div>
             </div>
           </div>
@@ -845,41 +545,17 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
                   </div>
                 </div>
               ) : (
-                <AssistantMessage key={i} content={msg.content} projectId={projectId} onRunCommand={onRunCommand} onRefreshTree={onRefreshTree} />
+                <AssistantMessage key={i} content={msg.content} projectId={projectId} onRunCommand={onRunCommand} />
               )
             )}
-            {(chatMutation.isPending || agentWorking) && (
+            {chatMutation.isPending && (
               <div className="flex gap-2 justify-start">
-                <div className={cn("w-6 h-6 rounded-full flex items-center justify-center shrink-0", agentWorking ? "bg-amber-500/20" : "bg-primary/20")}>
-                  {agentWorking ? <Zap className="w-3.5 h-3.5 text-amber-400" /> : <Bot className="w-3.5 h-3.5 text-primary" />}
+                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                  <Bot className="w-3.5 h-3.5 text-primary" />
                 </div>
-                <div className={cn("rounded-lg rounded-bl-sm px-3 py-2 flex items-center gap-2", agentWorking ? "bg-amber-500/10 border border-amber-500/20" : "bg-muted")}>
+                <div className="bg-muted rounded-lg rounded-bl-sm px-3 py-2">
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-                  {agentWorking && <span className="text-[10px] text-amber-400">Agente trabalhando...</span>}
                 </div>
-              </div>
-            )}
-            {!chatMutation.isPending && !agentWorking && messages.length > 0 && (
-              <div className="flex gap-1.5 justify-center pt-2">
-                <button
-                  onClick={() => {
-                    const text = messages.map(m => `[${m.role === "user" ? "Eu" : "IA"}]: ${m.content}`).join("\n\n---\n\n");
-                    navigator.clipboard.writeText(text);
-                  }}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded bg-muted hover:bg-muted/80 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                  title="Copiar toda a conversa para colar em outro lugar"
-                >
-                  <Clipboard className="w-3 h-3" />
-                  Copiar Conversa
-                </button>
-                <button
-                  onClick={() => { sendMessage("Analise os erros e problemas que encontramos até agora nesta conversa. Faça um resumo claro e organizado de tudo que foi identificado, o que foi corrigido, e o que ainda precisa ser feito. Use um formato fácil de copiar.", contextMode); }}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 text-[10px] text-blue-400 transition-colors border border-blue-500/20"
-                  title="Pede para a IA resumir os problemas encontrados"
-                >
-                  <Bug className="w-3 h-3" />
-                  Resumir Problemas
-                </button>
               </div>
             )}
             <div ref={messagesEndRef} />

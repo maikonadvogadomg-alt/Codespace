@@ -514,11 +514,10 @@ export default function LegalAssistant() {
     setTimeout(() => {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "pt-BR";
-      utterance.rate = 1.15;
-      utterance.pitch = 1.05;
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
       const voices = window.speechSynthesis.getVoices();
-      const ptVoice = voices.find(v => v.lang === "pt-BR" && v.name.includes("Google"))
-        || voices.find(v => v.lang.startsWith("pt-BR") || v.lang.startsWith("pt_BR"));
+      const ptVoice = voices.find(v => v.lang.startsWith("pt-BR") || v.lang.startsWith("pt_BR"));
       if (ptVoice) utterance.voice = ptVoice;
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => setIsSpeaking(false);
@@ -668,18 +667,14 @@ export default function LegalAssistant() {
     const startMic = () => {
       const rec = new SR();
       rec.lang = "pt-BR";
-      rec.continuous = false;
-      rec.interimResults = false;
-      let alreadySent = false;
+      rec.continuous = true;
+      rec.interimResults = true;
+      let finalTranscript = "";
+      let alreadySent = false; // guarda contra envio duplo
       rec.onresult = (e: any) => {
-        if (alreadySent) return;
-        const last = e.results[e.results.length - 1];
-        if (last && last.isFinal) {
-          const text = last[0].transcript.trim();
-          if (text) {
-            alreadySent = true;
-            try { rec.stop(); } catch {}
-            setTimeout(() => voiceChatSend(text), 300);
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) {
+            finalTranscript += (finalTranscript ? " " : "") + e.results[i][0].transcript;
           }
         }
       };
@@ -691,6 +686,13 @@ export default function LegalAssistant() {
       };
       rec.onend = () => {
         setVoiceChatListening(false);
+        if (alreadySent) return; // evita envio duplo
+        const text = finalTranscript.trim();
+        if (text) {
+          alreadySent = true;
+          // Pequena pausa antes de enviar — dá "respiro" natural na conversa
+          setTimeout(() => voiceChatSend(text), 300);
+        }
       };
       voiceChatRecRef.current = rec;
       try {
@@ -2544,12 +2546,6 @@ export default function LegalAssistant() {
             <Button size="sm" variant="ghost" className="h-9 gap-1.5 text-xs text-muted-foreground px-3" data-testid="button-go-token">
               <Key className="w-3.5 h-3.5 shrink-0" />
               Token PDPJ
-            </Button>
-          </Link>
-          <Link href="/comunicacoes">
-            <Button size="sm" variant="ghost" className="h-9 gap-1.5 text-xs text-muted-foreground px-3" data-testid="button-go-comunicacoes">
-              <FileText className="w-3.5 h-3.5 shrink-0" />
-              Comunicações
             </Button>
           </Link>
           <Link href="/pdpj">

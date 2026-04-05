@@ -2,7 +2,6 @@ import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import projectsRouter from "./projects";
 import importGithubRouter from "./import-github";
-import importReplitRouter from "./import-replit";
 import filesRouter from "./files";
 import execRouter from "./exec";
 import aiRouter from "./ai";
@@ -15,7 +14,6 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(importGithubRouter);
-router.use(importReplitRouter);
 router.use(projectsRouter);
 router.use(filesRouter);
 router.use(execRouter);

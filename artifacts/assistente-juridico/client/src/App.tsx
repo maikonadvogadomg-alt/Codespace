@@ -30,17 +30,19 @@ class ErrorBoundary extends Component<
         <div style={{
           minHeight: "100vh", display: "flex", flexDirection: "column",
           alignItems: "center", justifyContent: "center",
-          background: "#fefefe", color: "#1a1a1a", fontFamily: "system-ui",
+          background: "#0f172a", color: "#f1f5f9", fontFamily: "system-ui",
           padding: "2rem", textAlign: "center"
         }}>
           <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>⚠️</div>
           <h2 style={{ fontSize: "1.5rem", fontWeight: "bold", marginBottom: "0.5rem" }}>
-            Ops! Algo travou
+            Algo deu errado
           </h2>
-          <p style={{ color: "#666", marginBottom: "1.5rem", fontSize: "0.875rem" }}>
-            Seu trabalho foi salvo automaticamente. Clique abaixo para voltar.
+          <p style={{ color: "#94a3b8", marginBottom: "0.25rem", fontSize: "0.875rem" }}>
+            {this.state.error}
           </p>
-          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+          <p style={{ color: "#64748b", marginBottom: "1.5rem", fontSize: "0.75rem" }}>
+            Seu trabalho foi salvo automaticamente — não se preocupe.
+          </p>
           <button
             onClick={() => { this.setState({ hasError: false, error: "" }); }}
             style={{
@@ -55,14 +57,13 @@ class ErrorBoundary extends Component<
           <button
             onClick={() => window.location.reload()}
             style={{
-              background: "transparent", color: "#666", border: "1px solid #ccc",
+              background: "transparent", color: "#94a3b8", border: "1px solid #334155",
               padding: "0.5rem 1.5rem", borderRadius: "0.5rem",
               fontSize: "0.875rem", cursor: "pointer"
             }}
           >
             Recarregar página
           </button>
-          </div>
         </div>
       );
     }
@@ -86,7 +87,6 @@ import PrevidenciarioPage from "@/pages/previdenciario";
 import RoboDjenPage from "@/pages/robo-djen";
 import LoginPage from "@/pages/login";
 import Jurisprudencia from "@/pages/jurisprudencia";
-import ComunicacoesCnj from "@/pages/comunicacoes-cnj";
 import CodeAssistant from "@/pages/code-assistant";
 
 function Router() {
@@ -107,7 +107,6 @@ function Router() {
       <Route path="/filtrador" component={FiltradorJuridico} />
       <Route path="/previdenciario" component={PrevidenciarioPage} />
       <Route path="/robo-djen" component={RoboDjenPage} />
-      <Route path="/comunicacoes" component={ComunicacoesCnj} />
       <Route path="/codigo" component={CodeAssistant} />
       <Route component={NotFound} />
     </Switch>

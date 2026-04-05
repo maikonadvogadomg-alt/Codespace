@@ -9,8 +9,6 @@ export const projectsTable = pgTable("projects", {
   storagePath: text("storage_path").notNull(),
   fileCount: integer("file_count").notNull().default(0),
   sizeBytes: integer("size_bytes").notNull().default(0),
-  githubOwner: text("github_owner"),
-  githubRepoName: text("github_repo_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

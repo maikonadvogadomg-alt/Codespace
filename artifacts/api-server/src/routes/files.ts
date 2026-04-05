@@ -7,9 +7,6 @@ import { dbSaveFile, dbDeleteFile, ensureProjectOnDisk } from "../lib/persistFil
 import path from "path";
 import fs from "fs/promises";
 import { z } from "zod";
-import multer from "multer";
-
-const fileUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const router: IRouter = Router();
 
@@ -182,48 +179,5 @@ router.post("/projects/:projectId/files/copy", async (req, res): Promise<void> =
     res.status(500).json({ error: e.message ?? "Erro ao copiar" });
   }
 });
-
-router.post(
-  "/projects/:projectId/files/upload",
-  fileUpload.array("files", 20),
-  async (req, res): Promise<void> => {
-    const files = req.files as Express.Multer.File[] | undefined;
-    if (!files || files.length === 0) {
-      res.status(400).json({ error: "Nenhum arquivo enviado" });
-      return;
-    }
-
-    const id = parseInt(req.params.projectId, 10);
-    if (isNaN(id)) { res.status(400).json({ error: "ID de projeto inválido" }); return; }
-
-    const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, id));
-    if (!project) { res.status(404).json({ error: "Projeto não encontrado" }); return; }
-
-    await ensureProjectOnDisk(project.id, project.storagePath);
-
-    const targetDir = (req.body.directory as string || "").replace(/^\/+/, "");
-    const uploaded: string[] = [];
-
-    for (const file of files) {
-      const safeName = path.basename(file.originalname);
-      const relPath = targetDir ? `${targetDir}/${safeName}` : safeName;
-      const fullPath = path.join(project.storagePath, relPath);
-      const resolved = path.resolve(fullPath);
-      const base = path.resolve(project.storagePath);
-      if (!resolved.startsWith(base + path.sep) && resolved !== base) continue;
-
-      await fs.mkdir(path.dirname(fullPath), { recursive: true });
-      await fs.writeFile(fullPath, file.buffer);
-
-      const isBin = isBinaryFile(relPath);
-      if (!isBin) {
-        await dbSaveFile(project.id, relPath, file.buffer.toString("utf-8"));
-      }
-      uploaded.push(relPath);
-    }
-
-    res.json({ uploaded, count: uploaded.length });
-  }
-);
 
 export default router;
