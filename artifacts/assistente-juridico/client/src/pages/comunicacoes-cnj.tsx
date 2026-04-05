@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Search, Loader2, FileText, Scale, Calendar,
   Building2, User, ExternalLink, Download, AlertTriangle, ChevronDown, ChevronUp,
+  Globe, Server, RefreshCw,
 } from "lucide-react";
 
 interface Comunicacao {
@@ -31,6 +32,36 @@ interface Comunicacao {
   advogados: Array<{ nome: string; oab: string; uf: string }>;
 }
 
+function parseItem(item: any): Comunicacao {
+  return {
+    id: item.id,
+    dataDisponibilizacao: item.data_disponibilizacao || item.datadisponibilizacao || item.dataDisponibilizacao || "",
+    tribunal: item.siglaTribunal || item.tribunal || "",
+    tipo: item.tipoComunicacao || item.tipo || "",
+    orgao: item.nomeOrgao || item.orgao || "",
+    processo: item.numeroprocessocommascara || item.numero_processo || item.processo || "",
+    classe: item.nomeClasse || item.classe || "",
+    codigoClasse: item.codigoClasse || "",
+    tipoDocumento: item.tipoDocumento || "",
+    texto: item.texto || "",
+    link: item.link || "",
+    meio: item.meiocompleto || item.meio || "",
+    status: item.status || "",
+    hash: item.hash || "",
+    numeroComunicacao: item.numeroComunicacao || 0,
+    destinatarios: (item.destinatarios || []).map((d: any) => ({
+      nome: d.nome || "",
+      polo: d.polo === "A" ? "Ativo" : d.polo === "P" ? "Passivo" : d.polo || "",
+    })),
+    advogados: (item.destinatarioadvogados || item.advogados || []).map((da: any) => {
+      if (da.advogado) {
+        return { nome: da.advogado.nome || "", oab: da.advogado.numero_oab || "", uf: da.advogado.uf_oab || "" };
+      }
+      return { nome: da.nome || "", oab: da.oab || da.numero_oab || "", uf: da.uf || da.uf_oab || "" };
+    }),
+  };
+}
+
 export default function ComunicacoesCnj() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -38,6 +69,7 @@ export default function ComunicacoesCnj() {
   const [total, setTotal] = useState(0);
   const [searched, setSearched] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [fonte, setFonte] = useState("");
 
   const [oab, setOab] = useState("183712");
   const [uf, setUf] = useState("MG");
@@ -47,13 +79,33 @@ export default function ComunicacoesCnj() {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
 
-  const buscar = async () => {
-    if (!oab && !nomeAdvogado && !nomeParte && !numeroProcesso) {
-      toast({ title: "Preencha pelo menos um campo de busca", variant: "destructive" });
-      return;
+  const buscarDireto = async (): Promise<{ ok: boolean; items: Comunicacao[]; total: number }> => {
+    const params = new URLSearchParams();
+    if (oab) params.append("numeroOab", oab.replace(/\D/g, ""));
+    if (uf) params.append("ufOab", uf.toUpperCase());
+    if (nomeAdvogado) params.append("nomeAdvogado", nomeAdvogado);
+    if (nomeParte) params.append("nomeParte", nomeParte);
+    if (numeroProcesso) params.append("numeroProcesso", numeroProcesso.replace(/[.\-\s]/g, ""));
+    if (dataInicio) params.append("dataDisponibilizacaoInicio", dataInicio);
+    if (dataFim) params.append("dataDisponibilizacaoFim", dataFim);
+
+    try {
+      const res = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params.toString()}`, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.status === "success" && data.items) {
+        return { ok: true, items: data.items.map(parseItem), total: data.count || data.items.length };
+      }
+      return { ok: false, items: [], total: 0 };
+    } catch {
+      return { ok: false, items: [], total: 0 };
     }
-    setLoading(true);
-    setSearched(true);
+  };
+
+  const buscarServidor = async (): Promise<{ ok: boolean; items: Comunicacao[]; total: number }> => {
     try {
       const res = await fetch("/api/cnj/comunicacoes", {
         method: "POST",
@@ -70,24 +122,45 @@ export default function ComunicacoesCnj() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        toast({ title: data.message || "Erro na consulta", variant: "destructive" });
-        setComunicacoes([]);
-        setTotal(0);
-        return;
-      }
-      setComunicacoes(data.items || []);
-      setTotal(data.total || 0);
-      if ((data.items || []).length === 0) {
-        toast({ title: "Nenhuma comunicação encontrada", description: "Tente outros critérios de busca" });
-      } else {
-        toast({ title: `${data.total} comunicação(ões) encontrada(s)` });
-      }
-    } catch (e: any) {
-      toast({ title: "Erro de conexão", description: e.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
+      if (!res.ok) return { ok: false, items: [], total: 0 };
+      return { ok: true, items: (data.items || []).map(parseItem), total: data.total || 0 };
+    } catch {
+      return { ok: false, items: [], total: 0 };
     }
+  };
+
+  const buscar = async () => {
+    if (!oab && !nomeAdvogado && !nomeParte && !numeroProcesso) {
+      toast({ title: "Preencha pelo menos um campo de busca", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    setSearched(true);
+    setComunicacoes([]);
+    setTotal(0);
+    setFonte("");
+
+    const prod = await buscarDireto();
+    if (prod.ok && prod.items.length > 0) {
+      setComunicacoes(prod.items);
+      setTotal(prod.total);
+      setFonte("Produção (comunicaapi.pje.jus.br)");
+      toast({ title: `${prod.total} comunicação(ões) — API de Produção` });
+      setLoading(false);
+      return;
+    }
+
+    const hml = await buscarServidor();
+    if (hml.ok && hml.items.length > 0) {
+      setComunicacoes(hml.items);
+      setTotal(hml.total);
+      setFonte("Homologação (hcomunicaapi.cnj.jus.br)");
+      toast({ title: `${hml.total} comunicação(ões) — API de Homologação` });
+    } else {
+      setFonte(prod.ok ? "Produção" : "Homologação");
+      toast({ title: "Nenhuma comunicação encontrada", description: "Tente outros critérios" });
+    }
+    setLoading(false);
   };
 
   const toggleExpand = (id: number) => {
@@ -101,6 +174,7 @@ export default function ComunicacoesCnj() {
 
   const formatDate = (d: string) => {
     if (!d) return "";
+    if (d.includes("/")) return d;
     const parts = d.split("-");
     if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
     return d;
@@ -108,7 +182,22 @@ export default function ComunicacoesCnj() {
 
   const cleanTexto = (t: string) => {
     if (!t) return "";
-    return t.replace(/\r\n/g, "\n").replace(/\t+/g, " ").replace(/ {3,}/g, " ").trim();
+    let text = t.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, "");
+    text = text.replace(/<br\s*\/?>/gi, "\n");
+    text = text.replace(/<\/p>/gi, "\n\n");
+    text = text.replace(/<\/div>/gi, "\n");
+    text = text.replace(/<\/tr>/gi, "\n");
+    text = text.replace(/<\/td>/gi, " | ");
+    text = text.replace(/<[^>]+>/g, " ");
+    text = text.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&aacute;/gi, "á")
+      .replace(/&eacute;/gi, "é").replace(/&iacute;/gi, "í").replace(/&oacute;/gi, "ó")
+      .replace(/&uacute;/gi, "ú").replace(/&atilde;/gi, "ã").replace(/&otilde;/gi, "õ")
+      .replace(/&ccedil;/gi, "ç").replace(/&ordm;/gi, "º").replace(/&ordf;/gi, "ª")
+      .replace(/&#\d+;/g, "");
+    text = text.replace(/[ \t]{2,}/g, " ");
+    text = text.replace(/\n{3,}/g, "\n\n");
+    return text.trim();
   };
 
   return (
@@ -121,7 +210,7 @@ export default function ComunicacoesCnj() {
             </Link>
             <div className="flex items-center gap-2">
               <Scale className="h-5 w-5 text-primary" />
-              <h1 className="text-lg font-bold">Comunicações Processuais (CNJ)</h1>
+              <h1 className="text-lg font-bold">Comunicações Processuais</h1>
             </div>
           </div>
           <ThemeToggle />
@@ -133,7 +222,7 @@ export default function ComunicacoesCnj() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Search className="h-4 w-4" />
-              Buscar Comunicações
+              Buscar Intimações, Citações e Publicações
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -163,11 +252,11 @@ export default function ComunicacoesCnj() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Data Início</label>
+                <label className="text-sm font-medium text-muted-foreground">Data Início (yyyy-mm-dd)</label>
                 <Input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Data Fim</label>
+                <label className="text-sm font-medium text-muted-foreground">Data Fim (yyyy-mm-dd)</label>
                 <Input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} />
               </div>
               <div className="flex items-end">
@@ -178,18 +267,24 @@ export default function ComunicacoesCnj() {
               </div>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <AlertTriangle className="h-3 w-3" />
-              Dados do ambiente de homologação do CNJ (comunicaapi). Para produção, é necessário servidor no Brasil.
+              <Globe className="h-3 w-3" />
+              Busca primeiro na API de produção do CNJ (seu navegador). Se não alcançar, usa homologação pelo servidor.
             </div>
           </CardContent>
         </Card>
 
         {searched && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-lg font-semibold">
-                {total > 0 ? `${total} comunicação(ões) encontrada(s)` : "Nenhuma comunicação encontrada"}
+                {total > 0 ? `${total} comunicação(ões)` : "Nenhuma comunicação encontrada"}
               </h2>
+              {fonte && (
+                <Badge variant="outline" className="text-xs">
+                  {fonte.includes("Produção") ? <Globe className="h-3 w-3 mr-1" /> : <Server className="h-3 w-3 mr-1" />}
+                  {fonte}
+                </Badge>
+              )}
             </div>
 
             {comunicacoes.map(c => (
@@ -210,7 +305,7 @@ export default function ComunicacoesCnj() {
                         <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                         <span className="font-semibold">{c.processo}</span>
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1 flex-wrap">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           {formatDate(c.dataDisponibilizacao)}
@@ -221,7 +316,7 @@ export default function ComunicacoesCnj() {
                         </span>
                       </div>
                     </div>
-                    <div>
+                    <div className="shrink-0">
                       {expandedIds.has(c.id)
                         ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
                         : <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -232,7 +327,7 @@ export default function ComunicacoesCnj() {
                   {!expandedIds.has(c.id) && c.destinatarios.length > 0 && (
                     <div className="mt-2 text-xs text-muted-foreground">
                       <span className="font-medium">Partes:</span>{" "}
-                      {c.destinatarios.map(d => `${d.nome} (${d.polo})`).join(" • ")}
+                      {c.destinatarios.map(d => `${d.nome} (${d.polo})`).join(" | ")}
                     </div>
                   )}
                 </div>
@@ -288,7 +383,7 @@ export default function ComunicacoesCnj() {
                         </a>
                       )}
                       {c.hash && (
-                        <a href={`/api/cnj/comunicacoes/certidao/${c.hash}?ambiente=homologacao`} target="_blank" rel="noopener noreferrer">
+                        <a href={`https://comunicaapi.pje.jus.br/api/v1/comunicacao/${c.hash}/certidao`} target="_blank" rel="noopener noreferrer">
                           <Button variant="outline" size="sm">
                             <Download className="h-3.5 w-3.5 mr-1" /> Certidão PDF
                           </Button>
