@@ -138,7 +138,8 @@ const geminiCortesiaClient = (GEMINI_CORTESIA_KEY && GEMINI_CORTESIA_URL)
   : null;
 
 async function callGeminiCortesia(
-  messages: Array<{ role: string; content: string }>
+  messages: Array<{ role: string; content: string }>,
+  maxRetries = 3
 ): Promise<string> {
   if (!geminiCortesiaClient) {
     throw new Error("Gemini cortesia não disponível. Configure uma chave de IA nas Configurações.");
@@ -152,15 +153,28 @@ async function callGeminiCortesia(
     ...nonSystemMsgs.map(m => `${m.role === "user" ? "Usuário" : "Assistente"}: ${m.content}`),
   ].join("\n\n");
 
-  const result = await geminiCortesiaClient.models.generateContent({
-    model: GEMINI_CORTESIA_MODEL,
-    contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
-    config: { maxOutputTokens: 8000, temperature: 0.7 },
-  });
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await geminiCortesiaClient.models.generateContent({
+        model: GEMINI_CORTESIA_MODEL,
+        contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+        config: { maxOutputTokens: 8000, temperature: 0.7 },
+      });
 
-  const content = result.text;
-  if (!content) throw new Error("Gemini retornou resposta vazia");
-  return content;
+      const content = result.text;
+      if (!content) throw new Error("Gemini retornou resposta vazia");
+      return content;
+    } catch (err: any) {
+      const isRateLimit = err?.status === 429 || err?.message?.includes("RATELIMIT") || err?.message?.includes("rate limit") || err?.message?.includes("429");
+      if (isRateLimit && attempt < maxRetries) {
+        const delay = (attempt + 1) * 3000;
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Gemini: todas as tentativas falharam");
 }
 
 async function callUserKey(

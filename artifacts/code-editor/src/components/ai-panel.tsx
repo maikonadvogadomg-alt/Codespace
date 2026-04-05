@@ -643,7 +643,7 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
           ...prev,
           {
             role: "assistant",
-            content: `Erro: ${error.message || "Falha ao conectar com a IA. Verifique as Configurações."}`,
+            content: `⚠️ ${error.message?.includes("429") || error.message?.includes("RATELIMIT") ? "A IA está ocupada no momento. Aguarde alguns segundos e tente novamente." : error.message || "Falha ao conectar com a IA. Verifique as Configurações."}`,
           },
         ]);
         setAgentWorking(false);
