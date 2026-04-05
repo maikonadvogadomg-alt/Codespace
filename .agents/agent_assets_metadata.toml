@@ -1,0 +1,26 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "LQl3PJwAnL_QLwIWPeoMu"
+uri = "file://exports/projeto-completo.tar.gz"
+type = "unspecified"
+title = "Projeto Completo (CodeSpace + Assistente + API)"
+
+[[outputs]]
+id = "JeZu7gaKJI0G6mqSeYtmo"
+uri = "file://exports/assistente-juridico.tar.gz"
+type = "unspecified"
+title = "Assistente Jurídico (separado)"
+
+[[outputs]]
+id = "IylnKZmjShJEO7c0RCnVW"
+uri = "file://exports/code-editor.tar.gz"
+type = "unspecified"
+title = "CodeSpace Editor (separado)"
+
+[[outputs]]
+id = "J09d5zSphTEQCrNgw943D"
+uri = "file://exports/api-server.tar.gz"
+type = "unspecified"
+title = "API Server (separado)"
