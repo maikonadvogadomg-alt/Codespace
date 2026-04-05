@@ -47,6 +47,20 @@ declare module "http" {
 }
 
 const BASE_PATH = process.env.BASE_PATH || "";
+if (BASE_PATH) {
+  app.use((req, res, next) => {
+    if (req.url === BASE_PATH) {
+      return res.redirect(301, `${BASE_PATH}/`);
+    }
+    if (req.url.startsWith(BASE_PATH)) {
+      req.url = req.url.slice(BASE_PATH.length) || "/";
+    }
+    if (req.path.startsWith(BASE_PATH)) {
+      (req as any).originalUrl = req.originalUrl.replace(BASE_PATH, "") || "/";
+    }
+    next();
+  });
+}
 
 app.use(
   express.json({

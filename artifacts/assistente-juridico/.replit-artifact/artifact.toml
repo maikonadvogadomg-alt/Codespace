@@ -1,19 +1,20 @@
 kind = "web"
-previewPath = "/"
+previewPath = "/app"
 title = "Assistente Jurídico"
 router = "path"
 
 [[services]]
 name = "web"
-paths = ["/"]
+paths = ["/app"]
 localPort = 5000
 
 [services.development]
-run = "cd /home/runner/workspace/artifacts/assistente-juridico && PORT=5000 npm run dev"
+run = "cd /home/runner/workspace/artifacts/assistente-juridico && PORT=5000 BASE_PATH=/app npm run dev"
 
 [services.production]
-build = "cd /home/runner/workspace/artifacts/assistente-juridico && npm run build"
-run = "cd /home/runner/workspace/artifacts/assistente-juridico && PORT=5000 npm run start"
+build = "cd /home/runner/workspace/artifacts/assistente-juridico && BASE_PATH=/app npm run build"
+run = "cd /home/runner/workspace/artifacts/assistente-juridico && PORT=5000 BASE_PATH=/app npm run start"
 
 [services.env]
 PORT = "5000"
+BASE_PATH = "/app"
