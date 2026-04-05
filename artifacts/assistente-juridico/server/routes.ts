@@ -5254,7 +5254,11 @@ FORMATACAO OBRIGATORIA: Use paragrafos CURTOS, com no maximo 4 a 5 linhas cada. 
       const pubs = await storage.getTramitacaoPublicacoes(200);
       res.json({ publicacoes: pubs });
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      if (e.message?.includes("does not exist")) {
+        res.json({ publicacoes: [] });
+      } else {
+        res.status(500).json({ message: e.message });
+      }
     }
   });
 
