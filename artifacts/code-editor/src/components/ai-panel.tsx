@@ -677,6 +677,9 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
                 Criar Projeto Novo
               </button>
             </div>
+            <div className="mt-2 px-2 py-1.5 rounded-lg bg-blue-500/5 border border-blue-500/10 text-[10px] text-blue-300/70 text-center">
+              Cole links na conversa e a IA lê o conteúdo da página automaticamente
+            </div>
             <div className="mt-3 grid grid-cols-1 gap-1 w-full max-w-[240px] text-[10px] text-left text-muted-foreground">
               <div className="flex items-center gap-1.5"><FilePen className="w-3 h-3 shrink-0 text-blue-400" /> Editar e criar arquivos</div>
               <div className="flex items-center gap-1.5"><Trash2 className="w-3 h-3 shrink-0 text-red-400" /> Deletar arquivos</div>

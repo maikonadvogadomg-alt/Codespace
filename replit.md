@@ -28,6 +28,7 @@ Personal code editor like SPCK Editor. Features:
 - Upload ZIP files or import from GitHub to create projects
 - Browse file trees, view/edit files with syntax highlighting
 - AI chat with Gemini cortesia (free, no key needed) + 4 configurable profiles (user provides own API keys)
+- Web content reading: paste any URL in chat and AI reads the page content automatically
 - AI can modify, create, and delete project files via action tags
 - **Agent Mode**: toggle in AI panel header — when ON, AI auto-executes `<codelens-exec>` commands and auto-applies `<codelens-write>` file changes, then feeds results back to AI for iterative autonomous work
 - VS Code-like terminal (SSE streaming, auto-detects server ports)

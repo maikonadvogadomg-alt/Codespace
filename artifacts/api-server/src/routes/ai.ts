@@ -8,6 +8,62 @@ import path from "path";
 import fs from "fs/promises";
 import { GoogleGenAI } from "@google/genai";
 
+const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
+
+async function fetchUrlContent(url: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; CodeSpace/1.0)",
+        "Accept": "text/html,application/xhtml+xml,text/plain,application/json,*/*",
+      },
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType.includes("image") || contentType.includes("video") || contentType.includes("audio") || contentType.includes("octet-stream")) {
+      return null;
+    }
+    const raw = await res.text();
+    const text = raw
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "")
+      .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
+      .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, " ")
+      .trim();
+    return text.slice(0, 30000);
+  } catch {
+    return null;
+  }
+}
+
+async function extractUrlContents(text: string): Promise<Array<{ url: string; content: string }>> {
+  const urls = [...new Set(text.match(URL_REGEX) ?? [])].slice(0, 3);
+  if (urls.length === 0) return [];
+  const results: Array<{ url: string; content: string }> = [];
+  await Promise.all(
+    urls.map(async (url) => {
+      const content = await fetchUrlContent(url);
+      if (content && content.length > 50) {
+        results.push({ url, content });
+      }
+    })
+  );
+  return results;
+}
+
 async function buildProjectContext(projectId: string): Promise<{ text: string; fileCount: number; truncated: boolean }> {
   const numId = parseInt(projectId, 10);
   if (isNaN(numId)) throw new Error("ID de projeto inválido");
@@ -256,6 +312,20 @@ ${terminalContext.trim().slice(0, 8000)}
 \`\`\`
 Use esse contexto para entender erros recentes e ajudar o usuário a corrigir os problemas sem precisar que ele copie e cole os erros.`,
     });
+  }
+
+  const lastUserMsg = messages.filter(m => m.role === "user").pop();
+  if (lastUserMsg) {
+    const urlContents = await extractUrlContents(lastUserMsg.content);
+    if (urlContents.length > 0) {
+      const urlContext = urlContents.map(u =>
+        `🌐 CONTEÚDO DO LINK: ${u.url}\n\`\`\`\n${u.content.slice(0, 15000)}\n\`\`\``
+      ).join("\n\n");
+      systemMessages.push({
+        role: "system",
+        content: `O usuário enviou link(s). Abaixo está o conteúdo extraído das páginas web. Use este conteúdo para responder de forma precisa.\n\n${urlContext}`,
+      });
+    }
   }
 
   const allMessages = [
