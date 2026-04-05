@@ -378,9 +378,12 @@ function escapeHtml(str: string): string {
 function renderMarkdown(text: string): string {
   let html = text;
 
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) =>
-    `<pre class="bg-black/40 rounded p-2 my-1 overflow-x-auto text-[10px]"><code class="language-${lang || "text"}">${escapeHtml(code.trim())}</code></pre>`
-  );
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
+    if (lang === "svg") {
+      return `<div class="my-2 p-2 bg-white/10 rounded overflow-x-auto flex justify-center">${code.trim()}</div>`;
+    }
+    return `<pre class="bg-black/40 rounded p-2 my-1 overflow-x-auto text-[10px]"><code class="language-${lang || "text"}">${escapeHtml(code.trim())}</code></pre>`;
+  });
 
   html = html.replace(/`([^`]+)`/g, '<code class="bg-black/30 px-1 py-0.5 rounded text-[10px] text-green-300">$1</code>');
 
@@ -403,6 +406,16 @@ function renderMarkdown(text: string): string {
   html = html.replace(/^(\d+)\. (.+)$/gm, '<li class="ml-3 list-decimal">$2</li>');
 
   html = html.replace(/^---$/gm, '<hr class="border-border/30 my-2" />');
+
+  const tableRegex = /(?:^(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)+))/gm;
+  html = html.replace(tableRegex, (_m, headerRow: string, _sep: string, bodyRows: string) => {
+    const headers = headerRow.split("|").filter((c: string) => c.trim()).map((c: string) => `<th class="border border-border/30 px-2 py-1 text-left text-[10px] font-semibold bg-black/20">${c.trim()}</th>`).join("");
+    const rows = bodyRows.trim().split("\n").map((row: string) => {
+      const cells = row.split("|").filter((c: string) => c.trim()).map((c: string) => `<td class="border border-border/30 px-2 py-1 text-[10px]">${c.trim()}</td>`).join("");
+      return `<tr>${cells}</tr>`;
+    }).join("");
+    return `<table class="w-full border-collapse my-2 text-[10px]"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+  });
 
   html = html.replace(/\n/g, '<br/>');
 

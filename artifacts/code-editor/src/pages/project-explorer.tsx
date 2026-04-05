@@ -17,6 +17,7 @@ import { TerminalPanel, type TerminalEntry } from "@/components/terminal-panel";
 import { PackagesPanel } from "@/components/packages-panel";
 import { PreviewPanel } from "@/components/preview-panel";
 import { GithubDeployModal } from "@/components/github-deploy-modal";
+import { GitCommitModal } from "@/components/git-commit-modal";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -25,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   Github,
+  GitBranch,
   Loader2,
   ArrowLeft,
   TerminalSquare,
@@ -74,6 +76,7 @@ export default function ProjectExplorer() {
   }, [fileHistory.length]);
 
   const [githubModalOpen, setGithubModalOpen] = useState(false);
+  const [gitCommitModalOpen, setGitCommitModalOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("files");
   const [mobilePreviewPath, setMobilePreviewPath] = useState<string | undefined>(undefined);
@@ -224,6 +227,15 @@ export default function ProjectExplorer() {
             <Button
               size="sm"
               variant="ghost"
+              onClick={() => setGitCommitModalOpen(true)}
+              className="h-8 w-8 p-0 shrink-0 text-muted-foreground"
+              title="Commit & Push"
+            >
+              <GitBranch className="w-4 h-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
               onClick={() => setGithubModalOpen(true)}
               className="h-8 w-8 p-0 shrink-0 text-muted-foreground"
             >
@@ -361,6 +373,11 @@ export default function ProjectExplorer() {
           projectId={project.id}
           defaultName={project.name}
         />
+        <GitCommitModal
+          open={gitCommitModalOpen}
+          onOpenChange={setGitCommitModalOpen}
+          projectId={project.id}
+        />
       </AppLayout>
     );
   }
@@ -388,6 +405,15 @@ export default function ProjectExplorer() {
             >
               <Terminal className="w-3.5 h-3.5" />
               Terminal
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setGitCommitModalOpen(true)}
+              className="h-7 gap-1.5 text-xs"
+            >
+              <GitBranch className="w-3.5 h-3.5" />
+              Commit
             </Button>
             <Button
               size="sm"
@@ -506,6 +532,11 @@ export default function ProjectExplorer() {
         onOpenChange={setGithubModalOpen}
         projectId={project.id}
         defaultName={project.name}
+      />
+      <GitCommitModal
+        open={gitCommitModalOpen}
+        onOpenChange={setGitCommitModalOpen}
+        projectId={project.id}
       />
     </AppLayout>
   );

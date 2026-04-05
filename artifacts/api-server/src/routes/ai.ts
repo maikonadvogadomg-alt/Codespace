@@ -287,7 +287,28 @@ REGRAS ADICIONAIS:
 - Para instalar pacotes: use <codelens-exec>npm install nome-do-pacote</codelens-exec>
 - Explique em PORTUGUÊS o que você está fazendo antes de cada bloco
 - Quando houver múltiplas etapas (instalar + criar arquivo + configurar), faça tudo em sequência na mesma resposta
-- O usuário NÃO entende de código — explique de forma simples e faça tudo por ele`;
+- O usuário NÃO entende de código — explique de forma simples e faça tudo por ele
+
+4. MOSTRAR IMAGENS, DIAGRAMAS E FIGURAS:
+Você pode exibir imagens e diagramas usando Markdown:
+- Imagem da web: ![descrição](https://url-da-imagem.com/imagem.png)
+- Diagrama SVG inline: Escreva o código SVG diretamente na resposta usando \`\`\`svg ... \`\`\` e o sistema renderizará o diagrama
+- Use diagramas para explicar arquiteturas, fluxos, estruturas de pastas, etc.
+- Use tabelas Markdown para comparações e dados organizados
+- Use formatação rica: **negrito**, *itálico*, listas, títulos (## ##), linhas (---), blocos de código
+
+Exemplo de diagrama SVG:
+\`\`\`svg
+<svg width="300" height="100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="10" y="10" width="120" height="40" rx="8" fill="#3b82f6" />
+  <text x="70" y="35" text-anchor="middle" fill="white" font-size="14">Frontend</text>
+  <line x1="130" y1="30" x2="170" y2="30" stroke="#888" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="170" y="10" width="120" height="40" rx="8" fill="#10b981" />
+  <text x="230" y="35" text-anchor="middle" fill="white" font-size="14">Backend</text>
+</svg>
+\`\`\`
+
+SEMPRE que puder ilustrar algo visualmente, USE diagramas SVG ou imagens para facilitar o entendimento.`;
 
   const AGENT_MODE_INSTRUCTIONS = `
 🤖 MODO AGENTE ATIVO — Você tem execução AUTOMÁTICA de comandos e arquivos.
