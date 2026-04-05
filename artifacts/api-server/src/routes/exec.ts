@@ -9,6 +9,20 @@ import { ensureProjectOnDisk } from "../lib/persistFiles.js";
 
 const router: IRouter = Router();
 
+function resolveNodeModulesBin(cwd: string): string[] {
+  const bins: string[] = [];
+  let dir = cwd;
+  const seen = new Set<string>();
+  while (dir && !seen.has(dir)) {
+    seen.add(dir);
+    bins.push(path.join(dir, "node_modules", ".bin"));
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return bins;
+}
+
 function detectBinPaths(): string[] {
   const extra: string[] = [];
   const tryResolve = (cmd: string) => {
@@ -51,8 +65,9 @@ function normalizeCommand(cmd: string): string {
     .replace(/poetry run python\b/, "poetry run python3");
 }
 
-function buildEnv() {
+function buildEnv(cwd?: string) {
   const extraPaths = [
+    ...(cwd ? resolveNodeModulesBin(cwd) : []),
     ...DETECTED_BIN_PATHS,
     "/usr/local/bin",
     "/usr/bin",
@@ -199,7 +214,7 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
 
   const proc = spawn("sh", ["-c", normalized], {
     cwd,
-    env: buildEnv(),
+    env: buildEnv(cwd),
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -298,7 +313,7 @@ router.post("/projects/:projectId/exec", async (req, res): Promise<void> => {
   const cwd = path.resolve(project.storagePath);
   const start = Date.now();
 
-  const proc = spawn("sh", ["-c", normalized], { cwd, env: buildEnv(), stdio: ["ignore", "pipe", "pipe"] });
+  const proc = spawn("sh", ["-c", normalized], { cwd, env: buildEnv(cwd), stdio: ["ignore", "pipe", "pipe"] });
   let stdout = "";
   let stderr = "";
   proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
