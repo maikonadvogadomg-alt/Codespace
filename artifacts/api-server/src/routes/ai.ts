@@ -589,6 +589,9 @@ router.post("/ai/agent-exec", async (req, res): Promise<void> => {
   }
 
   const { spawn } = await import("child_process");
+  const { dbSaveDirectoryTree } = await import("../lib/persistFiles.js");
+  const { countFiles } = await import("../lib/storage.js");
+
   const proc = spawn("bash", ["-c", command], {
     cwd: project.storagePath,
     env: {
@@ -604,11 +607,21 @@ router.post("/ai/agent-exec", async (req, res): Promise<void> => {
   proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
   proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
 
-  proc.on("close", (code) => {
+  proc.on("close", async (code) => {
+    const exitCode = code ?? 1;
+    if (exitCode === 0) {
+      try {
+        await dbSaveDirectoryTree(numId, project.storagePath);
+        const { count, sizeBytes } = await countFiles(project.storagePath);
+        await db.update(projectsTable)
+          .set({ fileCount: count, sizeBytes })
+          .where(eq(projectsTable.id, numId));
+      } catch {}
+    }
     res.json({
       stdout: stdout.slice(-8000),
       stderr: stderr.slice(-4000),
-      exitCode: code ?? 1,
+      exitCode,
     });
   });
 

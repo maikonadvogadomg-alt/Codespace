@@ -5,7 +5,9 @@ import { ExecCommandBody } from "@workspace/api-zod";
 import { spawn, execSync } from "child_process";
 import path from "path";
 import { registerTerminalProcess } from "../lib/devServerRegistry.js";
-import { ensureProjectOnDisk } from "../lib/persistFiles.js";
+import { ensureProjectOnDisk, dbSaveDirectoryTree } from "../lib/persistFiles.js";
+import { countFiles } from "../lib/storage.js";
+import fs from "fs/promises";
 
 const router: IRouter = Router();
 
@@ -40,6 +42,35 @@ function detectBinPaths(): string[] {
 }
 
 const DETECTED_BIN_PATHS = detectBinPaths();
+
+const FILE_MODIFYING_PATTERNS = [
+  /\brm\b/, /\bmv\b/, /\bcp\b/, /\bmkdir\b/, /\btouch\b/,
+  /\btar\b/, /\bunzip\b/, /\bgunzip\b/,
+  /\bnpm\s+(install|i|uninstall|remove|init)\b/,
+  /\byarn\s+(add|remove|install)\b/,
+  /\bpnpm\s+(add|remove|install)\b/,
+  /\bpip3?\s+install\b/,
+  /\bgit\s+(clone|pull|checkout)\b/,
+  /\bwget\b/, /\bcurl\b.*-[oO]\b/,
+  /\bsed\b.*-i/, /\bchmod\b/, /\bchown\b/,
+  />\s/, />>/, /\btee\b/,
+];
+
+function isFileModifyingCommand(cmd: string): boolean {
+  return FILE_MODIFYING_PATTERNS.some(p => p.test(cmd));
+}
+
+async function syncProjectToDb(projectId: number, storagePath: string): Promise<void> {
+  try {
+    await dbSaveDirectoryTree(projectId, storagePath);
+    const { count, sizeBytes } = await countFiles(storagePath);
+    await db.update(projectsTable)
+      .set({ fileCount: count, sizeBytes })
+      .where(eq(projectsTable.id, projectId));
+  } catch (err) {
+    console.error(`Failed to sync project ${projectId} to DB:`, err);
+  }
+}
 
 const BLOCKED_PATTERNS = [
   /rm\s+-rf\s+\//,
@@ -246,11 +277,10 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
     send("stderr", { data: `\nErro ao iniciar processo: ${err.message}\n` });
   });
 
-  proc.on("close", (code, signal) => {
+  proc.on("close", async (code, signal) => {
     const exitCode = code ?? (signal ? 1 : 0);
     const durationMs = Date.now() - start;
 
-    // Only send enriched stderr / exit if not handed off (server processes run forever)
     if (detectedPort === null) {
       const enriched = enrichStderr(stderrBuffer, exitCode, normalized);
       const extraHint = enriched.slice(stderrBuffer.length);
@@ -258,9 +288,15 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
       if (signal === "SIGTERM" && durationMs >= maxTimeout - 1000) {
         send("stderr", { data: `\n\n⏱️  Comando interrompido após ${Math.round(durationMs / 1000)}s (limite atingido).` });
       }
+
+      if (exitCode === 0 && isFileModifyingCommand(normalized)) {
+        send("stdout", { data: "\n🔄 Salvando alterações...\n" });
+        await syncProjectToDb(id, cwd);
+        send("stdout", { data: "✅ Alterações salvas permanentemente.\n" });
+      }
+
       send("exit", { exitCode, durationMs });
     } else {
-      // Server was killed externally (Ctrl+C or stopDevServer)
       send("server_stopped", { exitCode, durationMs });
     }
     if (!clientDisconnected) res.end();
@@ -317,10 +353,13 @@ router.post("/projects/:projectId/exec", async (req, res): Promise<void> => {
 
   const timer = setTimeout(() => { try { proc.kill("SIGTERM"); } catch {} }, timeout);
 
-  proc.on("close", (code) => {
+  proc.on("close", async (code) => {
     clearTimeout(timer);
     const exitCode = code ?? 1;
     const enriched = enrichStderr(stderr, exitCode, normalized);
+    if (exitCode === 0 && isFileModifyingCommand(normalized)) {
+      await syncProjectToDb(id, cwd);
+    }
     res.json({ stdout, stderr: enriched, exitCode, durationMs: Date.now() - start });
   });
 
