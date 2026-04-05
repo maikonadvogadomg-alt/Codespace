@@ -64,6 +64,14 @@ async function extractUrlContents(text: string): Promise<Array<{ url: string; co
   return results;
 }
 
+const SKIP_DIRS = new Set([
+  "node_modules", ".git", "dist", "build", ".next", ".nuxt", "__pycache__",
+  ".cache", "coverage", ".turbo", ".parcel-cache", "vendor", "bower_components",
+]);
+
+const MAX_FILE_SIZE = 50_000;
+const MAX_TOTAL_CHARS = 150_000;
+
 async function buildProjectContext(projectId: string): Promise<{ text: string; fileCount: number; truncated: boolean }> {
   const numId = parseInt(projectId, 10);
   if (isNaN(numId)) throw new Error("ID de projeto inválido");
@@ -71,20 +79,20 @@ async function buildProjectContext(projectId: string): Promise<{ text: string; f
   const project = rows[0];
   if (!project) throw new Error("Projeto não encontrado");
 
-  // Restore from DB if /tmp was wiped
   await ensureProjectOnDisk(project.id, project.storagePath);
 
   const projectDir = project.storagePath;
   const parts: string[] = [];
   let fileCount = 0;
   let totalChars = 0;
-  const MAX_CHARS = 200_000;
   let truncated = false;
+  let skippedFiles: string[] = [];
 
   async function walk(dir: string, relBase: string) {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
+    let entries;
+    try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
     const sorted = entries
-      .filter(e => !e.name.startsWith("."))
+      .filter(e => !e.name.startsWith(".") && !SKIP_DIRS.has(e.name))
       .sort((a, b) => {
         if (a.isDirectory() && !b.isDirectory()) return -1;
         if (!a.isDirectory() && b.isDirectory()) return 1;
@@ -92,19 +100,26 @@ async function buildProjectContext(projectId: string): Promise<{ text: string; f
       });
 
     for (const entry of sorted) {
+      if (totalChars >= MAX_TOTAL_CHARS) { truncated = true; return; }
       const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         await walk(fullPath, relPath);
       } else if (!isBinaryFile(relPath)) {
-        if (totalChars >= MAX_CHARS) {
-          truncated = true;
-          continue;
-        }
         try {
+          const stat = await fs.stat(fullPath);
+          if (stat.size > MAX_FILE_SIZE) {
+            skippedFiles.push(relPath);
+            continue;
+          }
           const content = await fs.readFile(fullPath, "utf-8");
           const lang = detectLanguage(relPath);
-          const block = `// ═══ FILE: ${relPath} ═══\n\`\`\`${lang}\n${content}\n\`\`\`\n`;
+          const trimmed = content.length > MAX_FILE_SIZE ? content.slice(0, MAX_FILE_SIZE) + "\n... [arquivo truncado]" : content;
+          const block = `// ═══ FILE: ${relPath} ═══\n\`\`\`${lang}\n${trimmed}\n\`\`\`\n`;
+          if (totalChars + block.length > MAX_TOTAL_CHARS) {
+            truncated = true;
+            return;
+          }
           parts.push(block);
           totalChars += block.length;
           fileCount++;
@@ -116,7 +131,11 @@ async function buildProjectContext(projectId: string): Promise<{ text: string; f
   }
 
   await walk(projectDir, "");
-  return { text: parts.join("\n"), fileCount, truncated };
+  let summary = parts.join("\n");
+  if (skippedFiles.length > 0) {
+    summary += `\n\n// ═══ ARQUIVOS GRANDES OMITIDOS (>${MAX_FILE_SIZE} bytes) ═══\n// ${skippedFiles.join(", ")}\n`;
+  }
+  return { text: summary, fileCount, truncated };
 }
 
 const router: IRouter = Router();

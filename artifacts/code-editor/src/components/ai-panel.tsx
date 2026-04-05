@@ -650,7 +650,7 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
           ...prev,
           {
             role: "assistant",
-            content: `⚠️ ${error.message?.includes("429") || error.message?.includes("RATELIMIT") ? "A IA está ocupada no momento. Aguarde alguns segundos e tente novamente." : error.message || "Falha ao conectar com a IA. Verifique as Configurações."}`,
+            content: `⚠️ ${error.message?.includes("429") || error.message?.includes("RATELIMIT") ? "A IA está ocupada no momento. Aguarde alguns segundos e tente novamente." : error.message?.includes("token count") || error.message?.includes("exceeds") || error.message?.includes("too large") ? "O projeto é muito grande para analisar de uma vez. Tente selecionar um arquivo específico em vez de 'Projeto completo'." : error.message || "Falha ao conectar com a IA. Verifique as Configurações."}`,
           },
         ]);
         setAgentWorking(false);
