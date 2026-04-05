@@ -40,6 +40,28 @@ Personal code editor like SPCK Editor. Features:
 ### Assistente Jurídico (AplicativoMaikon) — `/app`
 Standalone legal assistant app running on port 5000. Express + Vite + React. Uses npm (not pnpm). BASE_PATH=/app.
 
+#### PDPJ Integration (In Progress)
+- **Owner**: Maikon da Rocha Caldeira, CPF 094.941.286-48, OAB 183.712/MG
+- **PEM Key**: Configured as env var `PDPJ_PEM_PRIVATE_KEY` (RSA private key from ICP-Brasil)
+- **Auth Flow**: JWT signed with PEM (RS256) → exchange at Keycloak SSO for access_token → call Gateway APIs
+- **SSO Production**: `https://sso.cloud.pje.jus.br/auth/realms/pje/protocol/openid-connect/token`
+- **Gateway Production**: `https://gateway.cloud.pje.jus.br/`
+- **Gateway Homologação**: `https://gateway.stg.cloud.pje.jus.br/`
+- **Domicílio Prod**: `https://domicilio-eletronico.pdpj.jus.br`
+- **Domicílio STG**: `https://gateway.stg.cloud.pje.jus.br/domicilio-eletronico-hml`
+- **Status**: BLOCKED — waiting for CNJ to register public key and provide client_id. Email template ready at `arquivos diversos/attached_assets/email_para_pdpj_1771903064820.txt` (project 36). Must be sent to integracaopdpj@cnj.jus.br with maikon.pub.pem attached.
+- **Correct auth flow** (from jwt-tools/pjud_token.txt): `grant_type=client_credentials` + `client_assertion_type=jwt-bearer` + `client_assertion=(JWT signed with PEM)` → does NOT require MFA
+- **Current code issue**: routes.ts `generatePdpjToken()` uses JWT directly as Bearer token instead of exchanging at Keycloak first
+- **DataJud** (public API): Already works for basic process consultation
+- **Swagger APIs available**: Notifications service (events, subscriptions, templates, tribunals) — file `MAIKONMG1_12-Maikon_1209-183712-oas3-swagger.json`
+
+#### Old Project (ReplitExport project 36 in CodeSpace)
+- **jwt-tools/**: Created by VS Code Copilot — sign.js, gen_pjud.js, gerar_token.mjs (correct JWT generation scripts)
+- **arquivos diversos/**: Mix of PEM keys, Swagger files, Perplexity examples about RS256/JWT, email draft for PDPJ
+- **AIEventsSF-1/**: Mastra agents with PDPJ tools (pdpjConsultaTool.ts, pdpjComunicacaoTool.ts, pdpjPeticaoTool.ts)
+- **FalarNoOutroLink/**: Full legal app (PJE, E-Proc, INSS, Intimações pages)
+- **apoia-master/**: APOIA system (runs inside PJud) — has jwt.ts, swagger.json reference implementations
+
 ### API Server — `/api`
 Express 5 backend serving all app routes.
 
