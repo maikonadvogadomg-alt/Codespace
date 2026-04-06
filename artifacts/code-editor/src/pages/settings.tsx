@@ -23,6 +23,7 @@ import {
   Star,
   FlaskConical,
   Cpu,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -301,6 +302,21 @@ export default function SettingsPage() {
     setDetectedProvider(null);
   };
 
+  const handleClearProfile = () => {
+    updateCurrentProfile({ apiKey: "", baseUrl: "", model: "", provider: "gemini" });
+    setDetectedProvider(null);
+    if (activeSlot === editSlot) {
+      updateMutation.mutate(
+        { data: { aiApiKey: "", aiBaseUrl: "", aiModel: "" } },
+        { onSuccess: () => {
+          toast({ title: "Chave removida", description: "Voltando para Gemini gratuita" });
+        }}
+      );
+    } else {
+      toast({ title: "Perfil limpo" });
+    }
+  };
+
   const handleActivate = () => {
     const profile = profiles[editSlot];
     if (!profile.apiKey.trim() && !profile.baseUrl.trim() && !profile.model.trim()) {
@@ -450,7 +466,19 @@ export default function SettingsPage() {
 
                   {/* API Key */}
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Chave de API</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Chave de API</Label>
+                      {currentProfile.apiKey.trim() && (
+                        <button
+                          type="button"
+                          onClick={handleClearProfile}
+                          className="flex items-center gap-1 text-[10px] text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded hover:bg-red-500/10"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Limpar chave
+                        </button>
+                      )}
+                    </div>
                     {detectedProvider && (
                       <div className={cn(
                         "flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium",
@@ -459,7 +487,6 @@ export default function SettingsPage() {
                         <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                         <span>
                           <strong>{detectedProvider.name}</strong> detectado automaticamente
-                          ({detectedProvider.hint})
                         </span>
                       </div>
                     )}
@@ -477,14 +504,16 @@ export default function SettingsPage() {
 
                   {/* Model */}
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Modelo</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Modelo <span className="text-muted-foreground font-normal">(digite qualquer modelo)</span></Label>
+                    </div>
                     <Input
                       value={currentProfile.model}
                       onChange={(e) => updateCurrentProfile({ model: e.target.value })}
                       placeholder={
-                        currentProfile.provider === "anthropic" ? "claude-3-5-haiku-20241022" :
-                        currentProfile.provider === "gemini" ? "gemini-2.5-flash" :
-                        currentProfile.provider === "openai" ? "gpt-4o" :
+                        currentProfile.provider === "anthropic" ? "ex: claude-3-5-haiku, claude-sonnet-4-5, etc" :
+                        currentProfile.provider === "gemini" ? "ex: gemini-2.5-flash, gemini-2.5-pro, etc" :
+                        currentProfile.provider === "openai" ? "ex: gpt-4o, gpt-4o-mini, o1, etc" :
                         "nome-do-modelo"
                       }
                       className="bg-background font-mono text-xs"
