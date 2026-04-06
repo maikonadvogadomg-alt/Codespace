@@ -602,9 +602,11 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
   }, []);
 
   const voiceChatMutation = useAiChat({ mutation: {} });
+  const voiceSendingRef = useRef(false);
 
   const voiceChatSend = useCallback(async (userText: string) => {
-    if (!userText.trim() || voiceChatProcessing) return;
+    if (!userText.trim() || voiceChatProcessing || voiceSendingRef.current) return;
+    voiceSendingRef.current = true;
     const newMsgs = [...voiceChatMessages, { role: "user" as const, text: userText.trim() }];
     setVoiceChatMessages(newMsgs);
     setVoiceChatProcessing(true);
@@ -641,6 +643,7 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
       setVoiceChatMessages(prev => [...prev, { role: "assistant", text: "Erro de conexão. Tente novamente." }]);
     } finally {
       setVoiceChatProcessing(false);
+      voiceSendingRef.current = false;
     }
   }, [voiceChatMessages, voiceChatProcessing, projectId, playTts, voiceChatMutation]);
 
@@ -656,27 +659,21 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
     const startMic = () => {
       const rec = new SR();
       rec.lang = "pt-BR";
-      rec.continuous = true;
-      rec.interimResults = true;
-      let finalTranscript = "";
+      rec.continuous = false;
+      rec.interimResults = false;
       let alreadySent = false;
       rec.onresult = (e: any) => {
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) {
-            finalTranscript += (finalTranscript ? " " : "") + e.results[i][0].transcript;
-          }
+        if (alreadySent) return;
+        const transcript = e.results[0]?.[0]?.transcript?.trim();
+        if (transcript) {
+          alreadySent = true;
+          rec.stop();
+          setVoiceChatListening(false);
+          voiceChatSend(transcript);
         }
       };
       rec.onerror = () => setVoiceChatListening(false);
-      rec.onend = () => {
-        setVoiceChatListening(false);
-        if (alreadySent) return;
-        const text = finalTranscript.trim();
-        if (text) {
-          alreadySent = true;
-          setTimeout(() => voiceChatSend(text), 300);
-        }
-      };
+      rec.onend = () => setVoiceChatListening(false);
       voiceChatRecRef.current = rec;
       try {
         rec.start();
