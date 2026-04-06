@@ -47,10 +47,10 @@ router.put("/settings", async (req, res): Promise<void> => {
     updatedAt: new Date(),
   };
 
-  if (aiBaseUrl !== undefined) updateData.aiBaseUrl = aiBaseUrl ?? null;
-  if (aiModel !== undefined) updateData.aiModel = aiModel ?? null;
-  if (aiApiKey !== undefined && aiApiKey !== null) updateData.aiApiKey = aiApiKey;
-  if (githubToken !== undefined && githubToken !== null) updateData.githubToken = githubToken;
+  if (aiBaseUrl !== undefined) updateData.aiBaseUrl = aiBaseUrl?.trim() || null;
+  if (aiModel !== undefined) updateData.aiModel = aiModel?.trim() || null;
+  if (aiApiKey !== undefined) updateData.aiApiKey = aiApiKey?.trim() || null;
+  if (githubToken !== undefined) updateData.githubToken = githubToken?.trim() || null;
 
   if (existing) {
     await db.update(settingsTable).set(updateData).where(eq(settingsTable.id, existing.id));
