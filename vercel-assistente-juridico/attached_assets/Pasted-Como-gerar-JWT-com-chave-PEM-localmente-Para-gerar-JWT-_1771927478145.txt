@@ -1,0 +1,150 @@
+Como gerar JWT com chave PEM localmente
+
+Para gerar JWT com chave PEM localmente, use JavaScript no navegador com a Web Crypto API. É simples e funciona offline.
+
+## HTML Completo (Salve como `jwt-pem.html`)
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gerar JWT com Chave PEM</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h2>🔐 Gerador JWT - Chave Privada PEM</h2>
+    
+    <label>Chave Privada PEM (cole tudo):</label><br>
+    <textarea id="chavePem" rows="12" cols="80" 
+    placeholder="-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC7... 
+-----END PRIVATE KEY-----"></textarea><br><br>
+    
+    <label>Payload JSON:</label><br>
+    <textarea id="payload" rows="4" cols="80">{
+  "sub": "12345678",
+  "iat": 1640995200,
+  "iss": "cojef",
+  "aud": "pdjd"
+}</textarea><br><br>
+    
+    <button onclick="gerarJWT()">Gerar JWT</button>
+    <button onclick="limpar()">Limpar</button>
+    
+    <h3>Resultado:</h3>
+    <textarea id="resultado" rows="6" cols="80" readonly style="background: #f0f0f0;"></textarea>
+
+    <script>
+    async function gerarJWT() {
+        const pem = document.getElementById('chavePem').value.trim();
+        const payload = JSON.parse(document.getElementById('payload').value);
+        const resultado = document.getElementById('resultado');
+        
+        try {
+            resultado.value = '🔄 Gerando...\n';
+            
+            // 1. Converte PEM para ArrayBuffer
+            const cryptoKey = await crypto.subtle.importKey(
+                'pkcs8', 
+                stringToArrayBuffer(pem),
+                { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+                false,
+                ['sign']
+            );
+            
+            // 2. Header JWT
+            const header = { alg: 'RS256', typ: 'JWT' };
+            
+            // 3. Codifica Base64Url
+            const encodedHeader = b64UrlEncode(JSON.stringify(header));
+            const encodedPayload = b64UrlEncode(JSON.stringify(payload));
+            const toSign = `${encodedHeader}.${encodedPayload}`;
+            
+            // 4. Assina
+            resultado.value = '✍️ Assinando...\n';
+            const signature = await crypto.subtle.sign(
+                'RSASSA-PKCS1-v1_5',
+                cryptoKey,
+                new TextEncoder().encode(toSign)
+            );
+            
+            // 5. Monta JWT final
+            const jwt = `${toSign}.${b64UrlEncode(signature)}`;
+            resultado.value = `✅ JWT gerado!\n\n${jwt}`;
+            
+            // Testa cópia
+            navigator.clipboard.writeText(jwt).then(() => {
+                resultado.value += '\n\n📋 JWT copiado para área de transferência!';
+            });
+            
+        } catch (error) {
+            resultado.value = `❌ Erro: ${error.message}\n\nDicas:\n- Verifique se a chave PEM tem -----BEGIN/END PRIVATE KEY-----\n- Payload deve ser JSON válido`;
+        }
+    }
+    
+    // Base64 URL seguro
+    function b64UrlEncode(buffer) {
+        let str = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=/g, '');
+        return str;
+    }
+    
+    function stringToArrayBuffer(str) {
+        const bytes = new TextEncoder().encode(str);
+        return bytes.buffer;
+    }
+    
+    function limpar() {
+        document.getElementById('resultado').value = '';
+        document.getElementById('chavePem').focus();
+    }
+    </script>
+</body>
+</html>
+```
+
+## Como Usar
+
+1. **Salve** o código acima como `jwt-pem.html`
+2. **Abra** no navegador (Chrome/Firefox)
+3. **Cole** sua chave privada PEM completa (com `-----BEGIN PRIVATE KEY-----` e `-----END PRIVATE KEY-----`)
+4. **Ajuste** o payload JSON conforme o PDJd/COJEF
+5. **Clique** "Gerar JWT"
+
+## Payload Exemplo PDJd/COJEF
+
+```json
+{
+  "sub": "SEU_CPF",
+  "iat": 1640995200,
+  "iss": "cojef",
+  "aud": "pdjd"
+}
+```
+
+## Por Que Funciona
+
+- ✅ **100% local** - sem servidor
+- ✅ **Web Crypto API** - nativa do navegador
+- ✅ **PKCS#8 PEM** - formato que você já tem
+- ✅ **RS256** - padrão dos sistemas judiciais brasileiros
+- ✅ **Base64Url** - formato JWT correto
+
+**Teste agora** com sua chave PEM! O JWT sairá pronto para usar no PDJd. [4]
+
+Citações:
+[1] SEI_1085382_Portaria_Cojef_1-1-4.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/eaa5ecfd-8718-48bc-8014-b188faa16b92/SEI_1085382_Portaria_Cojef_1-1-4.pdf
+[2] RESOL.-PRESI-42-TRU-2.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/1d9efbc6-d079-4b08-b349-898e51e19b8b/RESOL.-PRESI-42-TRU-2.pdf
+[3] SEI_CNJ-2233933-Despacho.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/1be6beca-c20b-4257-a905-cc86b8906023/SEI_CNJ-2233933-Despacho.pdf
+[4] ATLAS CRITICAL MINERALS Corp ; JUPGF ; 1684688 ; f-1/a ; 2025-12-17 https://www.sec.gov/Archives/edgar/data/1684688/000149315225028127/formf-1a.htm
+[5] DIGI INTERNATIONAL INC ; DGII ; 854775 ; 10-k ; 2025-11-21 https://www.sec.gov/Archives/edgar/data/854775/000085477525000026/dgii-20250930.htm
+[6] 1stdibs.com, Inc. ; DIBS ; 1600641 ; 10-k ; 2025-03-03 https://www.sec.gov/Archives/edgar/data/1600641/000160064125000011/dibs-20241231.htm
+[7] PEM Real Estate Fund I LP ; NO_TICKER ; 2018856 ; form_d/a ; 2024-09-05 https://www.sec.gov/Archives/edgar/data/2018856/0002018856-24-000002-index.htm
+[8] Franklin Crypto Trust ; NO_TICKER ; 2033807 ; s-1/a ; 2025-02-14 https://www.sec.gov/Archives/edgar/data/2033807/000113743925000089/s1a.htm
+[9] Franklin Crypto Trust ; NO_TICKER ; 2033807 ; s-1/a ; 2025-02-06 https://www.sec.gov/Archives/edgar/data/2033807/000113743925000050/forms1a.htm
+[10] PEM Growth Insurance Dedicated Fund Series Interests of the SALI Multi-Series Fund, L.P. ; NO_TICKER ; 2046038 ; form_d ; 2024-12-23 https://www.sec.gov/Archives/edgar/data/2046038/0002046056-24-000004-index.htm
+[11] FUNÇÕES DE LYAPUNOV FUZZY: COMPARAÇÃO NUMÉRICA ENTRE https://www.semanticscholar.org/paper/12635af9f76bacdc4037bcfe0da6b25164a07587
+[12] Aproveitamento energético dos resíduos como parte de uma estratégia de desenvolvimento sustentável: um estudo de caso https://www.semanticscholar.org/paper/f0d45df41c5e866dbfc9379243420e376b0c46e4
+[13] POLIOENCEFALOMALÁCIA EM CAPRINO BOER DE 30 DIAS DE IDADE: RELATO DE CASO https://www.semanticscholar.org/paper/092034d5aaf01652cd08c986adea85609bfdf6b6

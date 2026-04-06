@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <title>Auditoria Master - Dr. MAIKON DA ROCHA CALDEIRA</title>
+    <style>
+        :root { --navy: #0f172a; --gold: #b45309; --slate: #1e293b; --emerald: #10b981; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--navy); color: white; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 480px; background: var(--slate); padding: 20px; overflow-y: auto; border-right: 3px solid var(--gold); }
+        .main { flex: 1; background: #475569; padding: 25px; overflow-y: auto; display: flex; justify-content: center; }
+        .paper { width: 210mm; background: white; color: black; padding: 20mm; box-shadow: 0 0 30px rgba(0,0,0,0.7); font-family: "Times New Roman", serif; min-height: 297mm; }
+        h2 { font-size: 14px; color: var(--gold); text-transform: uppercase; border-bottom: 1px solid #475569; padding-bottom: 5px; margin-top: 20px; }
+        .group { background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #334155; }
+        label { display: block; font-size: 10px; color: #94a3b8; text-transform: uppercase; margin-top: 5px; }
+        input, textarea, select { width: 100%; padding: 8px; background: #0f172a; border: 1px solid #475569; color: white; border-radius: 4px; font-size: 12px; margin-top: 2px; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; text-transform: uppercase; margin-top: 10px; transition: 0.3s; }
+        .btn-calc { background: var(--emerald); color: white; }
+        .btn-pdf { background: #2563eb; color: white; }
+        .h1-laudo { text-align: center; border-bottom: 2px solid black; margin-bottom: 15px; text-transform: uppercase; font-size: 18pt; }
+        .section-title { background: #f2f2f2; padding: 6px; font-weight: bold; border: 1px solid black; margin-top: 15px; font-size: 11pt; }
+        table { width: 100%; border-collapse: collapse; font-size: 8pt; margin-top: 10px; }
+        th, td { border: 1px solid black; padding: 4px; text-align: right; }
+        th { background: #eee; font-size: 7.5pt; }
+        .row-cap { background: #fff9c4; font-weight: bold; }
+        .card-resumo { border: 2px solid var(--gold); padding: 15px; margin-top: 15px; background: #fffdf0; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .val-destaque { font-size: 14pt; font-weight: bold; color: #1e293b; }
+
+        @media print {
+            .sidebar { display: none; }
+            .main { background: white; padding: 0; }
+            .paper { box-shadow: none; width: 100%; }
+            body { background: white; }
+        }
+    </style>
+</head>
+<body>
+<div class="sidebar">
+    <h1 style="color:white; font-size:18px; margin-bottom:20px;">⚖️ Auditoria Pericial</h1>
+    
+    <div class="group">
+        <label>Número do Processo / Cliente</label>
+        <input type="text" id="proc" value="5000762-33.2024.8.13.0395">
+        <input type="text" id="cliente" value="Leandro Santiago de Souza">
+    </div>
+
+    <h2>Cenário A: Evolução do Banco</h2>
+    <div class="group">
+        <label>Valor Principal (R$)</label>
+        <input type="number" id="vbase" value="3512.00">
+        <label>Juros Remuneratórios (% a.m.)</label>
+        <input type="number" id="taxabanco" value="9.0">
+        <label>Juros de Mora (% a.m.)</label>
+        <input type="number" id="morabanco" value="1.0">
+        <label>Multa Contratual (%)</label>
+        <input type="number" id="multabanco" value="2.0">
+    </div>
+
+    <h2>Cenário B: Evolução Judicial</h2>
+    <div class="group">
+        <label>Série BCB (Remuneração)</label>
+        <input type="text" id="serie" value="25464">
+        <button onclick="buscarBCB()" style="width:100%; margin:5px 0; cursor:pointer; background:var(--gold); border:none; color:white; padding:5px; border-radius:4px;">Sincronizar Banco Central</button>
+        <label>Juros de Mora (% a.m.)</label>
+        <input type="number" id="morajuiz" value="1.0">
+        <label>Multa Mora (%)</label>
+        <input type="number" id="multajuiz" value="2.0">
+        <label>Tabela TJMG (Data [Espaço] Fator)</label>
+        <textarea id="tjmgraw" rows="3" placeholder="01/09/2017 1,000000"></textarea>
+    </div>
+
+    <h2>Honorários Sucumbenciais</h2>
+    <div class="group">
+        <label>Base de Cálculo</label>
+        <select id="tipohon">
+            <option value="proveito">Sobre o Proveito Econômico (Diferença)</option>
+            <option value="atualizado">Sobre o Valor Atualizado (Cenário B)</option>
+        </select>
+        <label>Percentual (%)</label>
+        <input type="number" id="p_hon" value="10.0">
+    </div>
+
+    <h2>Honorários Recursais</h2>
+    <div class="group">
+        <label>Ativar Honorários Recursais?</label>
+        <select id="rec_ativar">
+            <option value="nao">Não</option>
+            <option value="sim">Sim</option>
+        </select>
+        <label>Valor Arbitrado (R$)</label>
+        <input type="number" id="rec_valor" value="1000.00" step="0.01">
+        <label>Data do Arbitramento (dd/mm/aaaa)</label>
+        <input type="text" id="rec_data" value="01/01/2024">
+        <label>Atualizar pela regra do Cenário B?</label>
+        <select id="recmesmaregra">
+            <option value="sim" selected>Sim (TJMG + BCB + Mora)</option>
+            <option value="nao">Não (Valor Fixo)</option>
+        </select>
+    </div>
+
+    <button class="btn btn-calc" onclick="processarAuditoria()">EXECUTAR AUDITORIA COMPLETA</button>
+    <button class="btn btn-pdf" onclick="window.print()">GERAR PDF PARA PROTOCOLO</button>
+</div>
+
+<div class="main">
+    <div class="paper" id="laudofinal">
+        <div class="h1-laudo">Parecer de Auditoria Financeira</div>
+        <p style="text-align:center; font-weight:bold;">Processo: <span id="outproc"></span> | Cliente: <span id="outcliente"></span></p>
+        
+        <div class="section-title">I. QUADRO COMPARATIVO E PROVEITO ECONÔMICO</div>
+        <div id="arearesumo"></div>
+
+        <div class="section-title">II. MEMORIAL DETALHADO - EVOLUÇÃO CONTRATUAL vs. JUDICIAL</div>
+        <div id="tabelaarea"></div>
+
+        <div style="margin-top:50px; text-align:center;">
+            <p>____</p>
+            <p><strong>DR. MAIKON DA ROCHA CALDEIRA</strong> - OAB/MG 183.712</p>
+            <p>Patrono da Causa / Auditor Jurídico</p>
+        </div>
+    </div>
+</div>
+
+<script>
+let BCBMAP = new Map();
+let TJMGMAP = new Map();
+
+async function buscarBCB() {
+    const s = document.getElementById('serie').value;
+    try {
+        const r = await fetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${s}/dados?formato=json`);
+        const d = await r.json();
+        d.forEach(i => {
+            const [dia, mes, ano] = i.data.split('/');
+            BCBMAP.set(`${ano}-${mes}`, parseFloat(i.valor));
+        });
+        alert("Dados do Banco Central Sincronizados!");
+    } catch(e) { alert("Erro na API do BCB."); }
+}
+
+function parseTJMG() {
+    TJMGMAP = new Map();
+    const raw = document.getElementById('tjmgraw').value;
+    raw.split('\n').forEach(l => {
+        const partes = l.trim().split(/\s+/);
+        if(partes.length >= 2) {
+            const d = partes[0].split('/');
+            if(d.length === 3) TJMGMAP.set(`${d[2]}-${d[1]}`, parseFloat(partes[1].replace(',', '.')));
+        }
+    });
+}
+
+const f = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+function getPrevKey(date) {
+    let d = new Date(date);
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}`;
+}
+
+function parseBRDate(str) {
+    const p = str.split('/');
+    return new Date(p[2], p[1]-1, 1);
+}
+
+function calcularRecursal(valorFixo, dataBase, dataFim) {
+    if (document.getElementById('recmesmaregra').value === 'nao') return valorFixo;
+    
+    let sp = valorFixo;
+    let sj = 0;
+    let curr = new Date(dataBase);
+    let meses = 0;
+
+    while(curr <= dataFim) {
+        meses++;
+        const key = `${curr.getFullYear()}-${String(curr.getMonth()+1).padStart(2, '0')}`;
+        
+        const fatat = TJMGMAP.get(key);
+        const fatan = TJMGMAP.get(getPrevKey(curr));
+        if(fatat && fatan) sp *= (fatat / fatan);
+
+        let tbcb = (BCBMAP.get(key) || 0.5) / 100;
+        const mora = parseFloat(document.getElementById('morajuiz').value) / 100;
+        sj += sp * (tbcb + mora);
+
+        if(meses % 12 === 0) { sp += sj; sj = 0; }
+        curr.setMonth(curr.getMonth() + 1);
+    }
+    return sp + sj;
+}
+
+function processarAuditoria() {
+    parseTJMG();
+    const vini = parseFloat(document.getElementById('vbase').value);
+    const dini = new Date(2017, 2, 1); // Data exemplo do contrato Serembro/2017
+    const dfim = new Date(2026, 1, 21); // Data de hoje
+    
+    let sa = vini; 
+    let sbp = vini; 
+    let sbj = 0; 
+    
+    let html = `<table><thead><tr><th>Mês/Ano</th><th>Saldo Banco</th><th>Fator TJMG</th><th>Juros BCB</th><th>Mora Juiz</th><th>Saldo Juiz</th></tr></thead><tbody>`;
+
+    let curr = new Date(dini);
+    let meses = 0;
+
+    while(curr <= dfim) {
+        meses++;
+        const key = `${curr.getFullYear()}-${String(curr.getMonth()+1).padStart(2, '0')}`;
+        
+        // CENÁRIO A (BANCO - JUROS COMPOSTOS)
+        sa *= (1 + (parseFloat(document.getElementById('taxabanco').value)/100) + (parseFloat(document.getElementById('morabanco').value)/100));
+
+        // CENÁRIO B (JUIZ)
+        const fatat = TJMGMAP.get(key);
+        const fatan = TJMGMAP.get(getPrevKey(curr));
+        if(fatat && fatan) sbp *= (fatat / fatan);
+
+        let tbcb = (BCBMAP.get(key) || 0.5) / 100;
+        const jmora = parseFloat(document.getElementById('morajuiz').value) / 100;
+        sbj += sbp * (tbcb + jmora);
+
+        let rowStyle = "";
+        if(meses % 12 === 0) {
+            rowStyle = "class='row-cap'";
+            sbp += sbj;
+            sbj = 0;
+        }
+
+        html += `<tr ${rowStyle}><td>${key}</td><td>${f(sa)}</td><td>${fatat ? fatat.toFixed(6) : '1.000'}</td><td>${(tbcb*100).toFixed(2)}%</td><td>${f(sbj)}</td><td>${f(sbp + sbj)}</td></tr>`;
+        curr.setMonth(curr.getMonth() + 1);
+    }
+
+    html += "</tbody></table>";
+    document.getElementById('tabelaarea').innerHTML = html;
+    document.getElementById('outproc').innerText = document.getElementById('proc').value;
+    document.getElementById('outcliente').innerText = document.getElementById('cliente').value;
+
+    const totala = sa * (1 + parseFloat(document.getElementById('multabanco').value)/100);
+    const totalb = (sbp + sbj) * (1 + parseFloat(document.getElementById('multajuiz').value)/100);
+    const diff = totala - totalb;
+
+    let hon_princ = (document.getElementById('tipohon').value === 'proveito') ? (diff * (parseFloat(document.getElementById('p_hon').value)/100)) : (totalb * (parseFloat(document.getElementById('p_hon').value)/100));
+
+    let hon_rec = 0;
+    let rec_html = "";
+    if(document.getElementById('rec_ativar').value === 'sim') {
+        hon_rec = calcularRecursal(parseFloat(document.getElementById('rec_valor').value), parseBRDate(document.getElementById('rec_data').value), dfim);
+        rec_html = `<p>HONORÁRIOS RECURSAIS: <span class="val-destaque" style="color:#7c3aed">${f(hon_rec)}</span></p>`;
+    }
+
+    document.getElementById('arearesumo').innerHTML = `
+        <div class="card-resumo">
+            <div><p>CENÁRIO A (BANCO/CONTRATO)</p><div class="val-destaque" style="color:red">${f(totala)}</div></div>
+            <div><p>CENÁRIO B (JUIZ/SENTENÇA)</p><div class="val-destaque" style="color:green">${f(totalb)}</div></div>
+            <div style="grid-column: span 2; border-top: 1px solid #ccc; padding-top:10px;">
+                <p>PROVEITO ECONÔMICO: <span class="val-destaque" style="color:blue">${f(diff)}</span></p>
+                <p>HONORÁRIOS SUCUMBENCIAIS: <span class="val-destaque" style="color:var(--gold)">${f(hon_princ)}</span></p>
+                ${rec_html}
+                <p style="border-top:2px solid black; padding-top:10px;">TOTAL GERAL DE HONORÁRIOS: <span class="val-destaque">${f(hon_princ + hon_rec)}</span></p>
+            </div>
+        </div>`;
+}
+</script>
+</body>
+</html>

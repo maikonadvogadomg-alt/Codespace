@@ -1,0 +1,58 @@
+Início API Webhooks Criar webhook
+Criar novo webhook
+Nome do webhook
+Ex: Integração com n8n
+Nome descritivo para identificar este webhook
+URL do endpoint
+https://your-n8n-instance.com/webhook/...
+URL HTTPS onde os webhooks serão enviados
+Eventos para receber
+customer.created - Cliente foi criado
+customer.updated - Cliente foi atualizado
+customer.destroyed - Cliente foi destruído
+user.created - Usuário foi criado
+user.updated - Usuário foi atualizado
+user.destroyed - Usuário foi destruído
+publications.created - Nova(s) publicação(ões) foram criada(s)
+customer_inbound_email.created - E-mail recebido de cliente
+Selecione quais eventos devem acionar este webhook
+Webhook ativo
+Desmarque para criar o webhook inativo
+Chave secreta
+A chave secreta será gerada após a criação do webhook
+Após criar o webhook, clique no botão "Editar" para obter a chave secreta e configurar a autenticação
+ (Opcional) Como verificar a autenticidade dos webhooks
+Para garantir que os webhooks são realmente enviados pelo nosso sistema, você pode opcionalmente verificar a assinatura.
+
+O Tramitação Inteligente assina criptograficamente todos os webhooks enviados com uma chave secreta única, usando o algoritmo HMAC-SHA256. Após criar o webhook, você poderá obter a chave secreta para configurar a verificação, clicando no botão "Editar".
+
+A verificação de autenticidade é opcional e serve para proteger o seu endpoint contra webhooks falsos oriundos de terceiros não autorizados impersonando o Tramitação Inteligente.
+
+Headers recebidos:
+X-Webhook-Signature: Assinatura no formato sha256=abc123...
+Exemplo para verificar a autenticidade dos webhooks em Node.js/JavaScript:
+const crypto = require('crypto');
+
+app.post('/webhooks', (req, res) => {
+  const signature = req.headers['x-webhook-signature'];
+  const payload = JSON.stringify(req.body);
+  const secret = 'SUA_CHAVE_SECRETA_AQUI'; // A chave obtida após criar o webhook
+  
+  // Calcular a assinatura esperada
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
+  
+  const expectedSig = `sha256=${expectedSignature}`;
+  
+  // Comparar assinaturas
+  if (signature !== expectedSig) {
+    return res.status(401).send('Invalid signature');
+  }
+  
+  // Webhook verificado! Processar o evento
+  console.log('Webhook válido:', req.body);
+  res.status(200).send('OK');
+});
+ 

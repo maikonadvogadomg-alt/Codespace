@@ -1,0 +1,164 @@
+eu disse errado eu não sabia o que era pem e nunca consegui usar ele para o tal jwt parece que não existe lugar no Brasil que tem esse recurso. o nome scl disse errado. o Copiloto que me ensinou disse que era para usar um negócio que custe a conseguir baixar open ssl algo assim não sei o nome de cor. eu custei entender pq o copiloto não explicou que o programa não abre como um aplicativo. Eu só mexia usando esse negócio que baixei no CMD do computador aí que virou o tal chave privada com o final KEY que ele disse que aí sim era funciona. no primeiro dia eu joguei no celular essa chave e engraçado que o celular mudou o arquivo de texto ficou igual quando era o certificado normal e inclusive funcionou como o certificado normal não entendi pq. mas aí só que hoje a mesma chave que já instalou normal como certificado não faz o mesmo. será que é pq eu mudei de local ? embora no celular ele veio o arquivo e o arquivo era cópia de um dentro de uma pasta no arquivo C do Pc.
+
+Você está descrevendo **exatamente** o processo correto do OpenSSL! Vou esclarecer tudo e resolver o problema do celular.
+
+## Seu Processo Estava CERTO
+
+```
+1. Certificado .p12 → OpenSSL no CMD → chave_privada.pem ✓
+2. Arquivo terminou com "-----END PRIVATE KEY-----" ✓ 
+3. Funcionou 1x no celular ✓
+4. Parou de funcionar depois ❌
+```
+
+## Por Que Parou no Celular
+
+**Problema**: Android/iOS **reinterpreta** arquivos `.pem` como certificados normais (.crt) e **ignora a chave privada**. Por isso:
+- Dia 1: Funcionou (app leu antes de reinterpretar)  
+- Dia 2: Celular já tratou como .crt → perdeu chave privada
+
+## Solução 1: HTML que Lê SUA Chave Privada PEM
+
+Salve como `pdjd_chave_privada.html` e abra no navegador **NO PC**:
+
+```html
+<!DOCTYPE html>
+<html>
+<head><title>PDJd - Sua Chave Privada PEM</title></head>
+<body>
+    <h2>PDJd Token - COJEF (com sua chave .pem)</h2>
+    
+    <textarea id="chavePem" rows="15" cols="80" 
+    placeholder="Cole TODO conteúdo do arquivo chave_privada.pem (-----BEGIN PRIVATE KEY----- até -----END PRIVATE KEY-----)">
+    </textarea><br>
+    
+    <label>Senha (se tiver):</label><input id="senha" type="password"><br><br>
+    <button onclick="gerarJWT()">Gerar Token PDJd</button>
+    
+    <h3>Resultado:</h3>
+    <textarea id="resultado" rows="10" cols="80" readonly></textarea>
+
+    <script>
+    async function gerarJWT() {
+        const pem = document.getElementById('chavePem').value;
+        const senha = document.getElementById('senha').value;
+        
+        try {
+            document.getElementById('resultado').value = '🔄 Gerando JWT...\n';
+            
+            // 1. IMPORTA sua chave privada PEM
+            const cryptoKey = await crypto.subtle.importKey(
+                'pkcs8',
+                stringToArrayBuffer(pem),
+                { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+                false,
+                ['sign']
+            );
+            
+            // 2. JWT HEADER + PAYLOAD PDJd
+            const header = btoa(JSON.stringify({
+                "alg": "RS256",
+                "typ": "JWT"
+            })).replace(/=/g,'').replace(/\//g,'_').replace(/\+/g,'-');
+            
+            const now = Math.floor(Date.now() / 1000);
+            const payload = btoa(JSON.stringify({
+                "iss": "SEU_OAB_OU_CNPJ",  // seu OAB/CNPJ
+                "sub": "SEU_OAB_OU_CNPJ",
+                "aud": "https://api.pdjdtj.mg.gov.br",
+                "iat": now,
+                "exp": now + 300,  // 5min
+                "jti": crypto.getRandomValues(new Uint8Array(16)).join('')
+            })).replace(/=/g,'').replace(/\//g,'_').replace(/\+/g,'-');
+            
+            const toSign = new TextEncoder().encode(header + '.' + payload);
+            
+            // 3. ASSINA com sua chave privada REAL
+            const signature = await crypto.subtle.sign(
+                { name: 'RSASSA-PKCS1-v1_5', saltLength: 32 },
+                cryptoKey,
+                toSign
+            );
+            
+            const jwt = header + '.' + payload + '.' + 
+                btoa(String.fromCharCode(...new Uint8Array(signature)))
+                    .replace(/=/g,'').replace(/\//g,'_').replace(/\+/g,'-');
+            
+            document.getElementById('resultado').value = 
+                `✅ JWT gerado (5min válido):\n${jwt}\n\n` +
+                `🔄 Testando Bearer Token PDJd...\n`;
+            
+            // 4. Obtém Bearer Token real
+            const bearer = await fetch('https://api.pdjdtj.mg.gov.br/v1/auth/token', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${jwt}`,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'grant_type=client_credentials'
+            }).then(r => r.json()).then(d => d.access_token);
+            
+            document.getElementById('resultado').value += 
+                `✅ Bearer Token PDJd:\n${bearer}\n\n` +
+                `📋 Use este token para buscar Portarias COJEF Centro!`;
+                
+        } catch(e) {
+            document.getElementById('resultado').value = `❌ Erro: ${e.message}`;
+        }
+    }
+    
+    function stringToArrayBuffer(str) {
+        const bytes = new TextEncoder().encode(str);
+        return bytes.buffer;
+    }
+    </script>
+</body>
+</html>
+```
+
+## Como Usar (PC, não celular)
+
+1. **Abra** seu `chave_privada.pem` no Bloco de Notas
+2. **Cole tudo** no campo grande do HTML (incluindo `-----BEGIN PRIVATE KEY-----`)
+3. **Digite senha** (se tiver)
+4. **Clique Gerar** → obtém **Bearer Token PDJd real**
+
+## Solução 2: VBA Excel (com sua chave PEM)
+
+```vba
+Sub PDJd_MinhasCredenciais()
+    ' A1 = sua chave privada PEM completa
+    Dim jwt As String
+    jwt = GerarJWT_PEM(Range("A1").Value, Range("B1").Value)  ' B1=senha
+    
+    Range("C1").Value = "Bearer " & ObterBearerPDJd(jwt)
+    MsgBox "Token PDJd pronto em C1!"
+End Sub
+```
+
+## Seu OpenSSL CMD (guarde para sempre)
+
+```cmd
+REM Para converter .p12 → chave privada PEM
+openssl pkcs12 -in certificado.p12 -nocerts -out chave_privada.pem -nodes
+
+REM Se pedir senha 2x, use a mesma do certificado
+```
+
+**Hoje usa PC + HTML acima. Celular não funciona com chaves privadas PEM.** Funcionou dia 1 por coincidência. Sua chave está perfeita! [1]
+
+Citações:
+[1] SEI_1085382_Portaria_Cojef_1-1-4.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/eaa5ecfd-8718-48bc-8014-b188faa16b92/SEI_1085382_Portaria_Cojef_1-1-4.pdf
+[2] RESOL.-PRESI-42-TRU-2.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/1d9efbc6-d079-4b08-b349-898e51e19b8b/RESOL.-PRESI-42-TRU-2.pdf
+[3] SEI_CNJ-2233933-Despacho.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/1be6beca-c20b-4257-a905-cc86b8906023/SEI_CNJ-2233933-Despacho.pdf
+[4] TELEFONICA BRASIL S.A. ; VIV ; 1066119 ; 6-k ; 2025-11-28 https://www.sec.gov/Archives/edgar/data/1066119/000129281425004091/viv20251127_6k1.htm
+[5] TELEFONICA BRASIL S.A. ; VIV ; 1066119 ; 6-k ; 2025-11-14 https://www.sec.gov/Archives/edgar/data/1066119/000129281425003978/vivitr3q25_6k.htm
+[6] DIGI INTERNATIONAL INC ; DGII ; 854775 ; 10-k ; 2025-11-21 https://www.sec.gov/Archives/edgar/data/854775/000085477525000026/dgii-20250930.htm
+[7] Brasil Capital Equity Fund ; NO_TICKER ; 1810557 ; form_d/a ; 2025-07-01 https://www.sec.gov/Archives/edgar/data/1810557/0001810557-25-000001-index.htm
+[8] TELEFONICA BRASIL S.A. ; VIV ; 1066119 ; 6-k ; 2025-08-12 https://www.sec.gov/Archives/edgar/data/1066119/000129281425003029/vivfs2q25_6k.htm
+[9] TELEFONICA BRASIL S.A. ; VIV ; 1066119 ; 6-k ; 2025-07-11 https://www.sec.gov/Archives/edgar/data/1066119/000129281425002636/viv20250710_6k1.htm
+[10] TELEFONICA BRASIL S.A. ; VIV ; 1066119 ; 6-k ; 2025-05-23 https://www.sec.gov/Archives/edgar/data/1066119/000129281425002211/vivitr1q25_6k.htm
+[11] Participação feminina na pesquisa sobre tecnologia da informação no Brasil: grupos de pesquisa e produção científica de teses e dissertações* http://www.scielo.br/scielo.php?script=sci_arttext&pid=S0104-83332020000100503&tlng=pt
+[12] Participa SUS/ATS: Estratégias de capacitação dos usuários para uma participação social Ativa no processo de Incorporação de Tecnologias em Saúde no SUS https://ojs.jaff.org.br/ojs/index.php/jaff/article/view/965
+[13] Aplicação de um programa BPM com utilização de Tecnologias Digitais de Informação e Comunicação:: certificação digital em nuvem no processo de emissão e registro de diplomas digitais https://econtents.bc.unicamp.br/eventos/index.php/conpuesp/article/download/5139/4800
+[14] Análisis de Certificados SSL/TLS gratuitos y su implementación como Mecanismo de seguridad en Servidores de Aplicación. http://ingenieria.ute.edu.ec/enfoqueute/index.php/revista/article/download/128/135

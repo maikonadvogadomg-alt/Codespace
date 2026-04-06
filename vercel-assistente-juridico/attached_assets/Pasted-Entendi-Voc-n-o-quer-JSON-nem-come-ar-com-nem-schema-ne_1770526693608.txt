@@ -1,0 +1,59 @@
+Entendi. Você não quer JSON (nem “começar com {”, nem schema), nem aquele “prompt de tribunal” gigante. Você quer um prompt prático para: pegar texto de decisão/manifestação (muitas vezes vindo como HTML/XML “colado”) e gerar um arquivo bonito, limpo, com estrutura de peça/análise, destacando trechos importantes (fatos, direito, argumentos pró/contra, estratégia), especialmente em previdenciário/cível/consumidor, usando eventos quando houver (eproc) e lidando com PJe quando só vem número.
+
+Sobre “HTML/XML do juiz” e por que seu Word “entorta”
+O que você vê no celular como “bonitinho” geralmente é conteúdo em HTML (com tags e estilos). O sistema do tribunal renderiza isso (interpreta as tags e aplica um CSS interno) e mostra formatado. Quando você copia e cola no Word, o Word tenta interpretar aquele HTML/estilos; se vier com tags, quebras, tabelas, caracteres especiais ou estilos “inline”, ele bagunça: muda fonte, espaçamento, cria recuos estranhos, quebra linhas no lugar errado. Por isso sua colagem “vira doideira”.
+
+O caminho mais estável para Word é sempre gerar “texto puro bem estruturado” (parágrafos, títulos simples, numeração) e, se precisar, depois aplicar estilos no Word. Então o prompt precisa ter uma etapa explícita: primeiro limpar/remover resíduos de HTML/XML e normalizar; depois organizar em estrutura jurídica.
+
+Abaixo vão dois prompts prontos (curtos e usáveis). Você pode usar o 1 para “limpar e deixar bonito” e o 2 para “analisar estrategicamente e extrair trechos-chave”. Eles funcionam mesmo se o texto vier com restos de HTML.
+
+PROMPT 1 (LIMPAR E FORMATAR PARA WORD – TEXTO PURO)
+Tarefa: Vou colar abaixo um texto extraído do eproc/PJe (pode conter HTML/XML, quebras estranhas, cabeçalhos repetidos, numeração de eventos/páginas). Quero que você transforme isso em um texto limpo e bem apresentado para colar no Word, mantendo integralmente o conteúdo (sem inventar e sem suprimir informação), apenas corrigindo forma.
+
+Regras obrigatórias:
+1) Não use markdown, não use asteriscos, não use símbolos de formatação. Entregue somente texto puro, com parágrafos separados por linha em branco.
+2) Remova completamente marcas e resíduos de HTML/XML (tags, entidades, scripts, estilos, cabeçalhos técnicos).
+3) Preserve números de processo, nomes, datas, valores e toda informação identificadora exatamente como estiver.
+4) Preserve a ordem do conteúdo. Se houver repetições de cabeçalho/rodapé típicas do sistema, você pode remover somente as repetições óbvias que não agregam conteúdo (ex.: “PJe – Processo … – Página …” repetido em todas as folhas), mas não remova nada que seja texto decisório, fundamentação, pedido, conclusão, dispositivo, citações ou assinaturas.
+5) Normalize pontuação, espaçamento e quebras de linha para leitura jurídica (sem alterar o sentido).
+6) Se o texto tiver “Evento X / Documento Y / Página Z”, mantenha esses marcadores como linhas simples, do tipo: Evento:  / Documento:  / Página: __, no ponto correspondente.
+
+Saída desejada (exatamente nesta ordem):
+A) Versão limpa para Word (texto integral, já organizado em parágrafos).
+B) Nota técnica curta (até 10 linhas) listando o que foi ajustado (ex.: remoção de tags, normalização de quebras, remoção de cabeçalhos repetidos).
+
+Texto a tratar:
+[COLE AQUI]
+
+PROMPT 2 (EXTRAÇÃO DE TRECHOS IMPORTANTES + ESTRATÉGIA – PREVIDENCIÁRIO/CÍVEL/CONSUMIDOR)
+Tarefa: Vou colar abaixo trechos de autos (decisão, sentença, contestação, réplica, laudo, acórdão ou manifestação do INSS). Eu preciso extrair apenas o que interessa para construir argumentos e estratégia. Não invente fatos nem direito; use somente o que estiver no texto.
+
+Regras obrigatórias:
+1) Texto puro, sem markdown e sem símbolos de formatação. Parágrafos separados por linha em branco.
+2) Não crie informações. Se algo não estiver no texto, diga “não consta”.
+3) Sempre que possível, indique de onde saiu: Evento/Documento/Página (se esses marcadores existirem no texto colado).
+4) Trabalhe com foco em previdenciário, cível e consumidor: prova, ônus, prescrição/decadência, qualidade de segurado/carência, incapacidade, atividade especial, danos, relação de consumo, inversão do ônus, etc., conforme o conteúdo trouxer.
+
+Entregue a saída nesta estrutura fixa:
+1) Identificação do material analisado (o que parece ser: sentença/decisão/contestação/etc.; se não der, “não identificado”).
+2) Linha do tempo do caso (somente eventos com data ou referência temporal que constem no texto).
+3) Fatos incontroversos (com referência de evento/página quando houver).
+4) Fatos controvertidos (com referência).
+5) Pedidos e causa de pedir (se existirem no texto; se não, “não consta”).
+6) Provas mencionadas e valor probatório sugerido no texto (documentos, perícia, testemunhas, CNIS, PPP, etc.).
+7) Fundamentos jurídicos usados pelo juiz/INSS/parte (somente os citados, com artigos/súmulas/precedentes se aparecerem).
+8) Pontos fortes para a parte autora (com base textual).
+9) Pontos fortes para o réu (com base textual).
+10) Vulnerabilidades/contradições/omissões relevantes (ex.: falta de enfrentamento de ponto, contradição interna, ausência de prova apontada).
+11) Estratégia sugerida (apenas medidas que decorram do que o texto permite: ex.: pedir perícia, impugnar laudo, juntar documento X se o texto indicar ausência, embargos de declaração por omissão/contradição, etc.). Se a estratégia depender de informação que não está no texto, indique quais dados faltam para fechar.
+
+Texto para análise:
+[COLE AQUI]
+
+Como usar no seu dia a dia (rápido)
+1) Se o texto veio “torto” do PJe/eproc: rode primeiro o PROMPT 1 (ele devolve “bonito” para Word).
+2) Depois, com o texto já limpo (ou até com o original mesmo), rode o PROMPT 2 para extrair tese/trechos e estratégia.
+
+Se você quiser, eu adapto o PROMPT 2 para um formato “pronto para virar tópico de peça” (por exemplo: “preliminares”, “mérito”, “provas”, “jurisprudência citada nos autos”, “pedido”), mas sem inventar nada.
+
+Quando você trouxer um exemplo real (um trecho do eproc e um do PJe), eu ajusto os prompts para reconhecer exatamente como os seus “eventos/documentos/páginas” aparecem e para manter esse padrão de referência do jeito que você usa no escritório.

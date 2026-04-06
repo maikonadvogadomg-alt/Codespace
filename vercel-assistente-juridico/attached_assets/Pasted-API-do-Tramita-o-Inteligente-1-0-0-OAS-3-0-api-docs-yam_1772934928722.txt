@@ -1,0 +1,280 @@
+API do Tramitação Inteligente
+ 1.0.0 
+OAS 3.0
+/api/docs.yaml
+🚀 Documentação da API da plataforma Tramitação Inteligente, permitindo a integração com sistemas externos.
+
+👥 Público alvo
+Como toda API, é destinada a desenvolvedores. Se você não é desenvolvedor (ou não tem um desenvolvedor), e deseja integrar o Tramitação Inteligente com algum outro sistema, preencha o formulário nesta página solicitando que nosso time desenvolva a integração.
+
+📖 Documentação
+A documentação da API pode ser consultada nesta página (que inclusive é interativa e permite testar as requisições usando seu token diretamente) ou, se preferir, baixando a especificação OpenAPI em YAML para utilizá-lo com sua ferramenta de IA preferida.
+
+💰 Custo
+A API é oferecida sem custo adicional para os assinantes do Tramitação.
+
+📞 Suporte
+Para solicitar acesso ou reportar problemas, utilize o formulário de suporte.
+
+🔐 Autenticação
+Esta API utiliza autenticação por token.
+
+🔑 Como obter um token de API:
+Tokens de API são gerados e gerenciados através do painel de controle. Clique aqui para gerenciar suas chaves de API.
+
+📝 Usando o token
+O token deve ser fornecido no header Authorization, com o valor Bearer SEU_TOKEN_DE_API_AQUI. Por exemplo:
+
+Authorization: Bearer 7a7cafca351f47a7e...
+Ou seja, o nome do header é Authorization; já o valor é Bearer SEU_TOKEN_DE_API_AQUI (não se esqueça de incluir a string 'Bearer ' antes do token).
+
+🎮 Autenticação na documentação interativa
+A presente documentação utiliza SwaggerUI e, portanto, é interativa, sendo possível fazer requests diretamente a partir dela.
+
+Para tanto, é necessário se autenticar, clicando no botão 'Authorize' abaixo e informando seu token de API.
+
+🔔 Webhooks
+A API suporta webhooks para notificar aplicações externas sobre eventos importantes.
+
+Os webhooks podem ser configurados através do painel de configuração. Cada evento enviará um payload JSON com os dados do recurso afetado.
+
+Os seguintes eventos estão disponíveis:
+
+Eventos de Cliente:
+customer.created - Cliente foi criado
+customer.updated - Cliente foi atualizado
+customer.destroyed - Cliente foi removido (payload contém apenas o ID)
+Eventos de Usuário:
+user.created - Usuário foi criado
+user.updated - Usuário foi atualizado
+user.destroyed - Usuário foi removido (payload contém apenas o ID)
+Eventos de Publicação:
+publications.created - Novas publicações judiciais foram importadas. É necessário configurar previamente as OABs monitoradas em painel de configuração.
+O payload contém um array de publicações e é enviado diariamente após o término da importação das publicações do dia.
+
+Veja o exemplo de payload na seção Schemas, em PublicationsCreatedPayload, ou, se preferir, veja o exemplo abaixo:
+
+{
+  "event_type": "publications.created",
+  "idempotency_key": "550e8400-e29b-41d4-a716-446655440000",
+  "timestamp": "2025-12-15T10:30:00Z",
+  "timestamp_epoch": 1734263400,
+  "payload": {
+    "publications": [
+      {
+        "id": 123,
+        "uuid": "550e8400-e29b-41d4-a716-446655440001",
+        "disponibilizacao_date": "2025-12-15",
+        "publication_date": "2025-12-16",
+        "inicio_do_prazo_date": "2025-12-17",
+        "created_at": "2025-12-15T10:30:00Z",
+        "link_tramitacao": "https://tramitacaointeligente.com.br/publicacoes/123",
+        "link": "https://pje.trf3.jus.br/xxx",
+        "texto": "PODER JUDICIÁRIO...",
+        "nomeOrgao": "2ª Vara Gabinete JEF de Campo Grande",
+        "nomeClasse": "PROCEDIMENTO DO JUIZADO ESPECIAL CÍVEL",
+        "siglaTribunal": "TRF3",
+        "numero_processo": "50103311520244036201",
+        "numero_processo_com_mascara": "5010331-15.2024.4.03.6201",
+        "destinatarios": [
+          { "nome": "MARIA SILVA SANTOS", "polo": "A" }
+        ],
+        "destinatario_advogados": [
+          { "nome": "JOÃO PEREIRA", "uf_oab": "SP", "numero_oab": "12345" }
+        ]
+      }
+    ]
+  }
+}
+Eventos de E-mail do Cliente:
+customer_inbound_email.created - E-mail recebido no endereço exclusivo do cliente
+Quando é disparado:
+
+Quando um e-mail é recebido no endereço exclusivo do cliente (ex: abc123@email.tramitacaointeligente.com.br ou similar)
+NÃO dispara para e-mails bloqueados (spam, vírus, etc.)
+Importante:
+
+URLs dos anexos apontam para o endpoint GET /uploads/{iid} da API, que requer autenticação e retorna um redirect para URL temporária de download
+Requer plano ativo (trial, básico, ouro ou cortesia) para receber conteúdo completo
+Sem assinatura ativa, o payload contém apenas ID, customer_id, created_at e uma mensagem
+Veja o exemplo de payload na seção Schemas, em CustomerInboundEmailCreatedPayload, ou, se preferir, veja o exemplo abaixo:
+
+{
+  "event_type": "customer_inbound_email.created",
+  "idempotency_key": "550e8400-e29b-41d4-a716-446655440000",
+  "timestamp": "2026-01-24T10:30:00Z",
+  "timestamp_epoch": 1737718200,
+  "payload": {
+    "customer_inbound_email": {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "customer_id": 123,
+      "subject": "Resultado de exame",
+      "from": "clinica@example.com",
+      "content": "<html>...</html>",
+      "recipients": "cliente123@email.tramitacaointeligente.com.br",
+      "created_at": "2026-01-24T10:30:00Z",
+      "attachments": [
+        {
+          "id": 1,
+          "filename": "exame.pdf",
+          "content_type": "application/pdf",
+          "byte_size": 245678,
+          "url": "https://planilha.tramitacaointeligente.com.br/api/v1/uploads/1"
+        }
+      ]
+    }
+  }
+}
+🔄 Idempotência
+Para garantir o processamento seguro dos webhooks, cada entrega inclui uma chave de idempotência:
+
+Header: X-Webhook-Idempotency-Key contém o ID único do evento
+Payload: Campo idempotency_key no JSON também contém o mesmo ID
+A chave de idempotência representa o evento de negócio único que ocorreu. Use esta chave para:
+
+Detectar e evitar processamento duplicado do mesmo evento
+Identificar tentativas de reenvio (retry) do mesmo evento
+Garantir que o mesmo evento recebido em múltiplos endpoints seja tratado como único
+Importante: A mesma chave será usada em todas as tentativas de entrega (incluindo retries) e em todos os endpoints que recebem o mesmo evento.
+
+Servers
+
+/api/v1 - Servidor da API
+
+Authorize
+clientes
+Operações de gerenciamento de clientes
+
+
+
+GET
+/clientes
+Listar clientes
+
+
+
+POST
+/clientes
+Criar um novo cliente
+
+
+
+GET
+/clientes/{id}
+Buscar cliente por ID
+
+
+
+PATCH
+/clientes/{id}
+Atualizar cliente
+
+
+
+DELETE
+/clientes/{id}
+Deletar cliente
+
+
+usuarios
+Operações de gerenciamento de usuários da organização
+
+
+
+GET
+/usuarios
+Listar usuários do escritório
+
+
+
+POST
+/usuarios
+Criar um novo usuário
+
+
+
+GET
+/usuarios/{id}
+Obter usuário por ID
+
+
+
+PATCH
+/usuarios/{id}
+Atualizar usuário
+
+
+notas
+Operações de gerenciamento de notas
+
+
+
+GET
+/notas
+Listar notas
+
+
+
+POST
+/notas
+Criar uma nova nota
+
+
+
+GET
+/notas/{id}
+Buscar nota por ID
+
+
+
+PATCH
+/notas/{id}
+Atualizar nota
+
+
+
+DELETE
+/notas/{id}
+Deletar nota
+
+
+emails
+Operações de gerenciamento de e-mails exclusivos dos clientes
+
+
+
+POST
+/clientes/{id}/emails/address
+Criar e-mail exclusivo para cliente
+
+
+uploads
+Download de anexos
+
+
+
+GET
+/uploads/{iid}
+Download de anexo
+
+
+
+Schemas
+Customer
+CustomerInput
+Tag
+User
+UserInput
+Pagination
+UnauthorizedError
+NotFoundError
+ValidationError
+Note
+NoteInput
+Publication
+PublicationsCreatedPayload
+InboundEmailAddressResponse
+PaymentRequiredError
+CustomerInboundEmail
+CustomerInboundEmailLimited
+CustomerInboundEmailCreatedPayload

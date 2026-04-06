@@ -1,0 +1,37 @@
+Início API
+API do Tramitação Inteligente
+O Tramitação Inteligente disponibiliza uma API para integração com sistemas externos.
+
+Como toda API, é destinada a desenvolvedores. Se você não é desenvolvedor (ou não tem um desenvolvedor), e deseja integrar o Tramitação Inteligente com algum outro sistema, preencha o formulário abaixo solicitando que nosso time desenvolva a integração desejada por você.
+
+Já se você é desenvolvedor (ou tem um desenvolvedor no seu time), a API é simples de usar e adere aos padrões RESTful. As chaves de API são fáceis de gerar e são do tipo Bearer token. Todos os requests e respostas são em formato JSON. A documentação é servida no formato Swagger/OpenAPI, e é interativa, sendo possível testar as requisições diretamente a partir dela.
+
+Além disto, o Tramitação Inteligente possui um sistema de webhooks para notificações de eventos em tempo real, sendo possível construir integrações de mão dupla.
+
+Novas capacidades são adicionadas com base nos requerimentos dos nossos assinantes utilizando o formulário abaixo.
+
+ Documentação da API
+Acesse a documentação interativa da API
+ Chaves de API
+Gerencie as chaves de API do seu escritório
+ Webhooks
+Configure webhooks para receber notificações
+Precisa de mais funcionalidades / deseja outro tipo de integração?
+Para requerer novas funcionalidades na API, preencha o formulário abaixo descrevendo qual a sua necessidade com a integração API.
+
+Quanto mais informações você nos fornecer, mais precisos poderemos ser em informar se a API é capaz de atender às suas necessidades, bem como eventual prazo de desenvolvimento para novas funcionalidades.
+
+Nossa equipe entrará em contato em até 2 dias úteis.
+
+Precisa de mais funcionalidades / deseja outro tipo de integração?
+Para requerer novas funcionalidades na API, preencha o formulário abaixo descrevendo qual a sua necessidade com a integração API.
+
+Quanto mais informações você nos fornecer, mais precisos poderemos ser em informar se a API é capaz de atender às suas necessidades, bem como eventual prazo de desenvolvimento para novas funcionalidades.
+
+Nossa equipe entrará em contato em até 2 dias úteis.
+
+Conteúdo da solicitação
+Descreva detalhadamente o que você gostaria de realizar com a API, incluindo quais funcionalidades você precisa acessar.
+1 erro impediu o salvamento
+Conteúdo da solicitação: não pode ficar em branco
+ 

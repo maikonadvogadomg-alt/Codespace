@@ -1,0 +1,360 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { 
+  FileUp, User, MapPin, Zap, Save, Copy, Printer, Trash2, 
+  History, FileText, ChevronRight, UserPlus, FileCheck, 
+  Download, Edit3, Briefcase, CreditCard, Layers, Database
+} from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, doc, setDoc, onSnapshot, query, deleteDoc, orderBy } from 'firebase/firestore';
+
+// --- CONFIGURAÇÃO FIREBASE ---
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'alquimia-mike-v14';
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [aba, setAba] = useState('importar');
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState(null);
+  const [historico, setHistorico] = useState([]);
+  
+  // Dossiê Completo do Cliente
+  const [ficha, setFicha] = useState({
+    nome: '',
+    nit: '',
+    cpf: '',
+    rg: '',
+    orgao: 'SSP',
+    nascimento: '',
+    mae: '',
+    estadoCivil: 'CASADO(A)',
+    nacionalidade: 'BRASILEIRA',
+    endereco: '',
+    bairro: '',
+    cidade: '',
+    cep: '',
+    tempoTotal: '0 anos'
+  });
+
+  // Meus Modelos Prontos (Onde o Mike cola o texto dele)
+  const [templates, setTemplates] = useState([
+    {
+      id: 'proc',
+      titulo: 'Procuração (Modelo Adjair)',
+      texto: `PROCURAÇÃO AD JUDICIA ET EXTRA\n\nOUTORGANTE: {{NOME}}, {{NACIONALIDADE}}, {{ESTADO_CIVIL}}, portador(a) da cédula de identidade RG nº {{RG}} {{ORGAO}}, inscrito(a) no CPF sob o nº {{CPF}} e NIT nº {{NIT}}, residente e domiciliado(a) na {{ENDERECO}}, bairro {{BAIRRO}}, na cidade de {{CIDADE}}, CEP {{CEP}}.\n\nOUTORGADO: MAIKON DA ROCHA, OAB/MG nº 183.712, com endereço profissional na Avenida Agenor Carlos Werner nº 304, Centro, Manhumirim/MG.\n\nPODERES: Pelo presente instrumento o outorgante confere ao outorgado amplos poderes para o foro em geral, com cláusula ad judicia et extra, especialmente para requerer concessão/revisão de benefícios previdenciários junto ao INSS.\n\nCLÁUSULA DE HONORÁRIOS: Fica autorizado o destaque de 30% do proveito econômico obtido.`
+    },
+    {
+      id: 'contr',
+      titulo: 'Contrato de Honorários',
+      texto: `CONTRATO DE PRESTAÇÃO DE SERVIÇOS\n\nCONTRATANTE: {{NOME}}, inscrito(a) no CPF sob o nº {{CPF}}.\nCONTRATADO: MAIKON DA ROCHA, OAB/MG.\n\nVALOR: 30% sobre o êxito da demanda previdenciária.`
+    }
+  ]);
+
+  const [templateAtivo, setTemplateAtivo] = useState(0);
+  const fileInputRef = useRef(null);
+
+  // Init PDF.js
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js';
+    script.async = true;
+    script.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    };
+    document.body.appendChild(script);
+  }, []);
+
+  // Firebase Auth
+  useEffect(() => {
+    const init = async () => { await signInAnonymously(auth); };
+    init();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  // Sync Histórico
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'dossies'), orderBy('data', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setHistorico(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  // --- MOTOR DE IMPORTAÇÃO (LEITURA REAL DE PDF) ---
+  const handleFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !window.pdfjsLib) return;
+
+    setLoading(true);
+    setStatus({ type: 'info', text: 'Extraindo dados técnicos do PDF...' });
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
+      let text = "";
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(item => item.str).join(' ') + "\n";
+      }
+      processarDados(text);
+    } catch (err) {
+      console.error(err);
+      setStatus({ type: 'error', text: 'Não foi possível ler este PDF.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const processarDados = (text) => {
+    const clean = text.replace(/[\uFFFD\uFFFE\uFFFF]/g, '').replace(/\s+/g, ' ');
+    const d = { ...ficha };
+
+    // Extração de RG (Identidade)
+    const rgMatch = clean.match(/(?:Identidade|RG|Número)\s*(?:Número:|nº|n)\s*([\d.xX-]+)/i);
+    const orgaoMatch = clean.match(/(?:Órgão Emissor:|Órgão)\s*([A-Z/]+)/i);
+    
+    // Dados Pessoais
+    const nitMatch = clean.match(/NIT\s*(\d{3}\.\d{5}\.\d{2}-\d)/i);
+    const cpfMatch = clean.match(/CPF\s*(\d{3}\.\d{3}\.\d{3}-\d{2})/i);
+    const estMatch = clean.match(/Estado Civil\s*([A-Z\s(A)]+)/i);
+    
+    // Endereço
+    const logMatch = clean.match(/Logradouro:\s*([^,]+)/i);
+    const numMatch = clean.match(/Número:\s*(\d+)/i);
+    const bairroMatch = clean.match(/Bairro:\s*([^,]+)/i);
+    const cidadeMatch = clean.match(/([A-Z\sÀ-Ú]{3,})\s*-\s*([A-Z]{2})/i);
+    const cepMatch = clean.match(/CEP:\s*(\d{8})/i);
+
+    if (rgMatch) d.rg = rgMatch[1];
+    if (orgaoMatch) d.orgao = orgaoMatch[1];
+    if (nitMatch) d.nit = nitMatch[1];
+    if (cpfMatch) d.cpf = cpfMatch[1];
+    if (estMatch) d.estadoCivil = estMatch[1].trim();
+    if (logMatch && numMatch) d.endereco = `${logMatch[1]}, ${numMatch[1]}`;
+    if (bairroMatch) d.bairro = bairroMatch[1].trim();
+    if (cidadeMatch) d.cidade = `${cidadeMatch[1].trim()} - ${cidadeMatch[2]}`;
+    if (cepMatch) d.cep = cepMatch[1].replace(/(\d{5})(\d{3})/, "$1-$2");
+
+    // Nome Inteligente (Pula o INSS e busca o Titular)
+    const nomes = clean.match(/[A-ZÀ-Ú]{4,}(?:\s[A-ZÀ-Ú]{2,}){2,}/g);
+    if (nomes) {
+      const ignorar = ["INSTITUTO NACIONAL", "SEGURO SOCIAL", "CADASTRO NACIONAL", "DADOS CADASTRAIS"];
+      d.nome = nomes.find(n => !ignorar.some(ig => n.includes(ig))) || d.nome;
+    }
+
+    setFicha(d);
+    setStatus({ type: 'success', text: 'Dossiê atualizado!' });
+    setTimeout(() => setStatus(null), 3000);
+  };
+
+  // --- GERAÇÃO DE TEXTO FINAL ---
+  const documentoGerado = useMemo(() => {
+    let t = templates[templateAtivo].texto;
+    t = t.replace(/{{NOME}}/g, ficha.nome || '____________________');
+    t = t.replace(/{{RG}}/g, ficha.rg || '__________');
+    t = t.replace(/{{ORGAO}}/g, ficha.orgao || 'SSP');
+    t = t.replace(/{{CPF}}/g, ficha.cpf || '___.___.___-__');
+    t = t.replace(/{{NIT}}/g, ficha.nit || '___.___.___-_');
+    t = t.replace(/{{ENDERECO}}/g, ficha.endereco || '____________________');
+    t = t.replace(/{{BAIRRO}}/g, ficha.bairro || '__________');
+    t = t.replace(/{{CIDADE}}/g, ficha.cidade || '__________');
+    t = t.replace(/{{CEP}}/g, ficha.cep || '_____-___');
+    t = t.replace(/{{ESTADO_CIVIL}}/g, ficha.estadoCivil || '__________');
+    t = t.replace(/{{NACIONALIDADE}}/g, ficha.nacionalidade || 'BRASILEIRA');
+    return t;
+  }, [ficha, templates, templateAtivo]);
+
+  const copiarWord = () => {
+    const el = document.createElement('textarea');
+    el.value = documentoGerado;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+    setStatus({ type: 'success', text: 'Pronto! Cole no Word.' });
+  };
+
+  const salvarCloud = async () => {
+    if (!user || !ficha.nome) return;
+    const docId = ficha.nome.toLowerCase().replace(/\s+/g, '-');
+    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'dossies', docId), {
+      ficha, data: new Date().toISOString()
+    });
+    setStatus({ type: 'success', text: 'Dossiê salvo na Nuvem!' });
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-slate-200 p-4 md:p-8 font-sans">
+      <div className="max-w-7xl mx-auto">
+        
+        {/* HEADER MAIKON CALDEIRA */}
+        <header className="flex flex-col md:flex-row justify-between items-center border-b-2 border-[#a3a082] pb-6 mb-8 no-print">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-[#a3a082] rounded-full flex items-center justify-center text-black font-bold text-2xl border-2 border-white shadow-2xl">M</div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tighter text-[#a3a082]">MAIKON CALDEIRA</h1>
+              <p className="text-[10px] tracking-[4px] uppercase opacity-70">Alquimia v.14: Central de Dossiês e Modelos</p>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4 md:mt-0">
+             <nav className="flex bg-[#161614] p-1 rounded-xl border border-[#2d2d2a] mr-4 shadow-lg">
+              <button onClick={() => setAba('importar')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${aba === 'importar' ? 'bg-[#a3a082] text-black' : 'text-slate-500'}`}>FICHA</button>
+              <button onClick={() => setAba('modelos')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${aba === 'modelos' ? 'bg-[#a3a082] text-black' : 'text-slate-500'}`}>EDITAR TEXTO</button>
+            </nav>
+            <button onClick={salvarCloud} className="bg-[#5d5e53] text-white px-5 py-2 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-[#a3a082] transition-all shadow-lg"><Save size={16}/> SALVAR</button>
+          </div>
+        </header>
+
+        {status && (
+          <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 font-bold text-sm border shadow-lg animate-in slide-in-from-top ${status.type === 'success' ? 'bg-green-900/30 text-green-400 border-green-800' : 'bg-blue-900/30 text-blue-400 border-blue-800'}`}>
+            <ShieldCheck size={18}/> {status.text}
+          </div>
+        )}
+
+        <main className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* LADO ESQUERDO: CONTROLES */}
+          <div className="lg:col-span-4 space-y-6 no-print">
+            
+            {/* UPLOAD DO PDF DO INSS */}
+            <section 
+              className={`p-10 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-center ${loading ? 'opacity-50 pointer-events-none' : 'border-[#2d2d2a] hover:border-[#a3a082] bg-[#161614]'}`}
+              onClick={() => fileInputRef.current.click()}
+            >
+              <input type="file" ref={fileInputRef} className="hidden" onChange={handleFile} accept=".pdf" />
+              <div className="bg-[#a3a082] w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 text-black shadow-xl animate-bounce">
+                <FileUp size={28} />
+              </div>
+              <h3 className="font-bold text-sm text-white">{loading ? "Processando..." : "Importar PDF Original"}</h3>
+              <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest leading-relaxed">Dados Cadastrais ou CNIS</p>
+            </section>
+
+            {/* FICHA TÉCNICA (EDITÁVEL) */}
+            <section className="bg-[#161614] p-6 rounded-2xl border border-[#5d5e53]">
+              <h3 className="text-[#a3a082] text-[10px] font-black uppercase mb-4 flex items-center gap-2 tracking-[2px]"><User size={14}/> Dossiê do Segurado</h3>
+              <div className="space-y-3">
+                <div className="bg-black p-3 rounded-xl border border-[#2d2d2a]">
+                  <label className="text-[9px] font-bold text-slate-500 uppercase">Nome Completo</label>
+                  <input type="text" value={ficha.nome} onChange={e => setFicha({...ficha, nome: e.target.value})} className="w-full bg-transparent text-sm font-bold outline-none text-[#a3a082] uppercase" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-black p-3 rounded-xl border border-[#2d2d2a]">
+                    <label className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1">CPF</label>
+                    <input type="text" value={ficha.cpf} onChange={e => setFicha({...ficha, cpf: e.target.value})} className="w-full bg-transparent text-xs font-bold outline-none" />
+                  </div>
+                  <div className="bg-black p-3 rounded-xl border border-[#2d2d2a]">
+                    <label className="text-[9px] font-bold text-slate-500 uppercase">RG</label>
+                    <input type="text" value={ficha.rg} onChange={e => setFicha({...ficha, rg: e.target.value})} className="w-full bg-transparent text-xs font-bold outline-none" />
+                  </div>
+                </div>
+                <div className="bg-black p-3 rounded-xl border border-[#2d2d2a]">
+                  <label className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1"><MapPin size={10}/> Endereço</label>
+                  <input type="text" value={ficha.endereco} onChange={e => setFicha({...ficha, endereco: e.target.value})} className="w-full bg-transparent text-[11px] font-bold outline-none" />
+                </div>
+              </div>
+            </section>
+
+            {/* HISTÓRICO NA NUVEM */}
+            <section className="bg-[#161614] p-6 rounded-2xl border border-[#5d5e53]">
+              <h3 className="text-[#a3a082] text-[10px] font-black uppercase mb-4 flex items-center gap-2 tracking-[2px]"><Database size={14}/> Casos Recentes</h3>
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                {historico.map(h => (
+                  <div key={h.id} className="bg-black p-3 rounded-xl border border-[#2d2d2a] flex justify-between items-center group cursor-pointer hover:border-[#a3a082]" onClick={() => setFicha(h.ficha)}>
+                    <div>
+                      <p className="text-[10px] font-bold text-white uppercase">{h.ficha.nome}</p>
+                      <p className="text-[8px] text-slate-600">{new Date(h.data).toLocaleDateString()}</p>
+                    </div>
+                    <button onClick={async (e) => { e.stopPropagation(); await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'dossies', h.id)); }} className="opacity-0 group-hover:opacity-100 text-red-900"><Trash2 size={14}/></button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          {/* LADO DIREITO: GERADOR DE PEÇAS */}
+          <div className="lg:col-span-8">
+            <div className="bg-white text-black p-10 md:p-16 rounded-lg shadow-2xl min-h-[950px] print:shadow-none print:p-0">
+              
+              {/* MENU DE MODELOS */}
+              <div className="no-print mb-10 border-b border-gray-100 pb-8">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xs font-black uppercase text-gray-400">Modelos Inteligentes</h3>
+                  <div className="flex gap-2">
+                    {templates.map((t, i) => (
+                      <button key={t.id} onClick={() => setTemplateAtivo(i)} className={`px-5 py-2 rounded-xl text-xs font-bold border transition-all ${templateAtivo === i ? 'bg-black text-white' : 'bg-gray-50 text-gray-400'}`}>
+                        {t.titulo}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {aba === 'modelos' && (
+                  <div className="animate-in slide-in-from-right duration-300">
+                    <label className="text-[10px] font-bold text-slate-400 mb-2 block italic">Cole o seu texto completo aqui. Use {"{{NOME}}, {{CPF}}, {{RG}}, {{ENDERECO}}, {{NIT}}"}</label>
+                    <textarea 
+                      value={templates[templateAtivo].texto}
+                      onChange={e => {
+                        const n = [...templates];
+                        n[templateAtivo].texto = e.target.value;
+                        setTemplates(n);
+                      }}
+                      className="w-full h-80 bg-gray-50 border border-gray-200 p-8 rounded-2xl text-sm font-mono outline-none focus:border-black"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* VISUALIZAÇÃO PARA CÓPIA */}
+              <div id="preview-area" className="relative animate-in fade-in duration-500">
+                <div className="absolute top-0 right-0 flex gap-2 no-print">
+                   <button onClick={copiarWord} className="bg-black text-white px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-slate-800 shadow-xl transition-all"><Copy size={16}/> Copiar para o Word</button>
+                   <button onClick={() => window.print()} className="bg-gray-100 text-black px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-gray-200 transition-all"><Printer size={16}/> PDF</button>
+                </div>
+
+                <div className="text-center mb-16">
+                  <p className="text-[10px] font-bold tracking-[5px] uppercase border-b-2 border-black pb-2 mb-2 inline-block">Maikon Caldeira - Advocacia Estratégica</p>
+                  <h2 className="text-2xl font-black uppercase mt-1">Instrumento de Mandato e Peça Técnica</h2>
+                </div>
+
+                <div className="whitespace-pre-wrap text-[12pt] leading-relaxed text-justify font-serif" style={{ fontFamily: 'Times New Roman, serif' }}>
+                  {documentoGerado}
+                </div>
+
+                <div className="mt-24 pt-10 border-t border-gray-200 flex justify-between items-end">
+                  <div className="text-center">
+                    <div className="w-56 border-b-2 border-black mb-1"></div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest">Maikon Caldeira</p>
+                    <p className="text-[8px] text-gray-500 uppercase tracking-widest">OAB/MG nº 183.712</p>
+                  </div>
+                  <div className="text-right text-[8px] text-gray-400 italic">
+                    Dossiê auditado em {new Date().toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #000; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #babac0; border-radius: 10px; }
+        @media print {
+          body { background: white !important; color: black !important; padding: 0 !important; }
+          .no-print { display: none !important; }
+          .lg\\:col-span-8, .lg\\:col-span-12 { width: 100% !important; margin: 0 !important; }
+          .max-w-7xl { max-width: 100% !important; }
+        }
+      `}</style>
+    </div>
+  );
+}

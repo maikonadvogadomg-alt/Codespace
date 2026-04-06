@@ -1,0 +1,2921 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Painel LOAS - Visual Law</title>
+  <style>
+    /* --- ESTILO DARK JURÍDICO (O BONITO) --- */
+    :root {
+      --bg: #1b2b1b;       /* Fundo Escuro */
+      --card: #243624;     /* Cartões */
+      --input: #111b11;    /* Fundo do Input */
+      --text: #e5e7eb;     /* Texto Claro */
+      --accent: #2e8b57;   /* Verde Botão */
+      --warn: #ef4444;     /* Vermelho */
+      --line: #3a4a3a;     /* Linhas */
+    }
+
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 10px; }
+
+    /* Layout dos Cartões */
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+
+    h2 {
+      margin-top: 0;
+      color: var(--accent);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
+      font-size: 16px;
+      text-transform: uppercase;
+    }
+
+    /* Inputs e Labels */
+    label { display: block; color: #9ca3af; font-size: 12px; margin-top: 8px; margin-bottom: 2px; }
+    
+    input, select, textarea {
+      width: 100%;
+      background: var(--input);
+      border: 1px solid var(--line);
+      color: var(--text);
+      padding: 10px;
+      border-radius: 5px;
+      outline: none;
+      box-sizing: border-box; /* Importante para não quebrar no celular */
+    }
+    input:focus { border-color: var(--accent); }
+
+    /* Botões (Grandes para funcionar no toque) */
+    .toolbar { margin-bottom: 10px; }
+    button {
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      border: none;
+      color: white;
+      margin-right: 5px;
+      margin-bottom: 5px;
+    }
+    .btn-add { background: var(--accent); }
+    .btn-del { background: var(--warn); padding: 5px 10px; font-size: 12px; }
+    .btn-print { background: #333; border: 1px solid #555; }
+
+    /* Tabelas */
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    th { background: #152015; color: #9ca3af; text-align: left; padding: 8px; border: 1px solid var(--line); }
+    td { border: 1px solid var(--line); padding: 5px; }
+    
+    /* Inputs dentro da tabela parecem texto puro */
+    td input { border: none; background: transparent; padding: 5px; margin: 0; }
+
+    /* Estilos Especiais */
+    .money { text-align: right; color: #86efac; font-weight: bold; }
+    .res-box { background: #152015; padding: 10px; border-radius: 5px; margin-top: 5px; }
+    
+    /* IMPRESSÃO (FICA BRANCO NO PAPEL) */
+    @media print {
+      body { background: white; color: black; }
+      section { background: white; border: 1px solid #000; box-shadow: none; }
+      input, select, textarea { background: white; color: black; border: none; }
+      th { background: #eee; color: black; border: 1px solid #000; }
+      td { border: 1px solid #000; }
+      button, .no-print { display: none !important; }
+      h2 { color: black; border-bottom: 2px solid black; }
+      .money { color: black; }
+    }
+  </style>
+</head>
+<body>
+
+  <header style="text-align:center; margin-bottom:20px;">
+    <h1 style="color:white; margin:0;">Painel de Análise LOAS</h1>
+    <small style="color:#9ca3af;">Lei 14.176/21 e Portaria Conjunta nº 34/2025</small>
+  </header>
+
+  <section>
+    <h2>1. Identificação</h2>
+    <label>Nome do Cliente</label>
+    <input id="req_nome" placeholder="Nome Completo">
+    
+    <div style="display:flex; gap:10px;">
+      <div style="flex:1"><label>CPF</label><input id="req_cpf"></div>
+      <div style="flex:1"><label>Processo nº</label><input id="proc_num"></div>
+    </div>
+
+    <label>Resumo dos Fatos (Falta de Perícia / Agravamento)</label>
+    <textarea id="proc_obs" placeholder="Ex: Negativa administrativa sem análise biopsicossocial..."></textarea>
+  </section>
+
+  <section>
+    <h2>2. Parâmetros Legais</h2>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:150px;">
+        <label>Limiar (Ex: R$ 353,00)</label>
+        <input id="limiar" class="money" placeholder="R$ 0,00" type="tel">
+      </div>
+      <div style="flex:1; min-width:150px;">
+        <label>Critério</label>
+        <select id="criterio_tipo" onchange="recalc()">
+          <option value="percapita">Renda Per Capita</option>
+          <option value="total">Renda Total</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Rendimentos (Família)</h2>
+    <div class="toolbar no-print">
+      <button class="btn-add" onclick="addRenda()">+ Adicionar Renda</button>
+    </div>
+    <table id="rend_table">
+      <thead><tr><th>Origem / Descrição</th><th width="30%">Valor (R$)</th><th width="40" class="no-print"></th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><td>TOTAL BRUTO</td><td id="rend_total" class="money">R$ 0,00</td><td></td></tr></tfoot>
+    </table>
+  </section>
+
+  <section>
+    <h2>4. Despesas (Portaria 34)</h2>
+    <div class="toolbar no-print">
+      <button class="btn-add" onclick="addDespesa()">+ Adicionar Despesa</button>
+    </div>
+    <table id="ded_table">
+      <thead><tr><th>Descrição (Remédio/Fralda)</th><th width="30%">Valor (R$)</th><th width="40" class="no-print"></th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><td>TOTAL DEDUÇÕES</td><td id="ded_total" class="money" style="color:#fca5a5">R$ 0,00</td><td></td></tr></tfoot>
+    </table>
+  </section>
+
+  <section>
+    <h2>5. Composição Familiar</h2>
+    <div class="toolbar no-print">
+      <button class="btn-add" onclick="addMembro()">+ Adicionar Membro</button>
+    </div>
+    <table id="fam_table">
+      <thead><tr><th>Nome / Parentesco</th><th width="30%">Renda (Info)</th><th width="40" class="no-print"></th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><td>Membros: <span id="fam_count">0</span></td><td id="fam_total">R$ 0,00</td><td></td></tr></tfoot>
+    </table>
+  </section>
+
+  <section>
+    <h2>Resultado do Cálculo</h2>
+    
+    <label>Renda Líquida (Bruto - Deduções)</label>
+    <input id="res_liq" readonly style="font-weight:bold; color:var(--accent); font-size:16px;">
+    
+    <label>Renda Per Capita Final</label>
+    <div class="res-box">
+      <input id="res_percapita" readonly style="font-weight:bold; font-size:20px; text-align:center; border:none; background:transparent;">
+    </div>
+    
+    <div id="status_msg" style="text-align:center; margin-top:15px; padding:10px; border:1px dashed #555; border-radius:10px; font-size:14px;">
+      Aguardando dados...
+    </div>
+
+    <div class="no-print" style="margin-top:20px; text-align:right;">
+      <button class="btn-print" onclick="window.print()">🖨️ Imprimir / PDF</button>
+    </div>
+  </section>
+
+  <script>
+    // --- MOTOR ROBUSTO (FUNCIONA NO CELULAR) ---
+
+    // 1. Formatação de Dinheiro
+    const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    function lerValor(val) {
+      if (!val) return 0;
+      let v = val.toString().replace(/[^\d,]/g, '').replace(',', '.');
+      return parseFloat(v) || 0;
+    }
+
+    // 2. Máscara Automática (Digita 100 vira R$ 1,00)
+    function ativarMascara(input) {
+      input.addEventListener('input', function(e) {
+        let v = e.target.value.replace(/\D/g, '');
+        if (v === '') { e.target.value = ''; recalc(); return; }
+        v = (parseInt(v) / 100).toFixed(2) + '';
+        v = v.replace('.', ',');
+        v = v.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        e.target.value = 'R$ ' + v;
+        recalc();
+      });
+    }
+
+    // 3. Funções de Adicionar Linha (Separadas para não travar)
+    
+    function criarInputTexto(ph) {
+      let i = document.createElement('input');
+      i.placeholder = ph;
+      return i;
+    }
+
+    function criarInputDinheiro() {
+      let i = document.createElement('input');
+      i.placeholder = "R$ 0,00";
+      i.className = "money";
+      i.type = "tel"; // Teclado numérico no celular
+      ativarMascara(i);
+      return i;
+    }
+
+    function criarBotaoExcluir(tr) {
+      let btn = document.createElement('button');
+      btn.textContent = "X";
+      btn.className = "btn-del";
+      btn.onclick = function() { tr.remove(); recalc(); };
+      return btn;
+    }
+
+    // Adiciona Renda
+    window.addRenda = function() {
+      let tbody = document.querySelector('#rend_table tbody');
+      let tr = document.createElement('tr');
+      
+      let td1 = document.createElement('td'); td1.appendChild(criarInputTexto("Ex: Bico, Bolsa Família"));
+      let td2 = document.createElement('td'); td2.appendChild(criarInputDinheiro());
+      let td3 = document.createElement('td'); td3.className="no-print"; td3.appendChild(criarBotaoExcluir(tr));
+      
+      tr.append(td1, td2, td3);
+      tbody.appendChild(tr);
+    };
+
+    // Adiciona Despesa
+    window.addDespesa = function() {
+      let tbody = document.querySelector('#ded_table tbody');
+      let tr = document.createElement('tr');
+      
+      let td1 = document.createElement('td'); td1.appendChild(criarInputTexto("Ex: Fraldas (Portaria 34)"));
+      let td2 = document.createElement('td'); td2.appendChild(criarInputDinheiro());
+      let td3 = document.createElement('td'); td3.className="no-print"; td3.appendChild(criarBotaoExcluir(tr));
+      
+      tr.append(td1, td2, td3);
+      tbody.appendChild(tr);
+    };
+
+    // Adiciona Membro
+    window.addMembro = function() {
+      let tbody = document.querySelector('#fam_table tbody');
+      let tr = document.createElement('tr');
+      
+      let td1 = document.createElement('td'); td1.appendChild(criarInputTexto("Nome / Parentesco"));
+      let td2 = document.createElement('td'); td2.appendChild(criarInputDinheiro()); // Renda informativa
+      let td3 = document.createElement('td'); td3.className="no-print"; td3.appendChild(criarBotaoExcluir(tr));
+      
+      tr.append(td1, td2, td3);
+      tbody.appendChild(tr);
+      recalc(); // Atualiza contagem
+    };
+
+    // 4. Cálculo Geral
+    window.recalc = function() {
+      // Soma Renda
+      let totRenda = 0;
+      document.querySelectorAll('#rend_table tbody input.money').forEach(i => totRenda += lerValor(i.value));
+      
+      // Soma Despesa
+      let totDed = 0;
+      document.querySelectorAll('#ded_table tbody input.money').forEach(i => totDed += lerValor(i.value));
+      
+      // Soma Família (Info)
+      let totFam = 0;
+      document.querySelectorAll('#fam_table tbody input.money').forEach(i => totFam += lerValor(i.value));
+      
+      // Conta Membros
+      let membros = document.querySelectorAll('#fam_table tbody tr').length;
+
+      // Exibe Totais
+      document.getElementById('rend_total').textContent = fmt.format(totRenda);
+      document.getElementById('ded_total').textContent = fmt.format(totDed);
+      document.getElementById('fam_total').textContent = fmt.format(totFam);
+      document.getElementById('fam_count').textContent = membros;
+
+      // Líquido
+      let liquido = Math.max(totRenda - totDed, 0);
+      document.getElementById('res_liq').value = fmt.format(liquido);
+
+      // Per Capita
+      let percapita = 0;
+      if (membros > 0) percapita = liquido / membros;
+      document.getElementById('res_percapita').value = fmt.format(percapita);
+
+      avaliar(liquido, percapita);
+    };
+
+    function avaliar(liq, percapita) {
+      let limiar = lerValor(document.getElementById('limiar').value);
+      let tipo = document.getElementById('criterio_tipo').value;
+      let box = document.getElementById('status_msg');
+
+      if (limiar === 0) {
+        box.textContent = "⚠️ Defina o valor do Limiar no topo para ver o resultado.";
+        box.style.color = "#ccc";
+        box.style.borderColor = "#555";
+        return;
+      }
+
+      let comparado = (tipo === 'percapita') ? percapita : liq;
+
+      if (comparado <= limiar + 0.01) {
+        box.innerHTML = `✅ <b>ELEGÍVEL!</b><br>Renda (${fmt.format(comparado)}) está dentro do limite de ${fmt.format(limiar)}.`;
+        box.style.color = "#86efac";
+        box.style.borderColor = "#22c55e";
+        box.style.background = "rgba(34,197,94,0.1)";
+      } else {
+        let dif = comparado - limiar;
+        box.innerHTML = `❌ <b>ACIMA DO LIMITE</b><br>Ultrapassa em ${fmt.format(dif)}. Tente rever as despesas da Portaria 34.`;
+        box.style.color = "#fca5a5";
+        box.style.borderColor = "#ef4444";
+        box.style.background = "rgba(239,68,68,0.1)";
+      }
+    }
+
+    // Inicializa
+    ativarMascara(document.getElementById('limiar'));
+    addRenda();
+    addDespesa();
+    addMembro();
+
+  </script>
+</body>
+</html>
+
+
+
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Painel LOAS - Universal</title>
+  <style>
+    /* ESTILO LIMPO E COMPATÍVEL */
+    :root {
+      --bg: #1b2b1b;
+      --card: #243624;
+      --text: #e5e7eb;
+      --accent: #2e8b57;
+      --warn: #ef4444;
+      --line: #3a4a3a;
+    }
+    body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; padding: 10px; }
+    
+    header, section { background: var(--card); border: 1px solid var(--line); margin-bottom: 15px; padding: 15px; border-radius: 8px; }
+    h1 { font-size: 18px; margin: 0 0 5px 0; color: #fff; }
+    h2 { font-size: 16px; color: var(--accent); border-bottom: 1px solid var(--line); padding-bottom: 5px; margin-top: 0; }
+    
+    label { display: block; font-size: 12px; color: #ccc; margin-top: 10px; }
+    input, select, textarea { width: 100%; padding: 8px; margin-top: 5px; background: #111; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box; }
+    
+    /* Botões Grandes para facilitar o toque */
+    button { padding: 10px 15px; background: #333; color: #fff; border: 1px solid #555; border-radius: 6px; margin-right: 5px; margin-bottom: 5px; cursor: pointer; }
+    .btn-green { background: var(--accent); border-color: #1e5e3a; font-weight: bold; }
+    .btn-red { background: var(--warn); border-color: #b91c1c; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    th, td { border: 1px solid #444; padding: 8px; text-align: left; }
+    th { background: #152015; }
+    
+    .money { color: #86efac; text-align: right; font-weight: bold; }
+    .status-box { padding: 15px; border: 1px dashed #666; text-align: center; margin-top: 15px; border-radius: 8px; }
+
+    @media print {
+      body, section, header { background: #fff; color: #000; border: none; }
+      button, .no-print { display: none; }
+      input, textarea, select { border: 1px solid #ccc; color: #000; background: #fff; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Painel LOAS (Modo Seguro)</h1>
+    <small>Compatível com Lei 14.176 e Portaria 34</small>
+  </header>
+
+  <main>
+    <section>
+      <h2>1. Dados do Caso</h2>
+      <label>Nome do Cliente</label><input id="req_nome">
+      <label>Resumo dos Fatos</label><textarea id="proc_obs" placeholder="Descreva a situação..."></textarea>
+    </section>
+
+    <section>
+      <h2>2. Parâmetros Legais</h2>
+      <label>Limiar de Renda (Ex: R$ 353,00)</label>
+      <input id="limiar" class="money" placeholder="R$ 0,00" type="tel">
+      
+      <label>Critério</label>
+      <select id="criterio_tipo" onchange="recalc()">
+        <option value="percapita">Renda Per Capita (Por Pessoa)</option>
+        <option value="total">Renda Total</option>
+      </select>
+    </section>
+
+    <section>
+      <h2>3. Rendimentos</h2>
+      <div class="no-print">
+        <button class="btn-green" type="button" onclick="adicionarLinha('rend')">+ Adicionar Renda</button>
+      </div>
+      <table id="rend_table">
+        <thead><tr><th>Descrição</th><th>Valor (R$)</th><th width="40" class="no-print">X</th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr><td>TOTAL</td><td id="rend_total">R$ 0,00</td><td></td></tr></tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>4. Despesas (Portaria 34)</h2>
+      <div class="no-print">
+        <button class="btn-green" type="button" onclick="adicionarLinha('ded')">+ Adicionar Despesa</button>
+      </div>
+      <table id="ded_table">
+        <thead><tr><th>Descrição (Ex: Remédios)</th><th>Valor (R$)</th><th width="40" class="no-print">X</th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr><td>TOTAL</td><td id="ded_total" style="color:#fca5a5">R$ 0,00</td><td></td></tr></tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>5. Família</h2>
+      <div class="no-print">
+        <button class="btn-green" type="button" onclick="adicionarLinha('fam')">+ Adicionar Membro</button>
+      </div>
+      <table id="fam_table">
+        <thead><tr><th>Nome / Parentesco</th><th>Renda Própria</th><th width="40" class="no-print">X</th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr><td>Membros: <span id="fam_count">0</span></td><td id="fam_total">R$ 0,00</td><td></td></tr></tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>Resultado</h2>
+      <label>Renda Líquida Final</label>
+      <input id="res_liq" readonly style="font-weight:bold; color:var(--accent); font-size:16px;">
+      
+      <label>Renda Per Capita Apurada</label>
+      <input id="res_percapita" readonly style="font-weight:bold; background:#222;">
+      
+      <div class="status-box" id="status_box">
+        Defina o Limiar acima para calcular.
+      </div>
+
+      <div class="no-print" style="margin-top:20px; text-align:right">
+        <button onclick="window.print()">Imprimir PDF</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // --- FUNÇÕES GLOBAIS SEGURAS ---
+
+    // Função para formatar moeda
+    function formatarMoeda(valor) {
+      return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    // Função para ler valor do input (converte R$ 1.000,00 para 1000.00)
+    function lerValor(input) {
+      if(!input || !input.value) return 0;
+      var limpo = input.value.replace(/[^\d,]/g, '').replace(',', '.');
+      return parseFloat(limpo) || 0;
+    }
+
+    // Máscara de dinheiro simples e robusta
+    function aplicarMascara(input) {
+      input.onkeyup = function() {
+        var v = input.value.replace(/\D/g, '');
+        v = (parseInt(v) / 100).toFixed(2) + '';
+        v = v.replace('.', ',');
+        v = v.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        input.value = 'R$ ' + v;
+        recalc();
+      };
+    }
+
+    // Função Principal de Adicionar Linha (Sem arrow functions)
+    window.adicionarLinha = function(tipo) {
+      try {
+        var tabelaId = tipo + '_table';
+        var tbody = document.getElementById(tabelaId).getElementsByTagName('tbody')[0];
+        var tr = document.createElement('tr');
+
+        // Coluna 1: Descrição
+        var td1 = document.createElement('td');
+        var input1 = document.createElement('input');
+        input1.placeholder = "Descrição";
+        td1.appendChild(input1);
+        tr.appendChild(td1);
+
+        // Coluna 2: Valor
+        var td2 = document.createElement('td');
+        var input2 = document.createElement('input');
+        input2.placeholder = "R$ 0,00";
+        input2.className = "money";
+        input2.type = "tel"; // Abre teclado numérico no celular
+        aplicarMascara(input2);
+        td2.appendChild(input2);
+        tr.appendChild(td2);
+
+        // Coluna 3: Excluir
+        var td3 = document.createElement('td');
+        td3.className = "no-print";
+        var btn = document.createElement('button');
+        btn.innerHTML = "X";
+        btn.className = "btn-red";
+        btn.onclick = function() {
+          tr.parentNode.removeChild(tr);
+          recalc();
+        };
+        td3.appendChild(btn);
+        tr.appendChild(td3);
+
+        tbody.appendChild(tr);
+        recalc(); // Recalcula ao adicionar
+      } catch (e) {
+        alert("Erro ao adicionar: " + e.message);
+      }
+    };
+
+    // Função de Cálculo
+    window.recalc = function() {
+      try {
+        var totalRend = somarColuna('rend_table');
+        var totalDed = somarColuna('ded_table');
+        var totalFam = somarColuna('fam_table');
+        
+        // Conta membros (linhas da tabela família)
+        var numMembros = document.getElementById('fam_table').getElementsByTagName('tbody')[0].rows.length;
+
+        // Atualiza textos
+        document.getElementById('rend_total').innerHTML = formatarMoeda(totalRend);
+        document.getElementById('ded_total').innerHTML = formatarMoeda(totalDed);
+        document.getElementById('fam_total').innerHTML = formatarMoeda(totalFam);
+        document.getElementById('fam_count').innerHTML = numMembros;
+
+        // Conta Final
+        var liquido = totalRend - totalDed;
+        if(liquido < 0) liquido = 0;
+
+        var percapita = 0;
+        if(numMembros > 0) percapita = liquido / numMembros;
+
+        document.getElementById('res_liq').value = formatarMoeda(liquido);
+        document.getElementById('res_percapita').value = formatarMoeda(percapita);
+
+        avaliar(liquido, percapita);
+
+      } catch (e) {
+        console.log("Erro calc: " + e);
+      }
+    };
+
+    function somarColuna(tabelaId) {
+      var total = 0;
+      var inputs = document.querySelectorAll('#' + tabelaId + ' tbody input.money');
+      for (var i = 0; i < inputs.length; i++) {
+        total += lerValor(inputs[i]);
+      }
+      return total;
+    }
+
+    function avaliar(liquido, percapita) {
+      var inputLimiar = document.getElementById('limiar');
+      var limiar = lerValor(inputLimiar);
+      var statusBox = document.getElementById('status_box');
+      
+      if (limiar === 0) {
+        statusBox.innerHTML = "Informe o valor do Limiar acima.";
+        statusBox.style.borderColor = "#666";
+        statusBox.style.color = "#ccc";
+        return;
+      }
+
+      var criterio = document.getElementById('criterio_tipo').value;
+      var valorBase = (criterio === 'percapita') ? percapita : liquido;
+
+      // Comparação com margem de 1 centavo
+      if (valorBase <= limiar + 0.01) {
+        statusBox.innerHTML = "✅ <b>ELEGÍVEL</b><br>Renda dentro do limite.";
+        statusBox.style.borderColor = "#22c55e";
+        statusBox.style.color = "#86efac";
+      } else {
+        var exc = valorBase - limiar;
+        statusBox.innerHTML = "⚠️ <b>ACIMA DO LIMITE</b><br>Ultrapassa em " + formatarMoeda(exc);
+        statusBox.style.borderColor = "#ef4444";
+        statusBox.style.color = "#fca5a5";
+      }
+    }
+
+    // Inicializa máscara do Limiar
+    aplicarMascara(document.getElementById('limiar'));
+
+    // Adiciona linhas iniciais
+    adicionarLinha('rend');
+    adicionarLinha('ded');
+    adicionarLinha('fam');
+
+  </script>
+</body>
+</html>
+
+
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quadro Comparativo - Embargos e TNU</title>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --paper: #ffffff;
+      --text: #1f2937;
+      --border: #e5e7eb;
+      --red-soft: #fef2f2;
+      --red-border: #fecaca;
+      --red-text: #991b1b;
+      --green-soft: #f0fdf4;
+      --green-border: #bbf7d0;
+      --green-text: #166534;
+      --blue-header: #1e3a8a;
+    }
+    body { margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); }
+    
+    .container { max-width: 1000px; margin: 0 auto; background: var(--paper); padding: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    
+    /* Área de Edição (Não sai na impressão) */
+    .edit-area { background: #e0e7ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #c7d2fe; }
+    .edit-area h3 { margin-top: 0; color: var(--blue-header); }
+    .input-group { display: flex; gap: 15px; margin-bottom: 10px; }
+    input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    
+    /* Estilos de Impressão (O documento final) */
+    h1 { text-align: center; font-size: 18px; text-transform: uppercase; color: var(--text); margin-bottom: 5px; }
+    h2 { text-align: center; font-size: 14px; font-weight: normal; margin-top: 0; color: #4b5563; margin-bottom: 30px; }
+    
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+    th, td { border: 1px solid #000; padding: 8px 12px; vertical-align: top; }
+    
+    th { background-color: #f3f4f6; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+    
+    /* Colunas Específicas */
+    .col-tese { width: 20%; font-weight: bold; background: #fafafa; }
+    .col-acordao { width: 35%; background: var(--red-soft); color: var(--red-text); }
+    .col-paradigma { width: 45%; background: var(--green-soft); color: var(--green-text); }
+    
+    .destaque { font-weight: bold; text-decoration: underline; }
+    .citation { display: block; margin-top: 5px; font-size: 10px; font-style: italic; opacity: 0.8; }
+
+    .footer-note { font-size: 11px; text-align: justify; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px; }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .container { box-shadow: none; padding: 0; margin: 0; width: 100%; max-width: 100%; }
+      .edit-area, .btn-print { display: none !important; }
+      .col-acordao { background: #fff !important; color: #000 !important; } /* Limpa cores para economizar tinta, ou mantenha se quiser destaque */
+      .col-paradigma { background: #fff !important; color: #000 !important; }
+      /* Mantem bordas mais fortes na impressão */
+      th, td { border: 1px solid #000 !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="edit-area">
+    <h3>📝 Dados dos Processos (Preencha aqui)</h3>
+    <div class="input-group">
+      <input id="in_proc_embargado" placeholder="Nº Processo Embargado (Atual)" oninput="update()" />
+      <input id="in_proc_paradigma" placeholder="Nº Processo Paradigma (Outro Relator)" oninput="update()" />
+    </div>
+    <div class="input-group">
+      <input id="in_data_dib" placeholder="Data DIB fixada (Citação)" oninput="update()" />
+      <input id="in_data_der" placeholder="Data DER original (Correta)" oninput="update()" />
+    </div>
+    <button onclick="window.print()" style="padding: 10px 20px; background: #1e3a8a; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">🖨️ IMPRIMIR / GERAR PDF</button>
+  </div>
+
+  <div class="container">
+    <h1>Quadro Demonstrativo de Contradição e Divergência</h1>
+    <h2>Confronto Analítico: Acórdão Embargado vs. Paradigma e Legislação Vigente</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th class="col-tese">PONTO CONTROVERTIDO</th>
+          <th class="col-acordao">DECISÃO EMBARGADA (O ERRO)</th>
+          <th class="col-paradigma">PARADIGMA / FUNDAMENTAÇÃO CORRETA</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-tese">1. Fixação da DIB e "Fato Novo" (Nascimento)</td>
+          <td class="col-acordao">
+            Fixou a DIB na <strong>Citação (<span id="out_dib">--/--/--</span>)</strong>, alegando que o nascimento das trigêmeas constitui "fato novo" indispensável à concessão.
+            <span class="citation">Argumento: A miserabilidade só teria surgido após o nascimento.</span>
+          </td>
+          <td class="col-paradigma">
+            <strong>DIB deve ser a DER (<span id="out_der">--/--/--</span>).</strong><br>
+            O nascimento apenas <em>agravou</em> uma vulnerabilidade preexistente. A miserabilidade já existia antes.<br><br>
+            <strong>Violação ao Tema 1124 STJ:</strong> "Fato novo que apenas comprova situação preexistente não altera a DIB".<br>
+            <strong>Portaria Conjunta nº 34/2025:</strong> Determina análise global da renda, permitindo deduções que já zeravam a renda antes das crianças.
+          </td>
+        </tr>
+
+        <tr>
+          <td class="col-tese">2. Nulidade por Ausência de Perícia Global</td>
+          <td class="col-acordao">
+            Validou sentença que indeferiu benefício no 1º processo <strong>sem perícia médica adequada</strong> e sem análise biopsicossocial completa no 2º processo.
+            <span class="citation">Omissão quanto à Resolução do CNJ.</span>
+          </td>
+          <td class="col-paradigma">
+            <strong>DIVERGÊNCIA INTERNA (Mesma Turma):</strong><br>
+            No Processo nº <span id="out_proc_paradigma" style="font-weight:bold">...</span>, esta mesma Turma (Relator Divergente) <strong>ANULOU a sentença</strong> por entender indispensável a análise conjunta das perícias médica e social.<br>
+            <span class="citation">"Não se pode julgar improcedente sem exaurir a prova técnica biopsicossocial."</span>
+          </td>
+        </tr>
+
+        <tr>
+          <td class="col-tese">3. Flexibilização do Critério de Renda (1/4 SM)</td>
+          <td class="col-acordao">
+            Negou flexibilização. Ignorou gastos com habitação, moto e condições de vida, aplicando critério aritmético rígido.
+            <span class="citation">Erro Material: Não abateu despesas da Portaria 34.</span>
+          </td>
+          <td class="col-paradigma">
+            <strong>Aplicação da Lei 14.176/21 e Tese do STF:</strong><br>
+            O critério de 1/4 é apenas um indicador. Deve-se abater despesas médicas, fraldas e alimentação especial.<br><br>
+            <strong>Cálculo Real (Portaria 34):</strong><br>
+            Renda Bruta - Deduções Legais = <strong>Renda Inferior a 1/2 SM</strong>.<br>
+            A jurisprudência desta Turma e a TNU admitem a extensão para 1/2 SM diante de vulnerabilidade robusta.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="footer-note">
+      <strong>CONCLUSÃO:</strong> O quadro acima demonstra que o Acórdão embargado (Proc. <span id="out_proc_embargado">...</span>) incorre em <em>contradição interna</em> com a jurisprudência da própria Turma e em <em>erro material</em> ao ignorar a aplicação cogente da Portaria Conjunta nº 34 e do Tema 1124 do STJ. Requer-se o saneamento para fixar a DIB na DER e o reconhecimento da miserabilidade preexistente.
+    </div>
+  </div>
+
+  <script>
+    function update() {
+      // Pega valores
+      const procEmb = document.getElementById('in_proc_embargado').value || "PROCESSO ATUAL";
+      const procPar = document.getElementById('in_proc_paradigma').value || "PROCESSO PARADIGMA";
+      const dib = document.getElementById('in_data_dib').value || "DATA CITAÇÃO";
+      const der = document.getElementById('in_data_der').value || "DATA DER";
+
+      // Aplica valores
+      document.getElementById('out_proc_embargado').textContent = procEmb;
+      document.getElementById('out_proc_paradigma').textContent = procPar;
+      document.getElementById('out_dib').textContent = dib;
+      document.getElementById('out_der').textContent = der;
+    }
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Painel LOAS – Flexibilização de Renda</title>
+  <style>
+    :root{
+      --bg:#1b2b1b;       /* fundo verde jurídico escuro */
+      --card:#243624;     /* cartões */
+      --ink:#e5e7eb;      /* texto claro */
+      --muted:#9ca3af;    /* cinza */
+      --accent:#2e8b57;   /* verde destaque */
+      --warn:#ef4444;     /* vermelho erro */
+      --line:#3a4a3a;     /* linhas */
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter, sans-serif}
+    
+    /* Layout */
+    header{padding:20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;background:var(--card)}
+    header h1{font-size:20px;margin:0}
+    header small{color:var(--muted)}
+    
+    main{padding:20px;display:grid;gap:16px;max-width:1150px;margin:0 auto}
+    
+    section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 4px 6px rgba(0,0,0,0.2)}
+    section h2{margin:0 0 12px;font-size:18px;border-bottom:1px solid var(--line);padding-bottom:8px;color:var(--accent)}
+    
+    /* Grids e Inputs */
+    .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px}
+    .grid-3{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px}
+    
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:500}
+    input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:#111b11;color:var(--ink);outline:none}
+    input:focus, textarea:focus{border-color:var(--accent)}
+    textarea{min-height:80px;resize:vertical}
+    
+    /* Tabelas */
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border:1px solid var(--line);padding:10px;text-align:left;vertical-align:middle}
+    th{background:#152015;color:var(--muted);font-weight:600;font-size:13px}
+    tfoot td{font-weight:700;background:#152015}
+    
+    /* Botões */
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+    .btn{padding:8px 14px;border:1px solid var(--line);border-radius:8px;background:#152015;color:var(--ink);cursor:pointer;transition:0.2s}
+    .btn:hover{filter:brightness(1.2)}
+    .btn-accent{background:var(--accent);color:#fff;border:none}
+    .btn-warn{background:var(--warn);color:#fff;border:none}
+    
+    /* Badges e Utils */
+    .badge{display:inline-block;padding:6px 10px;border-radius:99px;font-size:12px;font-weight:bold}
+    .ok{background:rgba(34,197,94,.15);color:#86efac;border:1px solid rgba(34,197,94,.35)}
+    .no{background:rgba(239,68,68,.15);color:#fecaca;border:1px solid rgba(239,68,68,.35)}
+    .flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .right{margin-left:auto}
+    .mono{font-family:monospace; font-size:14px}
+    
+    /* Classe específica para inputs de dinheiro */
+    .input-money { text-align: right; color: #a7f3d0; font-weight: bold; }
+
+    @media print {
+      body{background:#fff;color:#000}
+      section, header{background:#fff;border:1px solid #ccc;box-shadow:none}
+      input, textarea, select{border:none;background:none;color:#000;padding:0}
+      .btn, .toolbar, .no-print{display:none}
+      th, td{border:1px solid #000}
+      h2{color:#000;border-bottom:2px solid #000}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Painel LOAS – Flexibilização de Renda</h1>
+    <small>Lei 14.176/21 e Jurisprudência (Cálculo Ajustado)</small>
+  </header>
+
+  <main>
+    <section>
+      <h2>Identificação e Processo</h2>
+      <div class="grid">
+        <div><label>Requerente</label><input id="req_nome" placeholder="Nome do Cliente" /></div>
+        <div><label>CPF</label><input id="req_cpf" class="mono" placeholder="000.000.000-00" /></div>
+        <div><label>NIS/PIS</label><input id="req_nis" class="mono" /></div>
+        <div><label>Nº Processo Administrativo/Judicial</label><input id="proc_num" class="mono" /></div>
+      </div>
+      <div style="margin-top:10px"><label>Resumo Fático (Deficiência/Idade/Contexto Social)</label><textarea id="proc_obs"></textarea></div>
+    </section>
+
+    <section>
+      <h2>Parâmetros Legais (Flexibilização)</h2>
+      <div class="grid-3">
+        <div><label>Fundamento Legal</label><input id="lei_nome" value="Lei 8.742/93 c/c Lei 14.176/21" /></div>
+        
+        <div><label>Limiar de Renda (Ex: 1/4 ou 1/2 SM)</label>
+          <input id="limiar" class="input-money" placeholder="R$ 0,00" />
+        </div>
+        
+        <div><label>Critério de Análise</label>
+          <select id="criterio_tipo" onchange="recalc()">
+            <option value="percapita">Renda Per Capita (Padrão)</option>
+            <option value="total">Renda Familiar Total</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex" style="margin-top:10px">
+        <label style="width:100%">Artigos / Jurisprudência Aplicável</label>
+        <input id="artigos" placeholder="Ex: Tema 173 da TNU, ACP nº 5044874-22.2013.4.04.7100" />
+      </div>
+    </section>
+
+    <section>
+      <h2>Rendimentos (Grupo Familiar)</h2>
+      <div class="toolbar">
+        <button class="btn btn-accent" onclick="addRow('rend')">+ Adicionar Renda</button>
+        <button class="btn" onclick="importCSV('rend')">Importar CSV</button>
+      </div>
+      <table id="rend_table">
+        <thead>
+          <tr>
+            <th style="width:20%">Fonte</th>
+            <th style="width:25%">Descrição</th>
+            <th style="width:15%">Periodicidade</th>
+            <th style="width:15%">Valor (R$)</th>
+            <th>Documento Probatório</th>
+            <th class="no-print" style="width:80px">Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3">Total Rendimentos</td>
+            <td id="rend_total" class="mono">R$ 0,00</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>Despesas Dedutíveis (Medicamentos, Fraldas, Tratamentos)</h2>
+      <div class="toolbar">
+        <button class="btn btn-accent" onclick="addRow('ded')">+ Adicionar Despesa</button>
+        <button class="btn" onclick="importCSV('ded')">Importar CSV</button>
+      </div>
+      <table id="ded_table">
+        <thead>
+          <tr>
+            <th style="width:20%">Tipo</th>
+            <th style="width:25%">Descrição</th>
+            <th style="width:15%">Base Legal (Art.)</th>
+            <th style="width:15%">Valor (R$)</th>
+            <th>Documento Probatório</th>
+            <th class="no-print" style="width:80px">Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3">Total Deduções</td>
+            <td id="ded_total" class="mono">R$ 0,00</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>Composição Familiar (Para o cálculo Per Capita)</h2>
+      <div class="toolbar">
+        <button class="btn btn-accent" onclick="addRow('fam')">+ Adicionar Membro</button>
+        <button class="btn" onclick="importCSV('fam')">Importar CSV</button>
+      </div>
+      <table id="fam_table">
+        <thead>
+          <tr>
+            <th style="width:30%">Nome</th>
+            <th style="width:20%">Parentesco</th>
+            <th style="width:20%">Renda Própria (Informativo)</th>
+            <th>Documento (CPF/RG)</th>
+            <th class="no-print" style="width:80px">Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2">Total de Membros: <span id="fam_count">0</span></td>
+            <td id="fam_total" class="mono">R$ 0,00</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>Eventos do Processo (Timeline)</h2>
+      <div class="toolbar"><button class="btn btn-accent" onclick="addRow('evt')">+ Adicionar Evento</button></div>
+      <table id="evt_table">
+        <thead>
+          <tr>
+            <th>Tipo</th><th>Data</th><th>Descrição</th><th>ID do Documento</th><th class="no-print">Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Resultado e Análise de Viabilidade</h2>
+      <div class="grid">
+        <div>
+          <label>Renda Bruta Familiar</label>
+          <input id="calc_renda_bruta" class="mono" readonly />
+        </div>
+        <div>
+          <label>Total Deduções (Saúde/Outros)</label>
+          <input id="calc_deducoes" class="mono" readonly style="color:var(--warn)" />
+        </div>
+        <div>
+          <label>Renda Líquida Final</label>
+          <input id="calc_renda_liquida" class="mono" readonly style="font-weight:bold; color:var(--accent)" />
+        </div>
+        <div>
+          <label>Renda Per Capita Apurada</label>
+          <input id="calc_percapita" class="mono" readonly style="font-weight:bold; font-size:16px" />
+        </div>
+      </div>
+      
+      <div class="flex" style="margin-top:15px; border:1px dashed var(--line); padding:10px; border-radius:8px">
+        <span id="conformidade" class="badge no">Aguardando dados...</span>
+        <span class="right muted" style="font-size:11px">O cálculo considera a dedução das despesas médicas/essenciais sobre a renda bruta.</span>
+      </div>
+
+      <div class="toolbar no-print" style="margin-top:20px; border-top:1px solid var(--line); padding-top:10px">
+        <button class="btn" onclick="saveLocal()">Salvar Rascunho</button>
+        <button class="btn" onclick="loadLocal()">Carregar Rascunho</button>
+        <button class="btn" onclick="exportJSON()">Exportar JSON</button>
+        <button class="btn" onclick="window.print()">🖨️ Imprimir PDF</button>
+      </div>
+    </section>
+  </main>
+
+  <input type="file" id="csv_input" accept=".csv" style="display:none" />
+
+  <script>
+    // --- LÓGICA DE TRATAMENTO DE DINHEIRO (BRASIL) ---
+
+    const fmtMoeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    /**
+     * Converte uma string formatada (R$ 1.500,50) para Float JS (1500.50)
+     * para podermos somar e subtrair corretamente.
+     */
+    function lerMoeda(val) {
+      if (!val) return 0;
+      // Remove R$, espaços e pontos de milhar (deixa apenas números e vírgula)
+      let limpo = val.toString().replace(/[^\d,]/g, ''); 
+      // Troca vírgula por ponto para o JS entender
+      limpo = limpo.replace(',', '.');
+      return parseFloat(limpo) || 0;
+    }
+
+    /**
+     * Aplica a máscara ENQUANTO você digita.
+     * Transforma 1500 em R$ 15,00.
+     * Transforma 150050 em R$ 1.500,50.
+     */
+    function aplicarMascara(input) {
+      input.addEventListener('input', (e) => {
+        let valor = e.target.value.replace(/\D/g, ''); // Remove tudo que não é número
+        
+        if (valor === '') {
+          e.target.value = '';
+          recalc();
+          return;
+        }
+
+        // Divide por 100 para ter os centavos
+        valor = (parseInt(valor) / 100).toFixed(2) + '';
+        
+        // Troca ponto por virgula
+        valor = valor.replace('.', ',');
+        
+        // Adiciona ponto de milhar (Regex complexo padrão para dinheiro)
+        valor = valor.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        
+        e.target.value = 'R$ ' + valor;
+        recalc();
+      });
+    }
+
+    // --- CONSTRUÇÃO DAS TABELAS ---
+
+    function addRow(kind, data={}) {
+      const map = {
+        rend: { table: 'rend_table', cols: [
+          { key:'fonte', type:'text', ph:'Ex: Bolsa Família, Bico' },
+          { key:'desc', type:'text', ph:'Detalhes' },
+          { key:'per', type:'select', opts:['Mensal','Eventual','Anual'] },
+          { key:'valor', type:'text', ph:'R$ 0,00', isMoney:true }, // Marcado como dinheiro
+          { key:'doc', type:'text', ph:'ID/Página' }
+        ]},
+        ded: { table: 'ded_table', cols: [
+          { key:'tipo', type:'text', ph:'Ex: Remédios, Fraldas' },
+          { key:'desc', type:'text', ph:'Nome do medicamento/insumo' },
+          { key:'base', type:'text', ph:'Artigo/Lei' },
+          { key:'valor', type:'text', ph:'R$ 0,00', isMoney:true }, // Marcado como dinheiro
+          { key:'doc', type:'text', ph:'Recibos/ID' }
+        ]},
+        fam: { table: 'fam_table', cols: [
+          { key:'nome', type:'text', ph:'Nome Completo' },
+          { key:'parentesco', type:'text', ph:'Ex: Filho, Neto' },
+          { key:'renda', type:'text', ph:'R$ 0,00', isMoney:true }, // Apenas informativo aqui
+          { key:'doc', type:'text', ph:'CPF' }
+        ]},
+        evt: { table: 'evt_table', cols: [
+          { key:'tipo', type:'text', ph:'Ex: Perícia Médica' },
+          { key:'data', type:'date' },
+          { key:'desc', type:'text', ph:'Resultado/Obs' },
+          { key:'doc', type:'text', ph:'ID' }
+        ]}
+      };
+
+      const cfg = map[kind];
+      const tbody = document.querySelector(`#${cfg.table} tbody`);
+      const tr = document.createElement('tr');
+
+      cfg.cols.forEach(c => {
+        const td = document.createElement('td');
+        let input;
+        
+        if (c.type === 'select') {
+          input = document.createElement('select');
+          c.opts.forEach(o => {
+            const op = document.createElement('option');
+            op.textContent = o;
+            input.appendChild(op);
+          });
+        } else {
+          input = document.createElement('input');
+          input.type = c.type;
+          input.placeholder = c.ph || '';
+        }
+        
+        // Se for campo de dinheiro, adiciona classe visual e máscara lógica
+        if (c.isMoney) {
+          input.classList.add('input-money');
+          aplicarMascara(input);
+        }
+
+        // Se veio dados (do CSV ou Save), preenche
+        input.value = data[c.key] ?? '';
+        
+        td.appendChild(input);
+        tr.appendChild(td);
+      });
+
+      // Botão Excluir
+      const tdAct = document.createElement('td');
+      tdAct.className = 'no-print';
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-warn';
+      btn.textContent = 'Excluir';
+      btn.onclick = () => { tr.remove(); recalc(); };
+      
+      tdAct.appendChild(btn);
+      tr.appendChild(tdAct);
+      tbody.appendChild(tr);
+
+      recalc();
+    }
+
+    // --- CÁLCULO INTELIGENTE ---
+
+    function recalc() {
+      // Helper para somar coluna específica de uma tabela
+      const somarTabela = (idTabela, indiceColuna) => {
+        let total = 0;
+        document.querySelectorAll(`#${idTabela} tbody tr`).forEach(tr => {
+          const inputs = tr.querySelectorAll('td input');
+          // Proteção para não pegar índice errado
+          if(inputs[indiceColuna]) {
+            total += lerMoeda(inputs[indiceColuna].value);
+          }
+        });
+        return total;
+      };
+
+      // Índices (baseado na ordem das colunas em addRow):
+      // Renda: Valor é o 4º campo (index 3)
+      // Dedução: Valor é o 4º campo (index 3)
+      // Família: Renda é o 3º campo (index 2)
+      
+      const totalRenda = somarTabela('rend_table', 3);
+      const totalDed = somarTabela('ded_table', 3);
+      const totalFamRenda = somarTabela('fam_table', 2);
+      
+      const numMembros = document.querySelectorAll('#fam_table tbody tr').length;
+
+      // Exibir totais parciais
+      document.getElementById('rend_total').textContent = fmtMoeda.format(totalRenda);
+      document.getElementById('ded_total').textContent = fmtMoeda.format(totalDed);
+      document.getElementById('fam_total').textContent = fmtMoeda.format(totalFamRenda);
+      document.getElementById('fam_count').textContent = numMembros;
+
+      // Cálculo Líquido
+      const rendaLiquida = Math.max(totalRenda - totalDed, 0);
+      let percapita = 0;
+      if (numMembros > 0) percapita = rendaLiquida / numMembros;
+
+      // Preencher Inputs de Resultado
+      document.getElementById('calc_renda_bruta').value = fmtMoeda.format(totalRenda);
+      document.getElementById('calc_deducoes').value = fmtMoeda.format(totalDed);
+      document.getElementById('calc_renda_liquida').value = fmtMoeda.format(rendaLiquida);
+      document.getElementById('calc_percapita').value = fmtMoeda.format(percapita);
+
+      avaliar(rendaLiquida, percapita);
+    }
+
+    function avaliar(rendaLiquida, percapita) {
+      // Pega o limiar digitado pelo usuário (Ex: R$ 350,00)
+      const limiar = lerMoeda(document.getElementById('limiar').value);
+      const tipo = document.getElementById('criterio_tipo').value;
+      const badge = document.getElementById('conformidade');
+
+      if (limiar === 0) {
+        badge.textContent = "⚠️ Defina o Limiar (Ex: 1/4 SM ou 1/2 SM) no campo acima.";
+        badge.className = "badge no";
+        return;
+      }
+
+      const valorComparado = (tipo === 'percapita') ? percapita : rendaLiquida;
+
+      // Margem de segurança de 1 centavo
+      if (valorComparado <= limiar + 0.01) {
+        badge.innerHTML = `✅ <strong>ELEGÍVEL (Critério Objetivo Atendido)</strong> <br> (${fmtMoeda.format(valorComparado)} ≤ ${fmtMoeda.format(limiar)})`;
+        badge.className = "badge ok";
+      } else {
+        const dif = valorComparado - limiar;
+        badge.innerHTML = `❌ <strong>ACIMA DO LIMIAR</strong> <br> Excede em ${fmtMoeda.format(dif)}. Tente aumentar as deduções ou fundamentar vulnerabilidade social.`;
+        badge.className = "badge no";
+      }
+    }
+
+    // --- IMPORTAR CSV, EXPORTAR JSON E SALVAR (MANTIDO) ---
+
+    // Importar CSV simplificado
+    function importCSV(kind) {
+      const input = document.getElementById('csv_input');
+      input.onchange = () => {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const lines = reader.result.split(/\r?\n/).filter(l => l.trim().length);
+          lines.forEach(line => {
+            // Aceita ponto e vírgula ou vírgula
+            const cols = line.includes(';') ? line.split(';') : line.split(',');
+            // Limpa aspas
+            const c = cols.map(x => x.replace(/^"|"$/g, '').trim());
+
+            if (kind === 'rend') addRow('rend', { fonte:c[0], desc:c[1], per:c[2]||'Mensal', valor:c[3], doc:c[4] });
+            if (kind === 'ded')  addRow('ded',  { tipo:c[0], desc:c[1], base:c[2], valor:c[3], doc:c[4] });
+            if (kind === 'fam')  addRow('fam',  { nome:c[0], parentesco:c[1], renda:c[2], doc:c[3] });
+          });
+          input.value = '';
+          alert('Dados importados! Se os valores vieram errados, edite manualmente.');
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+
+    // JSON Export/Import
+    function getState(){
+      const getRows = (id, keys) => {
+        const rows = [];
+        document.querySelectorAll(`#${id} tbody tr`).forEach(tr => {
+          const inputs = tr.querySelectorAll('input, select');
+          const row = {};
+          // Mapeia inputs para as chaves na ordem certa
+          keys.forEach((k, i) => row[k] = inputs[i]?.value || '');
+          rows.push(row);
+        });
+        return rows;
+      };
+      
+      return {
+        // Campos soltos
+        req_nome: document.getElementById('req_nome').value,
+        req_cpf: document.getElementById('req_cpf').value,
+        req_nis: document.getElementById('req_nis').value,
+        proc_num: document.getElementById('proc_num').value,
+        proc_obs: document.getElementById('proc_obs').value,
+        lei_nome: document.getElementById('lei_nome').value,
+        limiar: document.getElementById('limiar').value,
+        criterio_tipo: document.getElementById('criterio_tipo').value,
+        artigos: document.getElementById('artigos').value,
+        // Tabelas
+        rend: getRows('rend_table', ['fonte','desc','per','valor','doc']),
+        ded: getRows('d
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Painel LOAS – Flexibilização de Renda</title>
+  <style>
+    :root{
+      --bg:#1b2b1b;       /* fundo verde jurídico escuro */
+      --card:#243624;     /* cartões */
+      --ink:#e5e7eb;      /* texto claro */
+      --muted:#9ca3af;    /* cinza */
+      --accent:#2e8b57;   /* verde destaque */
+      --warn:#ef4444;     /* vermelho erro */
+      --line:#3a4a3a;     /* linhas */
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter, sans-serif}
+    
+    /* Layout */
+    header{padding:20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;background:var(--card)}
+    header h1{font-size:20px;margin:0}
+    header small{color:var(--muted)}
+    
+    main{padding:20px;display:grid;gap:16px;max-width:1150px;margin:0 auto}
+    
+    section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 4px 6px rgba(0,0,0,0.2)}
+    section h2{margin:0 0 12px;font-size:18px;border-bottom:1px solid var(--line);padding-bottom:8px;color:var(--accent)}
+    
+    /* Grids e Inputs */
+    .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px}
+    .grid-3{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px}
+    
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:500}
+    input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:#111b11;color:var(--ink);outline:none}
+    input:focus, textarea:focus{border-color:var(--accent)}
+    textarea{min-height:80px;resize:vertical}
+    
+    /* Tabelas */
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border:1px solid var(--line);padding:10px;text-align:left;vertical-align:middle}
+    th{background:#152015;color:var(--muted);font-weight:600;font-size:13px}
+    tfoot td{font-weight:700;background:#152015}
+    
+    /* Botões */
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+    .btn{padding:8px 14px;border:1px solid var(--line);border-radius:8px;background:#152015;color:var(--ink);cursor:pointer;transition:0.2s}
+    .btn:hover{filter:brightness(1.2)}
+    .btn-accent{background:var(--accent);color:#fff;border:none}
+    .btn-warn{background:var(--warn);color:#fff;border:none}
+    
+    /* Badges e Utils */
+    .badge{display:inline-block;padding:6px 10px;border-radius:99px;font-size:12px;font-weight:bold}
+    .ok{background:rgba(34,197,94,.15);color:#86efac;border:1px solid rgba(34,197,94,.35)}
+    .no{background:rgba(239,68,68,.15);color:#fecaca;border:1px solid rgba(239,68,68,.35)}
+    .flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .right{margin-left:auto}
+    .mono{font-family:monospace; font-size:14px}
+    
+    /* Classe específica para inputs de dinheiro */
+    .input-money { text-align: right; color: #a7f3d0; font-weight: bold; }
+
+    @media print {
+      body{background:#fff;color:#000}
+      section, header{background:#fff;border:1px solid #ccc;box-shadow:none}
+      input, textarea, select{border:none;background:none;color:#000;padding:0}
+      .btn, .toolbar, .no-print{display:none}
+      th, td{border:1px solid #000}
+      h2{color:#000;border-bottom:2px solid #000}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Painel LOAS – Flexibilização de Renda</h1>
+    <small>Lei 14.176/21 e Jurisprudência (Cálculo Ajustado)</small>
+  </header>
+
+  <main>
+    <section>
+      <h2>Identificação e Processo</h2>
+      <div class="grid">
+        <div><label>Requerente</label><input id="req_nome" placeholder="Nome do Cliente" /></div>
+        <div><label>CPF</label><input id="req_cpf" class="mono" placeholder="000.000.000-00" /></div>
+        <div><label>NIS/PIS</label><input id="req_nis" class="mono" /></div>
+        <div><label>Nº Processo Administrativo/Judicial</label><input id="proc_num" class="mono" /></div>
+      </div>
+      <div style="margin-top:10px"><label>Resumo Fático (Deficiência/Idade/Contexto Social)</label><textarea id="proc_obs"></textarea></div>
+    </section>
+
+    <section>
+      <h2>Parâmetros Legais (Flexibilização)</h2>
+      <div class="grid-3">
+        <div><label>Fundamento Legal</label><input id="lei_nome" value="Lei 8.742/93 c/c Lei 14.176/21" /></div>
+        
+        <div><label>Limiar de Renda (Ex: 1/4 ou 1/2 SM)</label>
+          <input id="limiar" class="input-money" placeholder="R$ 0,00" />
+        </div>
+        
+        <div><label>Critério de Análise</label>
+          <select id="criterio_tipo" onchange="recalc()">
+            <option value="percapita">Renda Per Capita (Padrão)</option>
+            <option value="total">Renda Familiar Total</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex" style="margin-top:10px">
+        <label style="width:100%">Artigos / Jurisprudência Aplicável</label>
+        <input id="artigos" placeholder="Ex: Tema 173 da TNU, ACP nº 5044874-22.2013.4.04.7100" />
+      </div>
+    </section>
+
+    <section>
+      <h2>Rendimentos (Grupo Familiar)</h2>
+      <div class="toolbar">
+        <button class="btn btn-accent" onclick="addRow('rend')">+ Adicionar Renda</button>
+        <button class="btn" onclick="importCSV('rend')">Importar CSV</button>
+      </div>
+      <table id="rend_table">
+        <thead>
+          <tr>
+            <th style="width:20%">Fonte</th>
+            <th style="width:25%">Descrição</th>
+            <th style="width:15%">Periodicidade</th>
+            <th style="width:15%">Valor (R$)</th>
+            <th>Documento Probatório</th>
+            <th class="no-print" style="width:80px">Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3">Total Rendimentos</td>
+            <td id="rend_total" class="mono">R$ 0,00</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>Despesas Dedutíveis (Medicamentos, Fraldas, Tratamentos)</h2>
+      <div class="toolbar">
+        <button class="btn btn-accent" onclick="addRow('ded')">+ Adicionar Despesa</button>
+        <button class="btn" onclick="importCSV('ded')">Importar CSV</button>
+      </div>
+      <table id="ded_table">
+        <thead>
+          <tr>
+            <th style="width:20%">Tipo</th>
+            <th style="width:25%">Descrição</th>
+            <th style="width:15%">Base Legal (Art.)</th>
+            <th style="width:15%">Valor (R$)</th>
+            <th>Documento Probatório</th>
+            <th class="no-print" style="width:80px">Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3">Total Deduções</td>
+            <td id="ded_total" class="mono">R$ 0,00</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>Composição Familiar (Para o cálculo Per Capita)</h2>
+      <div class="toolbar">
+        <button class="btn btn-accent" onclick="addRow('fam')">+ Adicionar Membro</button>
+        <button class="btn" onclick="importCSV('fam')">Importar CSV</button>
+      </div>
+      <table id="fam_table">
+        <thead>
+          <tr>
+            <th style="width:30%">Nome</th>
+            <th style="width:20%">Parentesco</th>
+            <th style="width:20%">Renda Própria (Informativo)</th>
+            <th>Documento (CPF/RG)</th>
+            <th class="no-print" style="width:80px">Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2">Total de Membros: <span id="fam_count">0</span></td>
+            <td id="fam_total" class="mono">R$ 0,00</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>Eventos do Processo (Timeline)</h2>
+      <div class="toolbar"><button class="btn btn-accent" onclick="addRow('evt')">+ Adicionar Evento</button></div>
+      <table id="evt_table">
+        <thead>
+          <tr>
+            <th>Tipo</th><th>Data</th><th>Descrição</th><th>ID do Documento</th><th class="no-print">Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Resultado e Análise de Viabilidade</h2>
+      <div class="grid">
+        <div>
+          <label>Renda Bruta Familiar</label>
+          <input id="calc_renda_bruta" class="mono" readonly />
+        </div>
+        <div>
+          <label>Total Deduções (Saúde/Outros)</label>
+          <input id="calc_deducoes" class="mono" readonly style="color:var(--warn)" />
+        </div>
+        <div>
+          <label>Renda Líquida Final</label>
+          <input id="calc_renda_liquida" class="mono" readonly style="font-weight:bold; color:var(--accent)" />
+        </div>
+        <div>
+          <label>Renda Per Capita Apurada</label>
+          <input id="calc_percapita" class="mono" readonly style="font-weight:bold; font-size:16px" />
+        </div>
+      </div>
+      
+      <div class="flex" style="margin-top:15px; border:1px dashed var(--line); padding:10px; border-radius:8px">
+        <span id="conformidade" class="badge no">Aguardando dados...</span>
+        <span class="right muted" style="font-size:11px">O cálculo considera a dedução das despesas médicas/essenciais sobre a renda bruta.</span>
+      </div>
+
+      <div class="toolbar no-print" style="margin-top:20px; border-top:1px solid var(--line); padding-top:10px">
+        <button class="btn" onclick="saveLocal()">Salvar Rascunho</button>
+        <button class="btn" onclick="loadLocal()">Carregar Rascunho</button>
+        <button class="btn" onclick="exportJSON()">Exportar JSON</button>
+        <button class="btn" onclick="window.print()">🖨️ Imprimir PDF</button>
+      </div>
+    </section>
+  </main>
+
+  <input type="file" id="csv_input" accept=".csv" style="display:none" />
+
+  <script>
+    // --- LÓGICA DE TRATAMENTO DE DINHEIRO (BRASIL) ---
+
+    const fmtMoeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    /**
+     * Converte uma string formatada (R$ 1.500,50) para Float JS (1500.50)
+     * para podermos somar e subtrair corretamente.
+     */
+    function lerMoeda(val) {
+      if (!val) return 0;
+      // Remove R$, espaços e pontos de milhar (deixa apenas números e vírgula)
+      let limpo = val.toString().replace(/[^\d,]/g, ''); 
+      // Troca vírgula por ponto para o JS entender
+      limpo = limpo.replace(',', '.');
+      return parseFloat(limpo) || 0;
+    }
+
+    /**
+     * Aplica a máscara ENQUANTO você digita.
+     * Transforma 1500 em R$ 15,00.
+     * Transforma 150050 em R$ 1.500,50.
+     */
+    function aplicarMascara(input) {
+      input.addEventListener('input', (e) => {
+        let valor = e.target.value.replace(/\D/g, ''); // Remove tudo que não é número
+        
+        if (valor === '') {
+          e.target.value = '';
+          recalc();
+          return;
+        }
+
+        // Divide por 100 para ter os centavos
+        valor = (parseInt(valor) / 100).toFixed(2) + '';
+        
+        // Troca ponto por virgula
+        valor = valor.replace('.', ',');
+        
+        // Adiciona ponto de milhar (Regex complexo padrão para dinheiro)
+        valor = valor.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        
+        e.target.value = 'R$ ' + valor;
+        recalc();
+      });
+    }
+
+    // --- CONSTRUÇÃO DAS TABELAS ---
+
+    function addRow(kind, data={}) {
+      const map = {
+        rend: { table: 'rend_table', cols: [
+          { key:'fonte', type:'text', ph:'Ex: Bolsa Família, Bico' },
+          { key:'desc', type:'text', ph:'Detalhes' },
+          { key:'per', type:'select', opts:['Mensal','Eventual','Anual'] },
+          { key:'valor', type:'text', ph:'R$ 0,00', isMoney:true }, // Marcado como dinheiro
+          { key:'doc', type:'text', ph:'ID/Página' }
+        ]},
+        ded: { table: 'ded_table', cols: [
+          { key:'tipo', type:'text', ph:'Ex: Remédios, Fraldas' },
+          { key:'desc', type:'text', ph:'Nome do medicamento/insumo' },
+          { key:'base', type:'text', ph:'Artigo/Lei' },
+          { key:'valor', type:'text', ph:'R$ 0,00', isMoney:true }, // Marcado como dinheiro
+          { key:'doc', type:'text', ph:'Recibos/ID' }
+        ]},
+        fam: { table: 'fam_table', cols: [
+          { key:'nome', type:'text', ph:'Nome Completo' },
+          { key:'parentesco', type:'text', ph:'Ex: Filho, Neto' },
+          { key:'renda', type:'text', ph:'R$ 0,00', isMoney:true }, // Apenas informativo aqui
+          { key:'doc', type:'text', ph:'CPF' }
+        ]},
+        evt: { table: 'evt_table', cols: [
+          { key:'tipo', type:'text', ph:'Ex: Perícia Médica' },
+          { key:'data', type:'date' },
+          { key:'desc', type:'text', ph:'Resultado/Obs' },
+          { key:'doc', type:'text', ph:'ID' }
+        ]}
+      };
+
+      const cfg = map[kind];
+      const tbody = document.querySelector(`#${cfg.table} tbody`);
+      const tr = document.createElement('tr');
+
+      cfg.cols.forEach(c => {
+        const td = document.createElement('td');
+        let input;
+        
+        if (c.type === 'select') {
+          input = document.createElement('select');
+          c.opts.forEach(o => {
+            const op = document.createElement('option');
+            op.textContent = o;
+            input.appendChild(op);
+          });
+        } else {
+          input = document.createElement('input');
+          input.type = c.type;
+          input.placeholder = c.ph || '';
+        }
+        
+        // Se for campo de dinheiro, adiciona classe visual e máscara lógica
+        if (c.isMoney) {
+          input.classList.add('input-money');
+          aplicarMascara(input);
+        }
+
+        // Se veio dados (do CSV ou Save), preenche
+        input.value = data[c.key] ?? '';
+        
+        td.appendChild(input);
+        tr.appendChild(td);
+      });
+
+      // Botão Excluir
+      const tdAct = document.createElement('td');
+      tdAct.className = 'no-print';
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-warn';
+      btn.textContent = 'Excluir';
+      btn.onclick = () => { tr.remove(); recalc(); };
+      
+      tdAct.appendChild(btn);
+      tr.appendChild(tdAct);
+      tbody.appendChild(tr);
+
+      recalc();
+    }
+
+    // --- CÁLCULO INTELIGENTE ---
+
+    function recalc() {
+      // Helper para somar coluna específica de uma tabela
+      const somarTabela = (idTabela, indiceColuna) => {
+        let total = 0;
+        document.querySelectorAll(`#${idTabela} tbody tr`).forEach(tr => {
+          const inputs = tr.querySelectorAll('td input');
+          // Proteção para não pegar índice errado
+          if(inputs[indiceColuna]) {
+            total += lerMoeda(inputs[indiceColuna].value);
+          }
+        });
+        return total;
+      };
+
+      // Índices (baseado na ordem das colunas em addRow):
+      // Renda: Valor é o 4º campo (index 3)
+      // Dedução: Valor é o 4º campo (index 3)
+      // Família: Renda é o 3º campo (index 2)
+      
+      const totalRenda = somarTabela('rend_table', 3);
+      const totalDed = somarTabela('ded_table', 3);
+      const totalFamRenda = somarTabela('fam_table', 2);
+      
+      const numMembros = document.querySelectorAll('#fam_table tbody tr').length;
+
+      // Exibir totais parciais
+      document.getElementById('rend_total').textContent = fmtMoeda.format(totalRenda);
+      document.getElementById('ded_total').textContent = fmtMoeda.format(totalDed);
+      document.getElementById('fam_total').textContent = fmtMoeda.format(totalFamRenda);
+      document.getElementById('fam_count').textContent = numMembros;
+
+      // Cálculo Líquido
+      const rendaLiquida = Math.max(totalRenda - totalDed, 0);
+      let percapita = 0;
+      if (numMembros > 0) percapita = rendaLiquida / numMembros;
+
+      // Preencher Inputs de Resultado
+      document.getElementById('calc_renda_bruta').value = fmtMoeda.format(totalRenda);
+      document.getElementById('calc_deducoes').value = fmtMoeda.format(totalDed);
+      document.getElementById('calc_renda_liquida').value = fmtMoeda.format(rendaLiquida);
+      document.getElementById('calc_percapita').value = fmtMoeda.format(percapita);
+
+      avaliar(rendaLiquida, percapita);
+    }
+
+    function avaliar(rendaLiquida, percapita) {
+      // Pega o limiar digitado pelo usuário (Ex: R$ 350,00)
+      const limiar = lerMoeda(document.getElementById('limiar').value);
+      const tipo = document.getElementById('criterio_tipo').value;
+      const badge = document.getElementById('conformidade');
+
+      if (limiar === 0) {
+        badge.textContent = "⚠️ Defina o Limiar (Ex: 1/4 SM ou 1/2 SM) no campo acima.";
+        badge.className = "badge no";
+        return;
+      }
+
+      const valorComparado = (tipo === 'percapita') ? percapita : rendaLiquida;
+
+      // Margem de segurança de 1 centavo
+      if (valorComparado <= limiar + 0.01) {
+        badge.innerHTML = `✅ <strong>ELEGÍVEL (Critério Objetivo Atendido)</strong> <br> (${fmtMoeda.format(valorComparado)} ≤ ${fmtMoeda.format(limiar)})`;
+        badge.className = "badge ok";
+      } else {
+        const dif = valorComparado - limiar;
+        badge.innerHTML = `❌ <strong>ACIMA DO LIMIAR</strong> <br> Excede em ${fmtMoeda.format(dif)}. Tente aumentar as deduções ou fundamentar vulnerabilidade social.`;
+        badge.className = "badge no";
+      }
+    }
+
+    // --- IMPORTAR CSV, EXPORTAR JSON E SALVAR (MANTIDO) ---
+
+    // Importar CSV simplificado
+    function importCSV(kind) {
+      const input = document.getElementById('csv_input');
+      input.onchange = () => {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const lines = reader.result.split(/\r?\n/).filter(l => l.trim().length);
+          lines.forEach(line => {
+            // Aceita ponto e vírgula ou vírgula
+            const cols = line.includes(';') ? line.split(';') : line.split(',');
+            // Limpa aspas
+            const c = cols.map(x => x.replace(/^"|"$/g, '').trim());
+
+            if (kind === 'rend') addRow('rend', { fonte:c[0], desc:c[1], per:c[2]||'Mensal', valor:c[3], doc:c[4] });
+            if (kind === 'ded')  addRow('ded',  { tipo:c[0], desc:c[1], base:c[2], valor:c[3], doc:c[4] });
+            if (kind === 'fam')  addRow('fam',  { nome:c[0], parentesco:c[1], renda:c[2], doc:c[3] });
+          });
+          input.value = '';
+          alert('Dados importados! Se os valores vieram errados, edite manualmente.');
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+
+    // JSON Export/Import
+    function getState(){
+      const getRows = (id, keys) => {
+        const rows = [];
+        document.querySelectorAll(`#${id} tbody tr`).forEach(tr => {
+          const inputs = tr.querySelectorAll('input, select');
+          const row = {};
+          // Mapeia inputs para as chaves na ordem certa
+          keys.forEach((k, i) => row[k] = inputs[i]?.value || '');
+          rows.push(row);
+        });
+        return rows;
+      };
+      
+      return {
+        // Campos soltos
+        req_nome: document.getElementById('req_nome').value,
+        req_cpf: document.getElementById('req_cpf').value,
+        req_nis: document.getElementById('req_nis').value,
+        proc_num: document.getElementById('proc_num').value,
+        proc_obs: document.getElementById('proc_obs').value,
+        lei_nome: document.getElementById('lei_nome').value,
+        limiar: document.getElementById('limiar').value,
+        criterio_tipo: document.getElementById('criterio_tipo').value,
+        artigos: document.getElementById('artigos').value,
+        // Tabelas
+        rend: getRows('rend_table', ['fonte','desc','per','valor','doc']),
+        ded: getRows('d
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Painel LOAS - Universal</title>
+  <style>
+    /* ESTILO LIMPO E COMPATÍVEL */
+    :root {
+      --bg: #1b2b1b;
+      --card: #243624;
+      --text: #e5e7eb;
+      --accent: #2e8b57;
+      --warn: #ef4444;
+      --line: #3a4a3a;
+    }
+    body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; padding: 10px; }
+    
+    header, section { background: var(--card); border: 1px solid var(--line); margin-bottom: 15px; padding: 15px; border-radius: 8px; }
+    h1 { font-size: 18px; margin: 0 0 5px 0; color: #fff; }
+    h2 { font-size: 16px; color: var(--accent); border-bottom: 1px solid var(--line); padding-bottom: 5px; margin-top: 0; }
+    
+    label { display: block; font-size: 12px; color: #ccc; margin-top: 10px; }
+    input, select, textarea { width: 100%; padding: 8px; margin-top: 5px; background: #111; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box; }
+    
+    /* Botões Grandes para facilitar o toque */
+    button { padding: 10px 15px; background: #333; color: #fff; border: 1px solid #555; border-radius: 6px; margin-right: 5px; margin-bottom: 5px; cursor: pointer; }
+    .btn-green { background: var(--accent); border-color: #1e5e3a; font-weight: bold; }
+    .btn-red { background: var(--warn); border-color: #b91c1c; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    th, td { border: 1px solid #444; padding: 8px; text-align: left; }
+    th { background: #152015; }
+    
+    .money { color: #86efac; text-align: right; font-weight: bold; }
+    .status-box { padding: 15px; border: 1px dashed #666; text-align: center; margin-top: 15px; border-radius: 8px; }
+
+    @media print {
+      body, section, header { background: #fff; color: #000; border: none; }
+      button, .no-print { display: none; }
+      input, textarea, select { border: 1px solid #ccc; color: #000; background: #fff; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Painel LOAS (Modo Seguro)</h1>
+    <small>Compatível com Lei 14.176 e Portaria 34</small>
+  </header>
+
+  <main>
+    <section>
+      <h2>1. Dados do Caso</h2>
+      <label>Nome do Cliente</label><input id="req_nome">
+      <label>Resumo dos Fatos</label><textarea id="proc_obs" placeholder="Descreva a situação..."></textarea>
+    </section>
+
+    <section>
+      <h2>2. Parâmetros Legais</h2>
+      <label>Limiar de Renda (Ex: R$ 353,00)</label>
+      <input id="limiar" class="money" placeholder="R$ 0,00" type="tel">
+      
+      <label>Critério</label>
+      <select id="criterio_tipo" onchange="recalc()">
+        <option value="percapita">Renda Per Capita (Por Pessoa)</option>
+        <option value="total">Renda Total</option>
+      </select>
+    </section>
+
+    <section>
+      <h2>3. Rendimentos</h2>
+      <div class="no-print">
+        <button class="btn-green" type="button" onclick="adicionarLinha('rend')">+ Adicionar Renda</button>
+      </div>
+      <table id="rend_table">
+        <thead><tr><th>Descrição</th><th>Valor (R$)</th><th width="40" class="no-print">X</th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr><td>TOTAL</td><td id="rend_total">R$ 0,00</td><td></td></tr></tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>4. Despesas (Portaria 34)</h2>
+      <div class="no-print">
+        <button class="btn-green" type="button" onclick="adicionarLinha('ded')">+ Adicionar Despesa</button>
+      </div>
+      <table id="ded_table">
+        <thead><tr><th>Descrição (Ex: Remédios)</th><th>Valor (R$)</th><th width="40" class="no-print">X</th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr><td>TOTAL</td><td id="ded_total" style="color:#fca5a5">R$ 0,00</td><td></td></tr></tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>5. Família</h2>
+      <div class="no-print">
+        <button class="btn-green" type="button" onclick="adicionarLinha('fam')">+ Adicionar Membro</button>
+      </div>
+      <table id="fam_table">
+        <thead><tr><th>Nome / Parentesco</th><th>Renda Própria</th><th width="40" class="no-print">X</th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr><td>Membros: <span id="fam_count">0</span></td><td id="fam_total">R$ 0,00</td><td></td></tr></tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>Resultado</h2>
+      <label>Renda Líquida Final</label>
+      <input id="res_liq" readonly style="font-weight:bold; color:var(--accent); font-size:16px;">
+      
+      <label>Renda Per Capita Apurada</label>
+      <input id="res_percapita" readonly style="font-weight:bold; background:#222;">
+      
+      <div class="status-box" id="status_box">
+        Defina o Limiar acima para calcular.
+      </div>
+
+      <div class="no-print" style="margin-top:20px; text-align:right">
+        <button onclick="window.print()">Imprimir PDF</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // --- FUNÇÕES GLOBAIS SEGURAS ---
+
+    // Função para formatar moeda
+    function formatarMoeda(valor) {
+      return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    // Função para ler valor do input (converte R$ 1.000,00 para 1000.00)
+    function lerValor(input) {
+      if(!input || !input.value) return 0;
+      var limpo = input.value.replace(/[^\d,]/g, '').replace(',', '.');
+      return parseFloat(limpo) || 0;
+    }
+
+    // Máscara de dinheiro simples e robusta
+    function aplicarMascara(input) {
+      input.onkeyup = function() {
+        var v = input.value.replace(/\D/g, '');
+        v = (parseInt(v) / 100).toFixed(2) + '';
+        v = v.replace('.', ',');
+        v = v.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        input.value = 'R$ ' + v;
+        recalc();
+      };
+    }
+
+    // Função Principal de Adicionar Linha (Sem arrow functions)
+    window.adicionarLinha = function(tipo) {
+      try {
+        var tabelaId = tipo + '_table';
+        var tbody = document.getElementById(tabelaId).getElementsByTagName('tbody')[0];
+        var tr = document.createElement('tr');
+
+        // Coluna 1: Descrição
+        var td1 = document.createElement('td');
+        var input1 = document.createElement('input');
+        input1.placeholder = "Descrição";
+        td1.appendChild(input1);
+        tr.appendChild(td1);
+
+        // Coluna 2: Valor
+        var td2 = document.createElement('td');
+        var input2 = document.createElement('input');
+        input2.placeholder = "R$ 0,00";
+        input2.className = "money";
+        input2.type = "tel"; // Abre teclado numérico no celular
+        aplicarMascara(input2);
+        td2.appendChild(input2);
+        tr.appendChild(td2);
+
+        // Coluna 3: Excluir
+        var td3 = document.createElement('td');
+        td3.className = "no-print";
+        var btn = document.createElement('button');
+        btn.innerHTML = "X";
+        btn.className = "btn-red";
+        btn.onclick = function() {
+          tr.parentNode.removeChild(tr);
+          recalc();
+        };
+        td3.appendChild(btn);
+        tr.appendChild(td3);
+
+        tbody.appendChild(tr);
+        recalc(); // Recalcula ao adicionar
+      } catch (e) {
+        alert("Erro ao adicionar: " + e.message);
+      }
+    };
+
+    // Função de Cálculo
+    window.recalc = function() {
+      try {
+        var totalRend = somarColuna('rend_table');
+        var totalDed = somarColuna('ded_table');
+        var totalFam = somarColuna('fam_table');
+        
+        // Conta membros (linhas da tabela família)
+        var numMembros = document.getElementById('fam_table').getElementsByTagName('tbody')[0].rows.length;
+
+        // Atualiza textos
+        document.getElementById('rend_total').innerHTML = formatarMoeda(totalRend);
+        document.getElementById('ded_total').innerHTML = formatarMoeda(totalDed);
+        document.getElementById('fam_total').innerHTML = formatarMoeda(totalFam);
+        document.getElementById('fam_count').innerHTML = numMembros;
+
+        // Conta Final
+        var liquido = totalRend - totalDed;
+        if(liquido < 0) liquido = 0;
+
+        var percapita = 0;
+        if(numMembros > 0) percapita = liquido / numMembros;
+
+        document.getElementById('res_liq').value = formatarMoeda(liquido);
+        document.getElementById('res_percapita').value = formatarMoeda(percapita);
+
+        avaliar(liquido, percapita);
+
+      } catch (e) {
+        console.log("Erro calc: " + e);
+      }
+    };
+
+    function somarColuna(tabelaId) {
+      var total = 0;
+      var inputs = document.querySelectorAll('#' + tabelaId + ' tbody input.money');
+      for (var i = 0; i < inputs.length; i++) {
+        total += lerValor(inputs[i]);
+      }
+      return total;
+    }
+
+    function avaliar(liquido, percapita) {
+      var inputLimiar = document.getElementById('limiar');
+      var limiar = lerValor(inputLimiar);
+      var statusBox = document.getElementById('status_box');
+      
+      if (limiar === 0) {
+        statusBox.innerHTML = "Informe o valor do Limiar acima.";
+        statusBox.style.borderColor = "#666";
+        statusBox.style.color = "#ccc";
+        return;
+      }
+
+      var criterio = document.getElementById('criterio_tipo').value;
+      var valorBase = (criterio === 'percapita') ? percapita : liquido;
+
+      // Comparação com margem de 1 centavo
+      if (valorBase <= limiar + 0.01) {
+        statusBox.innerHTML = "✅ <b>ELEGÍVEL</b><br>Renda dentro do limite.";
+        statusBox.style.borderColor = "#22c55e";
+        statusBox.style.color = "#86efac";
+      } else {
+        var exc = valorBase - limiar;
+        statusBox.innerHTML = "⚠️ <b>ACIMA DO LIMITE</b><br>Ultrapassa em " + formatarMoeda(exc);
+        statusBox.style.borderColor = "#ef4444";
+        statusBox.style.color = "#fca5a5";
+      }
+    }
+
+    // Inicializa máscara do Limiar
+    aplicarMascara(document.getElementById('limiar'));
+
+    // Adiciona linhas iniciais
+    adicionarLinha('rend');
+    adicionarLinha('ded');
+    adicionarLinha('fam');
+
+  </script>
+</body>
+</html>
+
+
+
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Painel LOAS - Master</title>
+  <style>
+    /* --- ESTILO DARK JURÍDICO --- */
+    :root {
+      --bg: #1b2b1b; --card: #243624; --input: #111b11; 
+      --text: #e5e7eb; --accent: #2e8b57; --warn: #ef4444; --line: #3a4a3a;
+    }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 10px; }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+    h2 { margin-top: 0; color: var(--accent); border-bottom: 1px solid var(--line); padding-bottom: 8px; font-size: 16px; text-transform: uppercase; }
+    label { display: block; color: #9ca3af; font-size: 12px; margin-top: 8px; margin-bottom: 2px; }
+    input, select, textarea { width: 100%; background: var(--input); border: 1px solid var(--line); color: var(--text); padding: 10px; border-radius: 5px; outline: none; box-sizing: border-box; }
+    input:focus { border-color: var(--accent); }
+    
+    /* BOTÕES */
+    .toolbar { margin-bottom: 10px; display:flex; flex-wrap:wrap; gap:5px; }
+    button { padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; border: none; color: white; }
+    .btn-add { background: var(--accent); }
+    .btn-csv { background: #374151; border: 1px solid #4b5563; } /* Botão Cinza para CSV */
+    .btn-del { background: var(--warn); padding: 5px 10px; font-size: 12px; }
+    .btn-action { background: #1f2937; border: 1px solid #374151; margin-top: 5px; width: 100%; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    th { background: #152015; color: #9ca3af; text-align: left; padding: 8px; border: 1px solid var(--line); }
+    td { border: 1px solid var(--line); padding: 5px; }
+    td input { border: none; background: transparent; padding: 5px; margin: 0; }
+    .money { text-align: right; color: #86efac; font-weight: bold; }
+    .res-box { background: #152015; padding: 10px; border-radius: 5px; margin-top: 5px; }
+
+    @media print {
+      body { background: white; color: black; }
+      section { background: white; border: 1px solid #000; box-shadow: none; }
+      input, select, textarea { background: white; color: black; border: none; }
+      th { background: #eee; color: black; border: 1px solid #000; }
+      td { border: 1px solid #000; }
+      button, .no-print { display: none !important; }
+      h2 { color: black; border-bottom: 2px solid black; }
+      .money { color: black; }
+    }
+  </style>
+</head>
+<body>
+
+  <header style="text-align:center; margin-bottom:20px;">
+    <h1 style="color:white; margin:0;">Painel LOAS (Master)</h1>
+    <small style="color:#9ca3af;">Lei 14.176/21 • Portaria Conjunta nº 34/2025</small>
+  </header>
+
+  <section>
+    <h2>1. Identificação</h2>
+    <label>Nome do Cliente</label><input id="req_nome">
+    <div style="display:flex; gap:10px;">
+      <div style="flex:1"><label>CPF</label><input id="req_cpf"></div>
+      <div style="flex:1"><label>Processo nº</label><input id="proc_num"></div>
+    </div>
+    <label>Resumo dos Fatos</label><textarea id="proc_obs"></textarea>
+  </section>
+
+  <section>
+    <h2>2. Parâmetros Legais</h2>
+    <div style="display:flex; gap:10px;">
+      <div style="flex:1"><label>Limiar (Ex: R$ 353,00)</label><input id="limiar" class="money" placeholder="R$ 0,00" type="tel"></div>
+      <div style="flex:1"><label>Critério</label>
+        <select id="criterio_tipo" onchange="recalc()">
+          <option value="percapita">Renda Per Capita</option>
+          <option value="total">Renda Total</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Rendimentos</h2>
+    <div class="toolbar no-print">
+      <button class="btn-add" onclick="addRenda()">+ Manual</button>
+      <button class="btn-csv" onclick="importCSV('rend')">Importar CSV</button>
+    </div>
+    <table id="rend_table">
+      <thead><tr><th>Origem / Descrição</th><th width="30%">Valor (R$)</th><th width="40" class="no-print"></th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><td>TOTAL BRUTO</td><td id="rend_total" class="money">R$ 0,00</td><td></td></tr></tfoot>
+    </table>
+  </section>
+
+  <section>
+    <h2>4. Despesas (Portaria 34)</h2>
+    <div class="toolbar no-print">
+      <button class="btn-add" onclick="addDespesa()">+ Manual</button>
+      <button class="btn-csv" onclick="importCSV('ded')">Importar CSV</button>
+    </div>
+    <table id="ded_table">
+      <thead><tr><th>Descrição (Remédio/Fralda)</th><th width="30%">Valor (R$)</th><th width="40" class="no-print"></th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><td>TOTAL DEDUÇÕES</td><td id="ded_total" class="money" style="color:#fca5a5">R$ 0,00</td><td></td></tr></tfoot>
+    </table>
+  </section>
+
+  <section>
+    <h2>5. Família</h2>
+    <div class="toolbar no-print">
+      <button class="btn-add" onclick="addMembro()">+ Manual</button>
+      <button class="btn-csv" onclick="importCSV('fam')">Importar CSV</button>
+    </div>
+    <table id="fam_table">
+      <thead><tr><th>Nome / Parentesco</th><th width="30%">Renda (Info)</th><th width="40" class="no-print"></th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><td>Membros: <span id="fam_count">0</span></td><td id="fam_total">R$ 0,00</td><td></td></tr></tfoot>
+    </table>
+  </section>
+
+  <section>
+    <h2>Resultado</h2>
+    <label>Renda Líquida</label><input id="res_liq" readonly style="font-weight:bold; color:var(--accent); font-size:16px;">
+    <label>Renda Per Capita Final</label>
+    <div class="res-box">
+      <input id="res_percapita" readonly style="font-weight:bold; font-size:20px; text-align:center; border:none; background:transparent;">
+    </div>
+    <div id="status_msg" style="text-align:center; margin-top:15px; padding:10px; border:1px dashed #555; border-radius:10px;">Aguardando dados...</div>
+
+    <div class="no-print" style="margin-top:20px; display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+      <button class="btn-action" onclick="saveLocal()">💾 Salvar Rascunho</button>
+      <button class="btn-action" onclick="loadLocal()">📂 Abrir Rascunho</button>
+      <button class="btn-action" onclick="exportJSON()">📤 Backup JSON</button>
+      <button class="btn-action" onclick="exportCSVTotal()">📊 Exportar CSV</button>
+      <button class="btn-add" style="grid-column: span 2;" onclick="window.print()">🖨️ IMPRIMIR PDF</button>
+    </div>
+  </section>
+
+  <input type="file" id="csv_input" accept=".csv" style="display:none">
+
+  <script>
+    // --- LÓGICA DE DADOS E CÁLCULO ---
+
+    const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    function lerValor(val) {
+      if (!val) return 0;
+      let v = val.toString().replace(/[^\d,]/g, '').replace(',', '.');
+      return parseFloat(v) || 0;
+    }
+
+    function ativarMascara(input) {
+      input.addEventListener('input', function(e) {
+        let v = e.target.value.replace(/\D/g, '');
+        if (v === '') { e.target.value = ''; recalc(); return; }
+        v = (parseInt(v) / 100).toFixed(2) + '';
+        v = v.replace('.', ',');
+        v = v.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        e.target.value = 'R$ ' + v;
+        recalc();
+      });
+    }
+
+    // --- FUNÇÕES DE TABELA ---
+    function criarLinha(tabela, texto, valor, isMoney) {
+      let tbody = document.querySelector('#' + tabela + ' tbody');
+      let tr = document.createElement('tr');
+      
+      let td1 = document.createElement('td'); 
+      let i1 = document.createElement('input'); i1.value = texto; i1.placeholder = "Descrição";
+      td1.appendChild(i1);
+
+      let td2 = document.createElement('td');
+      let i2 = document.createElement('input'); 
+      i2.value = valor; i2.placeholder = "R$ 0,00"; 
+      if(isMoney) { i2.className = "money"; i2.type="tel"; ativarMascara(i2); }
+      td2.appendChild(i2);
+
+      let td3 = document.createElement('td'); td3.className="no-print";
+      let btn = document.createElement('button'); btn.textContent="X"; btn.className="btn-del";
+      btn.onclick = function() { tr.remove(); recalc(); };
+      td3.appendChild(btn);
+      
+      tr.append(td1, td2, td3);
+      tbody.appendChild(tr);
+      recalc();
+    }
+
+    window.addRenda = () => criarLinha('rend_table', '', '', true);
+    window.addDespesa = () => criarLinha('ded_table', '', '', true);
+    window.addMembro = () => criarLinha('fam_table', '', '', true);
+
+    // --- CÁLCULO ---
+    window.recalc = function() {
+      let soma = (id) => {
+        let t = 0;
+        document.querySelectorAll('#'+id+' tbody input.money').forEach(i => t += lerValor(i.value));
+        return t;
+      };
+
+      let totRenda = soma('rend_table');
+      let totDed = soma('ded_table');
+      let totFam = soma('fam_table'); // Informativo
+      let membros = document.querySelectorAll('#fam_table tbody tr').length;
+
+      document.getElementById('rend_total').textContent = fmt.format(totRenda);
+      document.getElementById('ded_total').textContent = fmt.format(totDed);
+      document.getElementById('fam_total').textContent = fmt.format(totFam);
+      document.getElementById('fam_count').textContent = membros;
+
+      let liq = Math.max(totRenda - totDed, 0);
+      let percapita = membros > 0 ? liq / membros : 0;
+
+      document.getElementById('res_liq').value = fmt.format(liq);
+      document.getElementById('res_percapita').value = fmt.format(percapita);
+      avaliar(liq, percapita);
+    };
+
+    function avaliar(liq, percapita) {
+      let limiar = lerValor(document.getElementById('limiar').value);
+      let box = document.getElementById('status_msg');
+      if (limiar === 0) {
+        box.innerHTML = "⚠️ Defina o Limiar acima."; box.style.color="#ccc"; return;
+      }
+      let base = (document.getElementById('criterio_tipo').value === 'percapita') ? percapita : liq;
+      
+      if (base <= limiar + 0.01) {
+        box.innerHTML = `✅ <b>ELEGÍVEL</b> (${fmt.format(base)} ≤ ${fmt.format(limiar)})`;
+        box.style.color="#86efac"; box.style.borderColor="#22c55e";
+      } else {
+        box.innerHTML = `❌ <b>ACIMA DO LIMITE</b> (Excede ${fmt.format(base - limiar)})`;
+        box.style.color="#fca5a5"; box.style.borderColor="#ef4444";
+      }
+    }
+
+    // --- IMPORTAR / EXPORTAR / SALVAR ---
+    
+    // Importar CSV
+    window.importCSV = function(tipo) {
+      let input = document.getElementById('csv_input');
+      input.onchange = function() {
+        let file = input.files[0];
+        if(!file) return;
+        let r = new FileReader();
+        r.onload = function() {
+          let lines = r.result.split(/\r?\n/).filter(l => l.trim().length);
+          lines.forEach(l => {
+            let c = l.includes(';') ? l.split(';') : l.split(',');
+            // Remove aspas
+            c = c.map(x => x.replace(/"/g,'').trim());
+            // Cria a linha (tabela correta, desc, valor, isMoney)
+            if(tipo === 'rend') criarLinha('rend_table', c[0], c[1] || '', true);
+            if(tipo === 'ded') criarLinha('ded_table', c[0], c[1] || '', true);
+            if(tipo === 'fam') criarLinha('fam_table', c[0], c[1] || '', true);
+          });
+          input.value = ''; // Reset
+          alert('Importado!');
+        };
+        r.readAsText(file);
+      };
+      input.click();
+    };
+
+    // Exportar JSON
+    window.exportJSON = function() {
+      let data = {
+        meta: { 
+          req: document.getElementById('req_nome').value,
+          cpf: document.getElementById('req_cpf').value,
+          limiar: document.getElementById('limiar').value
+        },
+        rend: getTableData('rend_table'),
+        ded: getTableData('ded_table'),
+        fam: getTableData('fam_table')
+      };
+      let blob = new Blob([JSON.stringify(data,null,2)], {type : 'application/json'});
+      let a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'backup_loas.json';
+      a.click();
+    };
+
+    // Exportar CSV
+    window.exportCSVTotal = function() {
+      let csv = "TIPO;DESCRICAO;VALOR\n";
+      let add = (tbl, tipo) => {
+        let rows = getTableData(tbl);
+        rows.forEach(r => { csv += `${tipo};${r.col1};${r.col2}\n`; });
+      };
+      add('rend_table', 'RENDIMENTO');
+      add('ded_table', 'DESPESA');
+      add('fam_table', 'MEMBRO');
+      
+      let blob = new Blob([csv], {type: 'text/csv'});
+      let a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'dados_loas.csv';
+      a.click();
+    };
+
+    // Salvar Local
+    window.saveLocal = function() {
+      let data = {
+        req: document.getElementById('req_nome').value,
+        limiar: document.getElementById('limiar').value,
+        html_rend: document.querySelector('#rend_table tbody').innerHTML,
+        html_ded: document.querySelector('#ded_table tbody').innerHTML,
+        html_fam: document.querySelector('#fam_table tbody').innerHTML,
+        // Salvar valores dos inputs pois innerHTML não pega valor digitado
+        vals_rend: getTableData('rend_table'),
+        vals_ded: getTableData('ded_table'),
+        vals_fam: getTableData('fam_table')
+      };
+      localStorage.setItem('loas_master_save', JSON.stringify(data));
+      alert('Rascunho Salvo!');
+    };
+
+    window.loadLocal = function() {
+      let raw = localStorage.getItem('loas_master_save');
+      if(!raw) return alert('Nada salvo');
+      let data = JSON.parse(raw);
+      
+      document.getElementById('req_nome').value = data.req || '';
+      document.getElementById('limiar').value = data.limiar || '';
+      
+      // Reconstrói
+      let restore = (tbl, vals) => {
+        let tbody = document.querySelector('#'+tbl+' tbody');
+        tbody.innerHTML = ''; // Limpa
+        vals.forEach(v => criarLinha(tbl, v.col1, v.col2, true));
+      };
+      
+      if(data.vals_rend) restore('rend_table', data.vals_rend);
+      if(data.vals_ded) restore('ded_table', data.vals_ded);
+      if(data.vals_fam) restore('fam_table', data.vals_fam);
+      
+      recalc();
+    };
+
+    // Helper para pegar dados
+    function getTableData(id) {
+      let rows = [];
+      document.querySelectorAll('#'+id+' tbody tr').forEach(tr => {
+        let inputs = tr.querySelectorAll('input');
+        rows.push({ col1: inputs[0].value, col2: inputs[1].value });
+      });
+      return rows;
+    }
+
+    // Init
+    ativarMascara(document.getElementById('limiar'));
+    criarLinha('rend_table','','',true);
+    criarLinha('ded_table','','',true);
+    criarLinha('fam_table','','',true);
+
+  </script>
+</body>
+</html>
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Painel – Flexibilização de Renda</title>
+  <style>
+    :root{
+      --bg:#0f172a; --card:#111827; --ink:#e5e7eb; --muted:#9ca3af; --accent:#22c55e; --warn:#ef4444; --line:#374151;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    header{padding:20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+    header h1{font-size:20px;margin:0}
+    header small{color:var(--muted)}
+    main{padding:20px;display:grid;grid-template-columns:1fr;gap:16px;max-width:1100px;margin:0 auto}
+    section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+    section h2{margin:0 0 12px;font-size:18px}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#0b1324;color:var(--ink)}
+    textarea{min-height:90px;resize:vertical}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border:1px solid var(--line);padding:8px;text-align:left}
+    th{background:#0b1324;color:var(--muted);font-weight:600}
+    tfoot td{font-weight:700}
+    .row-actions{display:flex;gap:8px}
+    .btn{padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#0b1324;color:var(--ink);cursor:pointer}
+    .btn:hover{filter:brightness(1.15)}
+    .btn-accent{background:var(--accent);color:#062b16;border:none}
+    .btn-warn{background:var(--warn);color:#fff;border:none}
+    .badge{display:inline-block;padding:6px 10px;border-radius:999px;font-size:12px}
+    .ok{background:rgba(34,197,94,.15);color:#86efac;border:1px solid rgba(34,197,94,.35)}
+    .no{background:rgba(239,68,68,.15);color:#fecaca;border:1px solid rgba(239,68,68,.35)}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap}
+    .muted{color:var(--muted);font-size:12px}
+    .flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .right{margin-left:auto}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Painel – Flexibilização de Renda</h1>
+    <small>Versão inicial (HTML/CSS/JS)</small>
+  </header>
+
+  <main>
+    <section>
+      <h2>Identificação e processo</h2>
+      <div class="grid">
+        <div>
+          <label>Nome do requerente</label>
+          <input id="req_nome" placeholder="Nome completo" />
+        </div>
+        <div>
+          <label>CPF</label>
+          <input id="req_cpf" class="mono" placeholder="000.000.000-00" />
+        </div>
+        <div>
+          <label>NIS/PIS</label>
+          <input id="req_nis" class="mono" placeholder="NIS/PIS" />
+        </div>
+        <div>
+          <label>Nº do processo</label>
+          <input id="proc_num" class="mono" placeholder="Ex.: 0001234-56.2025.8.13.0000" />
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <label>Resumo do caso / observações</label>
+        <textarea id="proc_obs" placeholder="Contexto, pedidos, decisões, observações relevantes"></textarea>
+      </div>
+    </section>
+
+    <section>
+      <h2>Base legal e artigos aplicáveis</h2>
+      <div class="grid-3">
+        <div>
+          <label>Lei</label>
+          <input id="lei_nome" placeholder="Ex.: Lei nº XXXX/2025 – Flexibilização de Renda" />
+        </div>
+        <div>
+          <label>Limiar de renda líquida (critério)</label>
+          <input id="limiar" type="number" step="0.01" placeholder="Ex.: 1320.00" />
+        </div>
+        <div>
+          <label>Critério por pessoa (opcional)</label>
+          <select id="criterio_tipo">
+            <option value="total">Renda líquida total da família</option>
+            <option value="percapita">Renda líquida per capita</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex" style="margin-top:10px">
+        <label style="width:100%">Artigos/Incisos aplicáveis</label>
+        <input id="artigos" placeholder="Ex.: Art. 2º, §1º, incisos I, II e IV; Art. 3º, §2º" />
+      </div>
+      <p class="muted">Dica: edite este campo para listar exatamente os artigos que você quer cumprir e aparecer no relatório.</p>
+    </section>
+
+    <section>
+      <h2>Rendimentos</h2>
+      <div class="toolbar">
+        <button class="btn btn-accent" onclick="addRow('rend')">Adicionar rendimento</button>
+        <button class="btn" onclick="importCSV('rend')">Importar CSV</button>
+      </div>
+      <table id="rend_table">
+        <thead>
+          <tr>
+            <th>Fonte</th>
+            <th>Descrição</th>
+            <th>Periodicidade</th>
+            <th>Valor (R$)</th>
+            <th>Documento/Comprovante</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3">Total de rendimentos</td>
+            <td id="rend_total" class="mono">0,00</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>Despesas dedutíveis</h2>
+      <div class="toolbar">
+        <button class="btn btn-accent" onclick="addRow('ded')">Adicionar despesa</button>
+        <button class="btn" onclick="importCSV('ded')">Importar CSV</button>
+      </div>
+      <table id="ded_table">
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Descrição</th>
+            <th>Base legal (artigo/inciso)</th>
+            <th>Valor (R$)</th>
+            <th>Documento</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3">Total de deduções</td>
+            <td id="ded_total" class="mono">0,00</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>Composição familiar</h2>
+      <div class="toolbar">
+        <button class="btn btn-accent" onclick="addRow('fam')">Adicionar membro</button>
+        <button class="btn" onclick="importCSV('fam')">Importar CSV</button>
+      </div>
+      <table id="fam_table">
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Parentesco</th>
+            <th>Renda (R$)</th>
+            <th>Documento</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2">Total renda familiar</td>
+            <td id="fam_total" class="mono">0,00</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section>
+      <h2>Eventos do processo</h2>
+      <div class="toolbar">
+        <button class="btn btn-accent" onclick="addRow('evt')">Adicionar evento</button>
+      </div>
+      <table id="evt_table">
+        <thead>
+          <tr>
+            <th>Tipo de evento</th>
+            <th>Data</th>
+            <th>Descrição</th>
+            <th>Documento</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Cálculo e conformidade</h2>
+      <div class="grid">
+        <div>
+          <label>Renda bruta (automática)</label>
+          <input id="calc_renda_bruta" class="mono" readonly />
+        </div>
+        <div>
+          <label>Total deduções (automática)</label>
+          <input id="calc_deducoes" class="mono" readonly />
+        </div>
+        <div>
+          <label>Renda líquida</label>
+          <input id="calc_renda_liquida" class="mono" readonly />
+        </div>
+        <div>
+          <label>Per capita (se aplicável)</label>
+          <input id="calc_percapita" class="mono" readonly />
+        </div>
+      </div>
+      <div class="flex" style="margin-top:10px">
+        <span id="conformidade" class="badge no">Critério não avaliado</span>
+        <span class="right muted">Ajuste o limiar e o tipo de critério na base legal.</span>
+      </div>
+      <div class="toolbar" style="margin-top:12px">
+        <button class="btn" onclick="saveLocal()">Salvar no navegador</button>
+        <button class="btn" onclick="loadLocal()">Carregar</button>
+        <button class="btn" onclick="exportJSON()">Exportar JSON</button>
+        <button class="btn" onclick="exportCSV()">Exportar CSV</button>
+        <button class="btn" onclick="window.print()">Imprimir/Salvar PDF</button>
+      </div>
+    </section>
+  </main>
+
+  <input type="file" id="csv_input" accept=".csv" style="display:none" />
+
+  <script>
+    // Helpers
+    const fmt = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+    const num = v => {
+      const n = parseFloat(String(v).replace(/\./g,'').replace(',','.'));
+      return isNaN(n) ? 0 : n;
+    };
+    const moneyInput = (el)=> el.addEventListener('input',()=>recalc());
+
+    // Dynamic row builders
+    function addRow(kind, data={}){
+      const map = {
+        rend: { table:'rend_table', cols:[
+          {key:'fonte',type:'text',ph:'Ex.: Salário, BPC, pensão'},
+          {key:'desc',type:'text',ph:'Detalhes'},
+          {key:'per', type:'select', opts:['Mensal','Semanal','Anual','Único']},
+          {key:'valor',type:'number',ph:'0,00'},
+          {key:'doc',  type:'text',ph:'Comprovante/ID'}
+        ]},
+        ded: { table:'ded_table', cols:[
+          {key:'tipo', type:'text',ph:'Ex.: saúde, moradia, transporte'},
+          {key:'desc', type:'text',ph:'Detalhes'},
+          {key:'base', type:'text',ph:'Art./inciso que autoriza a dedução'},
+          {key:'valor',type:'number',ph:'0,00'},
+          {key:'doc',  type:'text',ph:'Comprovante/ID'}
+        ]},
+        fam: { table:'fam_table', cols:[
+          {key:'nome', type:'text',ph:'Nome'},
+          {key:'parentesco', type:'text',ph:'Ex.: cônjuge, filho'},
+          {key:'renda', type:'number',ph:'0,00'},
+          {key:'doc',   type:'text',ph:'Documento/ID'}
+        ]},
+        evt: { table:'evt_table', cols:[
+          {key:'tipo', type:'text',ph:'Ex.: petição, decisão, juntada'},
+          {key:'data', type:'date'},
+          {key:'desc', type:'text',ph:'Resumo do evento'},
+          {key:'doc',  type:'text',ph:'Documento/ID'}
+        ]}
+      };
+      const cfg = map[kind];
+      const tbody = document.querySelector(`#${cfg.table} tbody`);
+      const tr = document.createElement('tr');
+
+      cfg.cols.forEach(c=>{
+        const td=document.createElement('td');
+        let input;
+        if(c.type==='select'){
+          input=document.createElement('select');
+          c.opts.forEach(o=>{ const op=document.createElement('option'); op.textContent=o; input.appendChild(op); });
+        } else {
+          input=document.createElement('input');
+          input.type=c.type;
+          input.placeholder=c.ph||'';
+        }
+        input.value = data[c.key] ?? '';
+        if(['valor','renda'].includes(c.key)) moneyInput(input);
+        td.appendChild(input);
+        tr.appendChild(td);
+      });
+
+      const tdAct=document.createElement('td'); tdAct.className='row-actions';
+      const rm=document.createElement('button'); rm.className='btn btn-warn'; rm.textContent='Remover';
+      rm.onclick=()=>{ tr.remove(); recalc(); };
+      tdAct.appendChild(rm);
+      tr.appendChild(tdAct);
+      tbody.appendChild(tr);
+      recalc();
+    }
+
+    // CSV import (simple: comma; header ignored)
+    function importCSV(kind){
+      const input=document.getElementById('csv_input');
+      input.onchange=()=> {
+        const file=input.files[0]; if(!file) return;
+        const reader=new FileReader();
+        reader.onload=()=> {
+          const lines=reader.result.split(/\r?\n/).filter(l=>l.trim().length);
+          lines.forEach((line,i)=>{
+            const cols=line.split(',');
+            if(kind==='rend'){
+              addRow('rend',{fonte:cols[0],desc:cols[1],per:cols[2]||'Mensal',valor:cols[3],doc:cols[4]});
+            } else if(kind==='ded'){
+              addRow('ded',{tipo:cols[0],desc:cols[1],base:cols[2],valor:cols[3],doc:cols[4]});
+            } else if(kind==='fam'){
+              addRow('fam',{nome:cols[0],parentesco:cols[1],renda:cols[2],doc:cols[3]});
+            }
+          });
+          input.value='';
+        };
+        reader.readAsText(file,'utf-8');
+      };
+      input.click();
+    }
+
+    // Calculations
+    function recalc(){
+      const sum = (sel, idx) => {
+        let total=0;
+        document.querySelectorAll(`#${sel} tbody tr`).forEach(tr=>{
+          const v = tr.querySelectorAll('td input')[idx]?.value ?? '0';
+          total += num(v);
+        });
+        return total;
+      };
+
+      const rendTotal = sum('rend_table',3);
+      const dedTotal  = sum('ded_table',3);
+      const famTotal  = sum('fam_table',2);
+
+      document.getElementById('rend_total').textContent = fmt.format(rendTotal);
+      document.getElementById('ded_total').textContent  = fmt.format(dedTotal);
+      document.getElementById('fam_total').textContent  = fmt.format(famTotal);
+
+      const rendaLiquida = Math.max(rendTotal - dedTotal, 0);
+      document.getElementById('calc_renda_bruta').value = fmt.format(rendTotal);
+      document.getElementById('calc_deducoes').value    = fmt.format(dedTotal);
+      document.getElementById('calc_renda_liquida').value = fmt.format(rendaLiquida);
+
+      const percapita = calcPerCapita(rendaLiquida);
+      document.getElementById('calc_percapita').value = percapita!=null ? fmt.format(percapita) : '';
+
+      avaliarConformidade(rendaLiquida, percapita);
+    }
+
+    function calcPerCapita(rendaLiquida){
+      const membros = document.querySelectorAll('#fam_table tbody tr').length;
+      if(membros<=0) return null;
+      return rendaLiquida / membros;
+    }
+
+    function avaliarConformidade(rendaLiquida, percapita){
+      const tipo = document.getElementById('criterio_tipo').value;
+      const limiar = num(document.getElementById('limiar').value);
+      const badge = document.getElementById('conformidade');
+
+      if(!limiar){
+        badge.textContent='Defina o limiar para avaliar';
+        badge.className='badge no';
+        return;
+      }
+
+      let valorComparado = rendaLiquida;
+      if(tipo==='percapita' && percapita!=null) valorComparado = percapita;
+
+      if(valorComparado <= limiar){
+        badge.textContent = `Em conformidade (≤ ${fmt.format(limiar)})`;
+        badge.className='badge ok';
+      } else {
+        badge.textContent = `Não conformidade (> ${fmt.format(limiar)})`;
+        badge.className='badge no';
+      }
+    }
+
+    // Persistence
+    function getState(){
+      const pickRows = (tableId, keysIdx) => {
+        const rows=[];
+        document.querySelectorAll(`#${tableId} tbody tr`).forEach(tr=>{
+          const inputs=[...tr.querySelectorAll('td input, td select')];
+          const row={};
+          keysIdx.forEach(([key,idx])=> row[key] = inputs[idx]?.value || '');
+          rows.push(row);
+        });
+        return rows;
+      };
+      return {
+        req_nome: document.getElementById('req_nome').value,
+        req_cpf:  document.getElementById('req_cpf').value,
+        req_nis:  document.getElementById('req_nis').value,
+        proc_num: document.getElementById('proc_num').value,
+        proc_obs: document.getElementById('proc_obs').value,
+        lei_nome: document.getElementById('lei_nome').value,
+        limiar:   document.getElementById('limiar').value,
+        criterio_tipo: document.getElementById('criterio_tipo').value,
+        artigos:  document.getElementById('artigos').value,
+        rend: pickRows('rend_table', [['fonte',0],['desc',1],['per',2],['valor',3],['doc',4]]),
+        ded:  pickRows('ded_table',  [['tipo',0],['desc',1],['base',2],['valor',3],['doc',4]]),
+        fam:  pickRows('fam_table',  [['nome',0],['parentesco',1],['renda',2],['doc',3]]),
+        evt:  pickRows('evt_table',  [['tipo',0],['data',1],['desc',2],['doc',3]])
+      };
+    }
+
+    function setState(s){
+      document.getElementById('req_nome').value = s.req_nome||'';
+      document.getElementById('req_cpf').value  = s.req_cpf||'';
+      document.getElementById('req_nis').value  = s.req_nis||'';
+      document.getElementById('proc_num').value = s.proc_num||'';
+      document.getElementById('proc_obs').value = s.proc_obs||'';
+      document.getElementById('lei_nome').value = s.lei_nome||'';
+      document.getElementById('limiar').value   = s.limiar||'';
+      document.getElementById('criterio_tipo').value = s.criterio_tipo||'total';
+      document.getElementById('artigos').value  = s.artigos||'';
+
+      ['rend','ded','fam','evt'].forEach(k=>{
+        const tbody=document.querySelector(`#${k}_table tbody`);
+        tbody.innerHTML='';
+        (s[k]||[]).forEach(row=> addRow(k,row));
+      });
+      recalc();
+    }
+
+    function saveLocal(){
+      localStorage.setItem('painel_flex_renda', JSON.stringify(getState()));
+      alert('Salvo no navegador!');
+    }
+    function loadLocal(){
+      const raw=localStorage.getItem('painel_flex_renda');
+      if(!raw) return alert('Nada salvo.');
+      setState(JSON.parse(raw));
+    }
+    function exportJSON(){
+      const blob=new Blob([JSON.stringify(getState(),null,2)],{type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='painel-flex-renda.json'; a.click();
+    }
+    function exportCSV(){
+      const s=getState();
+      const toCSV=(rows,header)=> [header.join(','), ...rows.map(r=> header.map(h=> (r[h]||'').toString().replace(/,/g,';')).join(','))].join('\n');
+      const files = [
+        ['rendimentos.csv', toCSV(s.rend, ['fonte','desc','per','valor','doc'])],
+        ['deducoes.csv',   toCSV(s.ded,  ['tipo','desc','base','valor','doc'])],
+        ['familia.csv',    toCSV(s.fam,  ['nome','parentesco','renda','doc'])],
+        ['eventos.csv',    toCSV(s.evt,  ['tipo','data','desc','doc'])],
+      ];
+      files.forEach(([name,data])=>{
+        const blob=new Blob([data],{type:'text/csv;charset=utf-8'});
+        const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+      });
+    }
+
+    // Seed rows to start
+    addRow('rend'); addRow('ded'); addRow('fam'); addRow('evt');
+  </script>
+</body>
+</html>
+
+

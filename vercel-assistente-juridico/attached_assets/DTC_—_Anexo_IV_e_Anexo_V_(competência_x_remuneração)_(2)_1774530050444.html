@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<title>Extrator DTC — Anexo IV e Anexo V (competência x remuneração)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.worker.min.js';
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+  .tbl th, .tbl td { border: 1px solid #e5e7eb; padding: 6px; font-size: 12px; }
+  .tbl { border-collapse: collapse; width: 100%; }
+  .warn { color:  #161614; font-weight: 600; }
+</style>
+</head>
+<body class="bg-gray-100 text-gray-800 h-screen flex flex-col overflow-hidden">
+
+<header class="bg-indigo-900 text-white p-4 flex justify-between items-center">
+  <h1 class="text-lg font-bold">Extrator DTC — Pref. Manhumirim (Anexo IV/V)</h1>
+  <div class="space-x-2">
+    <button onclick="document.getElementById('fileInput').click()" class="bg-blue-500 px-3 py-2 rounded">Abrir PDF</button>
+    <button onclick="gerarCompetencias()" class="bg-green-600 px-3 py-2 rounded">Gerar competências</button>
+  </div>
+  <input type="file" id="fileInput" accept="application/pdf" class="hidden">
+</header>
+
+<div class="flex flex-1 overflow-hidden">
+  <main class="w-3/5 h-full flex flex-col">
+    <section class="flex-1 overflow-auto p-4 bg-white border-b">
+      <h2 class="font-bold mb-2">Resultados</h2>
+
+      <h3 class="font-semibold mb-1">Anexo IV — Períodos de tempo de contribuição</h3>
+      <table class="tbl mb-4" id="tabelaAnexoIV">
+        <thead><tr><th>Seq.</th><th>Data início</th><th>Data fim</th><th>Cargo/Função</th><th>Categoria</th></tr></thead>
+        <tbody><tr><td colspan="5" class="text-gray-500">Carregue o PDF para extrair…</td></tr></tbody>
+      </table>
+
+      <h3 class="font-semibold mb-1">Anexo V — Remunerações por mês/ano</h3>
+      <div id="containerAnexoV"></div>
+
+      <h3 class="font-semibold mt-4 mb-1">Competências (MM/AAAA) — Valores</h3>
+      <table class="tbl mb-2" id="tabelaCompetencias">
+        <thead><tr><th>Competência</th><th>Valor</th><th>Origem (Ano/Mês)</th></tr></thead>
+        <tbody><tr><td colspan="3" class="text-gray-500">Clique em “Gerar competências” após carregar.</td></tr></tbody>
+      </table>
+
+      <p id="avisos" class="text-sm"></p>
+    </section>
+  </main>
+
+  <aside class="w-2/5 h-full bg-gray-900 text-green-400 mono p-4 overflow-auto">
+    <h2 class="text-white font-bold mb-2">Texto bruto</h2>
+    <textarea id="textoBruto" class="w-full h-[92%] bg-black text-green-300 p-3 rounded resize-none" readonly></textarea>
+  </aside>
+</div>
+
+<script>
+// Estado
+let TEXTO_PDF = "";
+let ANEXO_IV = [];          // [{seq, inicio, fim, cargo, categoria}]
+let ANEXO_V_PAGES = [];     // [ { anos:[2002,2003,...], rows:[{mes, valores:[...]}] } ]
+const MESES = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
+
+// Utilidades
+function parseValorBR(str){
+  if (!str) return null;
+  const s = str.replace(/\s/g,"").replace(/\./g,"").replace(",",".");
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+function formatValorBR(n){
+  return n == null ? "-" : n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function limparTexto(s){
+  return (s||"").replace(/[^\S\r\n]+/g," ").replace(/\s{2,}/g," ").trim();
+}
+
+// Extração PDF
+document.getElementById('fileInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if (!file) return;
+  TEXTO_PDF = await extrairTextoOrdenado(file);
+  document.getElementById('textoBruto').value = TEXTO_PDF;
+  processarAnexoIV(TEXTO_PDF);
+  processarAnexoV(TEXTO_PDF);
+  renderAnexoIV();
+  renderAnexoV();
+  document.getElementById('avisos').textContent = "";
+});
+
+// Ordena itens Y→X e reconstrói linhas/colunas
+async function extrairTextoOrdenado(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+  let out = "";
+  for (let p=1; p<=pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const items = content.items.slice();
+
+    // Ordenação: de cima (y maior) para baixo (y menor), dentro da linha por x
+    items.sort((a,b)=>{
+      const ay = a.transform?.[5] ?? 0;
+      const by = b.transform?.[5] ?? 0;
+      if (Math.abs(ay - by) > 3) return by - ay; // topo -> base
+      const ax = a.transform?.[4] ?? 0;
+      const bx = b.transform?.[4] ?? 0;
+      return ax - bx; // esquerda -> direita
+    });
+
+    // Agrupa por linha (y aproximado)
+    const linhas = [];
+    for (const it of items){
+      const y = it.transform?.[5] ?? 0;
+      const x = it.transform?.[4] ?? 0;
+      const text = it.str || "";
+      if (!text.trim()) continue;
+      let idx = -1; let best = 999;
+      for (let i=0;i<linhas.length;i++){
+        const d = Math.abs(linhas[i].y - y);
+        if (d <= 3 && d < best){ best = d; idx = i; }
+      }
+      if (idx >= 0){
+        linhas[idx].items.push({x,y,text});
+        // média de y
+        const n = linhas[idx].items.length;
+        linhas[idx].y = (linhas[idx].y*(n-1)+y)/n;
+      } else {
+        linhas.push({y, items:[{x,y,text}]});
+      }
+    }
+
+    // Detecta colunas por clusters de x
+    const xs = [];
+    linhas.forEach(l => l.items.forEach(it=> xs.push(it.x)));
+    xs.sort((a,b)=>a-b);
+    const cols = [];
+    xs.forEach(x => { if (!cols.some(c => Math.abs(c-x)<=10)) cols.push(x); });
+    cols.sort((a,b)=>a-b);
+
+    // Imprime cada linha distribuindo itens nas colunas mais próximas
+    for (const l of linhas){
+      const buckets = new Array(cols.length).fill("").map(()=>[]);
+      for (const it of l.items){
+        let idx = 0, best = Math.abs(it.x - cols[0]);
+        for (let i=1;i<cols.length;i++){
+          const d = Math.abs(it.x - cols[i]);
+          if (d < best){ best = d; idx = i; }
+        }
+        buckets[idx].push(it.text);
+      }
+      const joined = buckets.map(b => b.join(" ").trim()).filter(s => s.length>0).join(" | ");
+      out += joined + "\n";
+    }
+    out += "\n";
+  }
+  return out;
+}
+
+// Processa Anexo IV (períodos, cargos, categoria)
+function processarAnexoIV(texto){
+  ANEXO_IV = [];
+  const linhas = texto.split(/\r?\n/);
+  let dentroTabela = false;
+
+  for (let i=0; i<linhas.length; i++){
+    const ln = limparTexto(linhas[i]);
+    if (!ln) continue;
+
+    if (/PERÍODO\(S\) DE TEMPO DE CONTRIBUIÇÃO/i.test(ln)) {
+      dentroTabela = true;
+      continue;
+    }
+    if (dentroTabela && /^#\s|^INFORMAÇÕES ADICIONAIS|^ANEXO V/i.test(ln)) {
+      // saída quando começa outra seção
+      dentroTabela = false;
+    }
+    if (!dentroTabela) continue;
+
+    // Exemplo de linha (após reconstrução): "1 | 10/05/1982 | 28/02/1993 | Operário | Contratado"
+    const parts = ln.split(" | ").map(s=>s.trim());
+    if (parts.length >= 3) {
+      const hasDates = parts.some(p=>/\d{2}\/\d{2}\/\d{4}/.test(p));
+      const firstIsSeq = /^\d+$/.test(parts[0]);
+      if (hasDates && firstIsSeq){
+        const seq = parts[0];
+        const inicio = parts.find(p=>/\d{2}\/\d{2}\/\d{4}/.test(p)) || "";
+        // pega próxima data da mesma linha
+        const datas = parts.filter(p=>/\d{2}\/\d{2}\/\d{4}/.test(p));
+        const fim = datas.length>1 ? datas[1] : "";
+        // cargo e categoria (se existirem)
+        const resto = parts.filter(p=>!/^\d+$/.test(p) && !/\d{2}\/\d{2}\/\d{4}/.test(p));
+        const cargo = resto[0] || "";
+        const categoria = resto[1] || "";
+        ANEXO_IV.push({seq,inicio,fim,cargo,categoria});
+      }
+    }
+  }
+}
+
+// Processa Anexo V (tabelas de meses x anos)
+function processarAnexoV(texto){
+  ANEXO_V_PAGES = [];
+  const linhas = texto.split(/\r?\n/);
+  let capturando = false;
+  let anosHeader = [];
+  let paginaAtual = null;
+
+  const isMes = (s) => MESES.includes(s.toUpperCase());
+  const extrairAnos = (ln) => {
+    const anos = [];
+    const m = ln.match(/Ano:\s*\-|\bAno:\s*(\d{4})/gi);
+    if (!m) return anos;
+    m.forEach(tok=>{
+      const mm = tok.match(/(\d{4})/);
+      anos.push(mm ? parseInt(mm[1],10) : null);
+    });
+    return anos; // pode conter null (coluna vazia)
+  };
+
+  for (let i=0;i<linhas.length;i++){
+    const ln = limparTexto(linhas[i]);
+    if (!ln) continue;
+
+    if (/DADOS DE REMUNERAÇÕES.*ANEXO V/i.test(ln)) {
+      capturando = true;
+      anosHeader = [];
+      paginaAtual = { anos:[], rows:[] };
+      // puxa futuros headers
+      continue;
+    }
+    if (capturando && /^##|^#\s|^ASSINATURA|^UNIDADE GESTORA/i.test(ln)) {
+      // fim da área de remunerações
+      if (paginaAtual && paginaAtual.anos.length>0) ANEXO_V_PAGES.push(paginaAtual);
+      capturando = false;
+      paginaAtual = null;
+      continue;
+    }
+    if (!capturando) continue;
+
+    // header de anos (linha com "Ano: 2002 | Ano: 2003 | …")
+    if (/Ano:\s*/i.test(ln) && anosHeader.length === 0){
+      anosHeader = extrairAnos(ln);
+      if (paginaAtual) paginaAtual.anos = anosHeader.slice();
+      continue;
+    }
+
+    // linha de mês e valores
+    const parts = ln.split(" | ").map(s=>s.trim());
+    if (parts.length >= 2){
+      const mes = parts[0].toUpperCase();
+      if (isMes(mes)){
+        const valores = parts.slice(1).map(v=>{
+          // trata "-", "—", ".", "- ." como vazio
+          if (/^[-–—\.]+$/.test(v) || v === "" ) return null;
+          const num = parseValorBR(v);
+          return Number.isFinite(num) ? num : null;
+        });
+        // normaliza tamanho dos valores ao número de anos
+        while (paginaAtual && valores.length < paginaAtual.anos.length) valores.push(null);
+        while (paginaAtual && valores.length > paginaAtual.anos.length) valores.pop();
+        paginaAtual.rows.push({ mes, valores });
+      }
+    }
+  }
+  // garante inclusão da última página
+  if (capturando && paginaAtual && paginaAtual.anos.length>0) ANEXO_V_PAGES.push(paginaAtual);
+}
+
+// Renderização Anexo IV
+function renderAnexoIV(){
+  const tbody = document.querySelector("#tabelaAnexoIV tbody");
+  tbody.innerHTML = "";
+  if (ANEXO_IV.length === 0){
+    tbody.innerHTML = "<tr><td colspan='5' class='text-gray-500'>Nenhum período encontrado.</td></tr>";
+    return;
+  }
+  ANEXO_IV.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.seq}</td>
+      <td>${r.inicio}</td>
+      <td>${r.fim}</td>
+      <td>${r.cargo||"-"}</td>
+      <td>${r.categoria||"-"}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// Renderização Anexo V (cada bloco de anos vira uma tabela)
+function renderAnexoV(){
+  const cont = document.getElementById('containerAnexoV');
+  cont.innerHTML = "";
+  if (ANEXO_V_PAGES.length === 0){
+    cont.innerHTML = "<p class='text-gray-500'>Nenhuma tabela de remuneração encontrada no Anexo V.</p>";
+    return;
+  }
+  ANEXO_V_PAGES.forEach((pg,idx)=>{
+    const div = document.createElement('div');
+    div.className = "mb-6";
+    const anosTh = pg.anos.map(a => `<th>${a !== null ? "Ano: "+a : "Ano: -"}</th>`).join("");
+    let body = "";
+    pg.rows.forEach(row=>{
+      const tds = row.valores.map(v => `<td>${v==null? "-" : formatValorBR(v)}</td>`).join("");
+      body += `<tr><td>${row.mes}</td>${tds}</tr>`;
+    });
+    div.innerHTML = `
+      <h4 class="font-semibold mb-1">Bloco ${idx+1} — Anos: ${pg.anos.filter(a=>a!=null).join(", ") || "-"}</h4>
+      <table class="tbl">
+        <thead><tr><th>Mês</th>${anosTh}</tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    `;
+    cont.appendChild(div);
+  });
+}
+
+// Geração de competências MM/AAAA a partir dos blocos Anexo V
+function gerarCompetencias(){
+  const tbody = document.querySelector("#tabelaCompetencias tbody");
+  tbody.innerHTML = "";
+
+  if (ANEXO_V_PAGES.length === 0){
+    tbody.innerHTML = "<tr><td colspan='3' class='text-gray-500'>Carregue um PDF com Anexo V.</td></tr>";
+    return;
+  }
+
+  const avisos = [];
+  ANEXO_V_PAGES.forEach(pg=>{
+    pg.rows.forEach(row=>{
+      row.valores.forEach((v,idx)=>{
+        const ano = pg.anos[idx];
+        if (ano === null || ano === undefined) return;
+        const mesIdx = MESES.indexOf(row.mes);
+        const mm = String(mesIdx+1).padStart(2,"0");
+        const competencia = `${mm}/${ano}`;
+        const valor = v;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${competencia}</td>
+          <td>${valor==null? "-" : formatValorBR(valor)}</td>
+          <td>${row.mes} / ${ano}</td>`;
+        tbody.appendChild(tr);
+      });
+    });
+
+    // Aviso sobre colunas vazias (“Ano: -”)
+    const vazios = pg.anos.filter(a=>a==null).length;
+    if (vazios>0) avisos.push(`Bloco com ${vazios} coluna(s) de ano vazia(s).`);
+  });
+
+  const avEl = document.getElementById('avisos');
+  avEl.innerHTML = avisos.length ? `<span class="warn">Atenção:</span> ${avisos.join(" ")}` : "";
+}
+</script>
+</body>
+</html>

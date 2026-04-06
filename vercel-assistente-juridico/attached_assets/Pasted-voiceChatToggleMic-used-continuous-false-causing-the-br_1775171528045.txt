@@ -1,0 +1,96 @@
+voiceChatToggleMic used continuous = false, causing the browser to cut the user off on any brief pause and immediately fire onresult with a partial transcript.
+
+Changes
+rec.continuous = true + rec.interimResults = true — keeps the mic open through natural speech pauses.
+Accumulator pattern in onresult — loops from e.resultIndex, appending only isFinal segments to finalTranscript; no send on interim results.
+Send deferred to onend — full accumulated text is dispatched to voiceChatSend only when the user clicks stop (which calls rec.stop() → triggers onend).
+let finalTranscript = "";
+rec.continuous = true;
+rec.interimResults = true;
+
+rec.onresult = (e: any) => {
+  for (let i = e.resultIndex; i < e.results.length; i++) {
+    if (e.results[i].isFinal) {
+      finalTranscript += (finalTranscript ? " " : "") + e.results[i][0].transcript;
+    }
+  }
+};
+
+rec.onend = () => {
+  if (finalTranscript.trim()) voiceChatSend(finalTranscript.trim());
+  setVoiceChatListening(false);
+};
+Clicking the mic button a second time calls rec.stop(), which triggers onend and flushes the complete utterance — eliminating both the premature cut-off and the slowdown from repeated partial submissions.
+
+Original prompt
+O recurso de chat de voz no arquivo client/src/pages/legal-assistant.tsx está cortando o usuário precocemente em qualquer pausa na fala e enviando o texto incompleto, o que também causa lentidão na resposta contínua.
+
+Isso ocorre na função voiceChatToggleMic porque a API de SpeechRecognition está configurada com continuous = false e o envio (voiceChatSend) acontece imediatamente no onresult.
+
+Como corrigir (Implementar estilo Push-to-Talk / Contínuo):
+No arquivo client/src/pages/legal-assistant.tsx, altere a função voiceChatToggleMic:
+
+Mude rec.continuous = true; e rec.interimResults = true;.
+Crie uma variável local let finalTranscript = ""; dentro da função startMic.
+No evento rec.onresult, percorra os resultados (usando um loop no e.results) e concatene o texto em finalTranscript apenas quando e.results[i].isFinal for verdadeiro. Remova a chamada imediata para voiceChatSend(t.trim()) e setVoiceChatListening(false) daqui.
+No evento rec.onend, verifique se finalTranscript.trim() possui algum texto. Se sim, chame voiceChatSend(finalTranscript.trim());. E então certifique-se de chamar setVoiceChatListening(false);.
+A lógica inicial de parar o microfone (voiceChatRecRef.current?.stop();) já está correta. Quando o usuário clicar novamente para parar de falar, o stop() forçará o disparo do onend, que enviará o texto completo acumulado.
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+User: # 1. Delete lixo (157MB)
+rm -rf node_modules dist .replit .git
+
+2. Limpa package.json (3 editores conflitantes)
+npm uninstall tinymce quill react-quill @tinymce/tinymce-react
+
+3. Instala só Tiptap
+npm install @tiptap/react@^3.20.1 @tiptap/starter-kit
+
+4. Instala resto
+npm install
+
+5. Rode
+npm run dev
+
+Assistant: It looks like you've provided a clean-up and migration script for your project to switch from using multiple rich-text editors (TinyMCE, Quill) to using Tiptap.
+
+Here is a summary of what your script does:
+
+Cleans up the workspace by removing node_modules, build outputs (dist), and hidden directories (.replit, .git). (Note: removing .git will delete your local Git repository history, so be careful if you haven't backed it up!)
+Removes conflicting editor packages (tinymce, quill, react-quill, @tinymce/tinymce-react) from your package.json.
+Installs Tiptap dependencies (@tiptap/react and @tiptap/starter-kit).
+Reinstalls all other dependencies.
+Starts the development server.
+How would you like to proceed? If you would like me to help you create a pull request to update the package.json with these dependency changes in your repository (maikonadvogadomg-alt/AplicativoMaikon), just let me know!
+
+User: Pode a amizade o erro do eskrkr6
+
+Assistant: Parece que houve um erro de digitação na sua mensagem. Você quis dizer "Pode arrumar o erro do [nome de arquivo/pacote]"?
+
+Não consegui encontrar nada relacionado a "eskrkr6" no repositório maikonadvogadomg-alt/AplicativoMaikon.
+
+Você poderia me dar mais detalhes sobre o erro que está enfrentando ou o que exatamente é "eskrkr6"? Se for um erro no código após rodar aqueles comandos de limpeza e instalação, por favor cole a mensagem de erro aqui para que eu possa te ajudar a criar um Pull Request ou sugerir a correção no seu aplicativo!
+
+User: Pode analisar no projeto o editor de texto, pq nao sai formatado automaticamente como devido e pq o editor está bugado.
+
+Assistant: Analisei o código do seu projeto, especificamente o arquivo client/src/components/tiptap-editor.tsx onde o Tiptap está implementado. Existem dois motivos principais pelo qual o editor está "bugado" e perdendo a formatação automática:
+
+1. Conflito de Atualização (Cursor pulando / Perdendo formatação)
+No seu arquivo tiptap-editor.tsx, existe este bloco de código:
+
+useEffect(() => {
+  if (editor && initialData !== undefined && initialData !== null) {
+    const currentContent = editor.getHTML();
+    if (currentContent !== initialData) {
+      editor.commands.setContent(initialData, { emitUpdate: false });
+      // ...
+    }
+  }
+}, [editor, initialData]);
+O Problema: Isso cria um loop. Quando você digita ou formata um texto, o Tiptap avisa o componente pai (via onChange). O componente pai atualiza o estado e devolve o novo HTML como initialData. O useEffect percebe a mudança e injeta o HTML inteiro novamente usando setContent. Isso faz o cursor pular para o final ou perder a formatação que você estava aplicando (por exemplo, se você selecionou um texto para colocar negrito).
+Como resolver: O initialData deve ser usado apenas na inicialização (content: initialData dentro do useEditor). Depois que o editor é montado, você não deve forçar a atualização do conteúdo de fora para dentro enquanto o usuário digita.
+
+2. Falta de CSS Global para o Editor
+O Tiptap é um editor...
+
+This pull request was created from Copilot chat.

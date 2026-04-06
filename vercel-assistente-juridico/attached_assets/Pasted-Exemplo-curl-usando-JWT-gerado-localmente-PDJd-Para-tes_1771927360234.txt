@@ -1,0 +1,116 @@
+Exemplo curl usando JWT gerado localmente PDJd
+
+Para testar JWT gerado **localmente** para PDJd (Peticionamento Digital do Judiciário Digital) com cURL, use estes exemplos práticos:
+
+## 1. Gerar JWT Local (Node.js/Python)
+
+**Node.js (salve como `gerar-jwt.js`):**
+```javascript
+const jwt = require('jsonwebtoken');
+const fs = require('fs');
+
+const privateKey = fs.readFileSync('private_key.pem', 'utf8');
+const payload = {
+  iss: "https://auth.pdj.mp.br",
+  aud: "pdj-api", 
+  client_id: "seu-client-id",
+  scope: "peticao.write peticao.read",
+  iat: Math.floor(Date.now() / 1000),
+  exp: Math.floor(Date.now() / 1000) + (3600 * 24) // 24h
+};
+
+const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
+console.log('JWT:', token);
+```
+
+**Executar:** `node gerar-jwt.js` → copie o JWT gerado
+
+## 2. Testar APIs PDJd com cURL + JWT Local
+
+### **A) Autenticação/Health Check**
+```bash
+curl -X GET "https://api.pdj.mp.br/health" \
+  -H "Authorization: Bearer SEU_JWT_LOCAL_AQUI" \
+  -H "Content-Type: application/json" \
+  -v
+```
+
+### **B) Listar Processos (exemplo real)**
+```bash
+curl -X POST "https://api.pdj.mp.br/v1/processos/busca" \
+  -H "Authorization: Bearer SEU_JWT_LOCAL_AQUI" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filtros": {
+      "numeroProcesso": "1234567-89.2025.8.XX.XXXX"
+    }
+  }'
+```
+
+### **C) Enviar Petição (completo)**
+```bash
+curl -X POST "https://api.pdj.mp.br/v1/peticao/enviar" \
+  -H "Authorization: Bearer SEU_JWT_LOCAL_AQUI" \
+  -H "Content-Type: multipart/form-data" \
+  -F "processo=0712402-78.2025.8.13.0024" \
+  -F "documento=@minha_peticao.pdf" \
+  -F "metadata={\"tipo\":\"Inicial\",\"confidencial\":false}"
+```
+
+## 3. Script cURL Completo (Bash)
+
+```bash
+#!/bin/bash
+# teste-pdj.sh
+
+JWT="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."  # Cole seu JWT aqui
+
+echo "🧪 Testando PDJd com JWT local..."
+
+# Teste 1: Health check
+echo "1. Health Check:"
+curl -s -X GET "https://api.pdj.mp.br/health" \
+  -H "Authorization: Bearer $JWT" | jq .
+
+echo -e "\n2. Buscar Processo:"
+curl -s -X POST "https://api.pdj.mp.br/v1/processos/busca" \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"filtros":{"numeroProcesso":"0712402-78.2025.8.13.0024"}}' | jq .
+
+echo -e "\n✅ Testes concluídos!"
+```
+
+**Executar:** `chmod +x teste-pdj.sh && ./teste-pdj.sh`
+
+## 4. Validar JWT Antes (obrigatório!)
+
+Use o HTML validador da resposta anterior com:
+```
+Chave Pública: https://auth.pdj.mp.br/.well-known/jwks.json → converta JWK→PEM
+JWT: Seu token gerado localmente
+```
+
+## Claims Obrigatórios PDJd
+
+```json
+{
+  "iss": "https://auth.pdj.mp.br",
+  "aud": "pdj-api",
+  "client_id": "seu-client-id-pdj",
+  "scope": "peticao.write peticao.read processo.read",
+  "iat": 1738860000,
+  "exp": 1738946400
+}
+```
+
+**⚠️ ATENÇÃO:** JWT local só funciona para **TESTES**. Produção exige OAuth2 oficial via `/token` endpoint.
+
+**Copie → Cole JWT → Execute cURL → Veja resposta JSON da API PDJd!** 🚀
+
+Citações:
+[1] SEI_1085382_Portaria_Cojef_1-1-4.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/eaa5ecfd-8718-48bc-8014-b188faa16b92/SEI_1085382_Portaria_Cojef_1-1-4.pdf
+[2] RESOL.-PRESI-42-TRU-2.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/1d9efbc6-d079-4b08-b349-898e51e19b8b/RESOL.-PRESI-42-TRU-2.pdf
+[3] SEI_CNJ-2233933-Despacho.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/1be6beca-c20b-4257-a905-cc86b8906023/SEI_CNJ-2233933-Despacho.pdf
+[4] Strategikon Pharma, Inc. ; NO_TICKER ; 1722200 ; form_d ; 2025-11-21 https://www.sec.gov/Archives/edgar/data/1722200/0001722200-25-000002-index.htm
+[5] DIGI INTERNATIONAL INC ; DGII ; 854775 ; 10-k ; 2025-11-21 https://www.sec.gov/Archives/edgar/data/854775/000085477525000026/dgii-20250930.htm

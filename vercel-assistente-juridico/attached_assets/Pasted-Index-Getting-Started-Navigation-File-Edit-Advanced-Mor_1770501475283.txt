@@ -1,0 +1,166 @@
+Index
+Getting Started
+Navigation
+File
+Edit
+Advanced
+More
+Settings
+Remove Ads
+Licenses
+FAQ
+Settings
+You can change default preferences in settings page, by clicking "Settings" in navigation drawer.
+
+General Settings
+Language:
+
+You can change application language to be different with your system language.
+
+Default Encodings:
+
+You can change the default encoding when open or create files.
+
+Please be noticed that the first option for this preference is auto-detected, which means the encoding will be automatically detected from the file content, this is the default behavior.
+
+File Association:
+
+You can add new or change existing file associations between file extension and language syntax.
+
+You can assign known file extensions to another language syntax, or add unknown file extension to desired language syntax.
+
+You can keep the file extension as blank, then you can assign the default syntax for files without extension.
+
+Line Break:
+
+You can change the line break character when saving files.
+
+Currently, it supports following line break characters:
+
+Automatic: Detect line break from original file, if not found, use \r\n instead. This is the default behavior.
+LF (\n): Multics, Unix and Unix-like systems (Android, Linux, OS X, FreeBSD, AIX, Xenix, etc.), BeOS, Amiga, RISC OS.
+CR (\r): Commodore 8-bit machines, Acorn BBC, ZX Spectrum, TRS-80, Apple II family, macOS up to version 9, and OS-9.
+CR+LF (\r\n): Microsoft Windows, DOS (MS-DOS, PC DOS, etc.), DEC TOPS-10, RT-11, CP/M, MP/M, Atari TOS, OS/2, Symbian OS, Palm OS, Amstrad CPC, and most other early non-Unix and non-IBM OSes.
+
+Indentation Character:
+
+You can choose which character string to use when indenting, such as tab character or 4 space characters.
+
+Mini Toolbar:
+
+You can customize the button items shown in mini toolbar, including the button visibility and the button sequences.
+
+Word Wrap:
+
+You can choose whether to enable line (word) wrap to fit screen width. Word wrap is the feature of continuing on a new line when a line is full according to the screen width, by default this is disabled.
+
+Please be noticed that when word wrap is enabled, the performance of text rendering will be slower.
+
+Folder Drawer:
+
+Enable folder navigation on main screen. Please refer to Folder Drawer section.
+
+Auto Indent:
+
+You can choose whether to enable auto indentation for new lines after you click enter key. This feature can work on both programming files such as Java or C++, and markup files such as HTML or XML. By default, this feature is enabled.
+
+Undo By Back Button:
+
+You can choose whether to undo last modification using back button, by default this is disabled since version 0.7.2.
+
+File Filter:
+
+You can hide unknown file types from file open dialog. Commonly file open dialog will only contain text files. If the file you want to open does not show in file open dialog, please turn off this option to show all kinds of files.
+
+Resume Session:
+
+If this setting is enabled, QuickEdit will remember the files for last session and reopen them when you launch it next time. By default, this is enabled since version 1.6.0.
+
+Input Method
+Show Suggestion:
+
+You can choose whether to display suggested words while typing.
+
+Your input method should have word suggestion feature, which should also be enabled first.
+
+This preference has the following options to be chosen from:
+
+ON: Turn on input method suggestion. Choose this option when you are writing articles.
+OFF: Turn off input method suggestion. Choose this option when you are coding. This is the default option.
+OFF(Aggressive): Force to disable input method suggestion. Choose this option only if "OFF" option does not work for your input method.
+
+Auto Capitalize:
+
+You can choose whether to capitalize the first word of each sentence.
+
+Your input method should have auto-capitalization feature, which should also be enabled first.
+
+Your input language should support lower and upper case, otherwise, auto-capitalization feature is useless.
+
+Accessory View:
+
+If this setting is enabled, QuickEdit will show an additional keyboard below editor. The additional keyboard contains common characters and punctuations, such as tab key, "<", ">", "{", "}", "&", "!", "=", etc.
+
+View Settings
+Line Number:
+
+You can choose whether to show line numbers in text editor or not.
+
+Font Type:
+
+You can choose the font for text editing.
+
+There are multiple choices for the font type, including:
+
+Normal: The default font for your device.
+Sans Serif: https://en.wikipedia.org/wiki/Sans-serif, may be the same as system default font.
+Serif: https://en.wikipedia.org/wiki/Serif.
+Monospace: https://en.wikipedia.org/wiki/Monospaced_font, fixed width font.
+External: Change font to any ttf or otf font file, the font picker dialog will only include folder and font files, other files will be filtered.
+
+Font Size:
+
+You can choose the font size for text editing from 12sp to 56sp.
+
+Line Spacing:
+
+You can choose the spacing between lines from 0sp to 6sp.
+
+Auto Save
+Auto Save:
+
+You can choose whether to automatically save modifications, by default it is not enabled.
+
+Auto Save Interval:
+
+You can choose the interval to trigger auto save from 30 seconds to 10 minutes. This setting item is only available when auto save is enabled.
+
+Look And Feel
+Theme:
+
+You can choose your preferred application theme. Currently the options are light theme, dark theme, black theme, dark/light theme and black/light theme. The dark/light theme and black/light theme will change from light theme to dark/black theme automatically by the local time. The highlight syntax colors will also change for different theme.
+
+Full Screen:
+
+You can launch the application in full screen mode by enable this setting, then the status bar will be hidden to save more editing spaces.
+
+About
+Version:
+
+Current application version. Click this item will redirect you to QuickEdit application page in Google Play.
+
+Developer:
+
+Rhythm Software, all rights reserved.
+
+Send Feedback:
+
+Click this item will open QuickEdit project thread on xda-developers, you can send feedback or report issue there.
+
+Remove Ad:
+
+If you are using ad-supported version, click on this item will redirect to Quick Edit Pro version which does not contain Ads.
+
+Copyright © 2014~2026, Rhythm Software. All rights reserved
+
+End User License Agreement

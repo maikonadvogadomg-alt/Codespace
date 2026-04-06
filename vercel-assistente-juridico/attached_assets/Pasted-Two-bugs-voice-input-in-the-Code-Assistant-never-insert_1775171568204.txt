@@ -1,0 +1,100 @@
+Two bugs: voice input in the Code Assistant never inserted text into the prompt due to wrong transcript indexing and continuous: false cutting off speech; ementa injection rules allowed the AI to paraphrase official citation metadata.
+
+client/src/pages/code-assistant.tsx — startVoice
+recognition.continuous: false → true (mic was stopping on every pause)
+Transcript extraction: event.results[i].transcript → event.results[i][0].transcript — SpeechRecognitionResult is array-like; skipping [0] returned undefined, so nothing was ever appended to the prompt
+setPrompt callback now trims and joins cleanly with existing text
+server/routes.ts — Ementa injection (ementasForSystem + ementasForRefine)
+Replaced the old rules in both /api/ai/process and /api/ai/refine with stricter two-part directives:
+
+Summarize body — extract only the pertinent legal thesis; never dump the full ementa
+Preserve source verbatim (critical/inviolable) — tribunal, process number, relator, judgment date must be reproduced exactly as provided, with zero paraphrasing
+"\n\nREGRAS OBRIGATÓRIAS PARA USO DAS EMENTAS:\n" +
+"1. RESUMO DO CONTEÚDO: NUNCA copie a ementa inteira...\n" +
+"2. PRESERVAÇÃO DA FONTE (REGRA CRÍTICA E INVIOLÁVEL): ...DEVE ser reproduzida EXATAMENTE como fornecida..."
+Original prompt
+Por favor, faça duas correções no repositório:
+
+1. Corrigir o botão de áudio no Assistente de Código (client/src/pages/code-assistant.tsx)
+Substituir a função startVoice inteira (por volta da linha 330) pela versão abaixo. O problema atual é que recognition.continuous está false, e a extração do texto no onresult estava errada (event.results[i].transcript em vez de event.results[i][0].transcript), o que causava a não inserção do texto no prompt.
+
+  const startVoice = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast({ title: "Navegador não suporta voz", description: "Use o Google Chrome ou Edge.", variant: "destructive" });
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "pt-BR";
+    recognition.continuous = true; 
+    recognition.interimResults = false; 
+
+    recognition.onresult = (event: any) => {
+      let finalTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + " "; 
+        }
+      }
+      if (finalTranscript.trim()) {
+        setPrompt(prev => {
+          const base = (prev || "").trim();
+          return base ? base + " " + finalTranscript.trim() + " " : finalTranscript.trim() + " ";
+        });
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      if (event.error !== "aborted") setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  }, [isListening, toast]);
+2. Atualizar as Regras Críticas das Ementas (server/routes.ts)
+Substituir a atribuição das variáveis ementasForSystem (por volta da linha 2280 na rota /api/ai/process) e ementasForRefine (por volta da linha 2715 na rota /api/ai/refine) para impor a regra estrita de preservação da fonte.
+
+Substituir o bloco dentro do if (selectedEmentas.length > 0) { para ambas as rotas por:
+
+        if (selectedEmentas.length > 0) {
+          const prefix = ementasForSystem !== undefined ? "ementasForSystem" : "ementasForRefine"; // Ajuste o nome da variável dependendo do escopo (ementasForSystem ou ementasForRefine)
+          const text = 
+            "\n\nJURISPRUDÊNCIA DE REFERÊNCIA SELECIONADA PELO ADVOGADO:\nO advogado selecionou as seguintes ementas da sua biblioteca. Use-as como fundamentação.\n\nREGRAS OBRIGATÓRIAS PARA USO DAS EMENTAS:\n1. RESUMO DO CONTEÚDO: NUNCA copie a ementa inteira se ela for longa. Resuma o corpo do texto de forma inteligente para extrair apenas a tese pertinente, conectando ao argumento da peça.\n2. PRESERVAÇÃO DA FONTE (REGRA CRÍTICA E INVIOLÁVEL): A parte final da ementa (Tribunal, Número do Processo, Relator, Data de Julgamento, etc.) DEVE ser reproduzida EXATAMENTE como fornecida, sem nenhuma alteração, paráfrase ou resumo.\n3. Formate a citação da ementa em itálico e justificado.\n\n" +
+            selectedEmentas
+              .map((e, i) => `EMENTA ${i + 1} [${e.categoria}] - ${e.titulo}:\n${e.texto}`)
+              .join("\n\n") +
+            "\n\nIMPORTANTE: Lembre-se da regra crítica: resuma inteligentemente a ementa, mas PRESERVE A FONTE OFICIAL intacta. Integre o argumento organicamente.\n";
+            
+          if (typeof ementasForSystem !== "undefined") {
+              ementasForSystem = text;
+          } else {
+              ementasForRefine = text;
+          }
+        }
+(Nota para o agente: Substitua o texto diretamente na atribuição original de ementasForSystem = ... e ementasForRefine = ... conforme o padrão acima, garantindo que o texto das regras seja atualizado)
+
+The following is the prior conversation context from the user's chat exploration (may be truncated):
+
+User: Mas qual seria mais barato e fácil. Existe risco do projeto mudar ou se estragar! Outra dúvida sobre o preço e qual mais fácil e o último alguns deles tem servidor no Brasil já que algumas funções da erro 500.
+
+Assistant: Não existe risco de estragar ou perder o seu projeto ao tentar mudar de plataforma!
+Hospedar em outro lugar é basicamente "alugar outro computador" para ler o código que está salvo no seu GitHub. Se a tentativa na plataforma nova der errado, o seu projeto no Replit e no GitHub continuam lá, intactos e funcionando.
+
+Sobre as opções para o seu caso, analisando a sua necessidade de facilidade, preço e servidor no Brasil (para evitar o Erro 500), aqui está o cenário:
+
+1. Railway (A Melhor Opção para Você)
+Facilidade: É a mais fácil de todas. Você faz login, clica em "New Project", conecta seu GitHub e ela faz o resto sozinha. Não precisa refatorar código.
+**Servidor no Bras...
+This pull request was created from Copilot chat.

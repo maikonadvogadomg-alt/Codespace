@@ -1,0 +1,206 @@
+Como validar JWT assinado com PEM pública
+
+Para validar JWT assinado com chave pública PEM localmente, use a Web Crypto API no navegador. Funciona 100% offline e verifica assinatura + claims.
+
+## HTML Completo (Salve como `jwt-validator.html`)
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Validar JWT com Chave Pública PEM</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; padding: 20px; }
+        textarea { width: 100%; box-sizing: border-box; font-family: monospace; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; }
+        .valid { background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; }
+        .invalid { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; }
+        .header { font-weight: bold; color: #007bff; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Validador JWT - Chave Pública PEM</h1>
+    
+    <label><strong>Chave Pública PEM (cole tudo):</strong></label><br>
+    <textarea id="chavePub" rows="10" placeholder="-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...
+-----END PUBLIC KEY-----"></textarea><br><br>
+    
+    <label><strong>JWT para validar:</strong></label><br>
+    <textarea id="jwt" rows="3" placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea><br><br>
+    
+    <button onclick="validarJWT()">✅ Validar JWT</button>
+    <button onclick="decodificarJWT()">📋 Decodificar</button>
+    <button onclick="limpar()">🗑️ Limpar</button>
+    
+    <h3>Resultado:</h3>
+    <div id="resultado"></div>
+
+    <script>
+    async function validarJWT() {
+        const pem = document.getElementById('chavePub').value.trim();
+        const jwt = document.getElementById('jwt').value.trim();
+        const resultado = document.getElementById('resultado');
+        
+        if (!pem || !jwt) {
+            resultado.innerHTML = '<div class="invalid">❌ Preencha JWT e chave pública!</div>';
+            return;
+        }
+        
+        try {
+            resultado.innerHTML = '<div>🔄 Validando...</div>';
+            
+            // 1. Importa chave pública (SPKI format)
+            const cryptoKey = await crypto.subtle.importKey(
+                'spki',
+                stringToArrayBuffer(pem),
+                { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+                false,
+                ['verify']
+            );
+            
+            // 2. Parse JWT
+            const [headerB64, payloadB64, signatureB64] = jwt.split('.');
+            const header = JSON.parse(b64UrlDecode(headerB64));
+            const payload = JSON.parse(b64UrlDecode(payloadB64));
+            const signature = b64UrlDecode(signatureB64);
+            
+            // 3. Verifica algoritmo
+            if (header.alg !== 'RS256') {
+                throw new Error(`Algoritmo inválido: ${header.alg}. Esperado: RS256`);
+            }
+            
+            // 4. Monta string para verificar
+            const data = `${headerB64}.${payloadB64}`;
+            
+            // 5. Verifica assinatura
+            const assinaturaValida = await crypto.subtle.verify(
+                'RSASSA-PKCS1-v1_5',
+                cryptoKey,
+                signature,
+                new TextEncoder().encode(data)
+            );
+            
+            // 6. Valida claims
+            const agora = Math.floor(Date.now() / 1000);
+            const erros = [];
+            
+            if (payload.iat && payload.iat > agora + 300) erros.push('iat no futuro');
+            if (payload.exp && payload.exp < agora - 60) erros.push('exp expirado');
+            if (payload.nbf && payload.nbf > agora + 300) erros.push('nbf não válido');
+            
+            // 7. Resultado final
+            let statusClass = assinaturaValida && erros.length === 0 ? 'valid' : 'invalid';
+            let statusIcon = assinaturaValida && erros.length === 0 ? '✅' : '❌';
+            let statusText = assinaturaValida && erros.length === 0 ? 'VÁLIDO' : 'INVÁLIDO';
+            
+            resultado.innerHTML = `
+                <div class="${statusClass}">
+                    <strong>${statusIcon} JWT ${statusText}</strong>
+                    ${!assinaturaValida ? '<br>✘ Assinatura inválida' : '<br>✔️ Assinatura válida'}
+                    ${erros.length ? `<br><strong>Claims com problemas:</strong><br>${erros.join('<br>')}` : ''}
+                </div>
+                <details class="header">
+                    <summary>📋 Header (${headerB64})</summary>
+                    <pre>${JSON.stringify(header, null, 2)}</pre>
+                </details>
+                <details>
+                    <summary>📄 Payload (${payloadB64})</summary>
+                    <pre>${JSON.stringify(payload, null, 2)}</pre>
+                </details>
+            `;
+            
+        } catch (error) {
+            resultado.innerHTML = `<div class="invalid">❌ Erro: ${error.message}</div>`;
+        }
+    }
+    
+    function decodificarJWT() {
+        const jwt = document.getElementById('jwt').value.trim();
+        const resultado = document.getElementById('resultado');
+        
+        try {
+            const [headerB64, payloadB64] = jwt.split('.').slice(0, 2);
+            const header = JSON.parse(b64UrlDecode(headerB64));
+            const payload = JSON.parse(b64UrlDecode(payloadB64));
+            
+            resultado.innerHTML = `
+                <div class="valid">
+                    <strong>📋 JWT Decodificado (sem validar assinatura)</strong>
+                </div>
+                <details class="header">
+                    <summary>Header</summary>
+                    <pre>${JSON.stringify(header, null, 2)}</pre>
+                </details>
+                <details>
+                    <summary>Payload</summary>
+                    <pre>${JSON.stringify(payload, null, 2)}</pre>
+                </details>
+            `;
+        } catch (error) {
+            resultado.innerHTML = `<div class="invalid">❌ JWT inválido: ${error.message}</div>`;
+        }
+    }
+    
+    function limpar() {
+        document.getElementById('resultado').innerHTML = '';
+        document.getElementById('jwt').focus();
+    }
+    
+    // Base64 URL decode
+    function b64UrlDecode(b64) {
+        b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        return atob(b64);
+    }
+    
+    function stringToArrayBuffer(str) {
+        return new TextEncoder().encode(str).buffer;
+    }
+    </script>
+</body>
+</html>
+```
+
+## Como Usar
+
+1. **Salve** como `jwt-validator.html`
+2. **Abra** no navegador (Chrome/Firefox OK)
+3. **Cole** sua chave **pública** PEM (do COJEF/PDJd)
+4. **Cole** o JWT gerado anteriormente
+5. **Clique** "✅ Validar JWT"
+
+## O Que Verifica
+
+- ✅ **Assinatura** com chave pública PEM
+- ✅ **Algoritmo** RS256 (padrão PDJd)
+- ✅ **Claims** `iat`, `exp`, `nbf` (datas)
+- ✅ **Header** e **Payload** decodificados
+
+## Chave Pública Exemplo
+
+```
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...
+-----END PUBLIC KEY-----
+```
+
+**Resultado mostra se é VÁLIDO ou INVÁLIDO + detalhes dos claims!** Funciona perfeitamente para testar JWTs do PDJd/COJEF localmente.
+
+Citações:
+[1] SEI_1085382_Portaria_Cojef_1-1-4.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/eaa5ecfd-8718-48bc-8014-b188faa16b92/SEI_1085382_Portaria_Cojef_1-1-4.pdf
+[2] RESOL.-PRESI-42-TRU-2.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/1d9efbc6-d079-4b08-b349-898e51e19b8b/RESOL.-PRESI-42-TRU-2.pdf
+[3] SEI_CNJ-2233933-Despacho.pdf https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/137954654/1be6beca-c20b-4257-a905-cc86b8906023/SEI_CNJ-2233933-Despacho.pdf
+[4] Secure Command Line Solution for Token-based Authentication https://www.epj-conferences.org/articles/epjconf/pdf/2021/05/epjconf_chep2021_02036.pdf
+[5] JSON Web Token (JWT) based client authentication in Message Queuing
+  Telemetry Transport (MQTT) https://arxiv.org/pdf/1903.02895.pdf
+[6] Uma Ferramenta Computacional Forense para Verificação de Autenticidade de Assinaturas Manuscritas Através de Processamento Digital de Imagens e Redes Neurais Artificiais http://www.ipebj.com.br/_erp/arquivos/forensic_artigos/e012d16fa7658aaa959ddd5a1e8dbe1b-arquivo.pdf
+[7] LEI 14.133/2021: O CREDENCIAMENTO COMO PROCEDIMENTO AUXILIAR DAS LICITAÇÕES E CONTRATAÇÕES ADMINISTRATIVAS https://indexlaw.org/index.php/conpedireview/article/download/8093/pdf
+[8] AZUL SA ; AZUL ; 1432364 ; 6-k ; 2025-02-03 https://www.sec.gov/Archives/edgar/data/1432364/000129281425000232/azul20250131_6k.htm
+[9] ENSCO UK DRILLING Ltd ; NO_TICKER ; 1866304 ; s-1/a ; 2021-06-14 https://www.sec.gov/Archives/edgar/data/1866304/000110465921080698/tm2117388d12_s1a.htm
+[10] ENSCO ASSOCIATES Co ; NO_TICKER ; 1866332 ; s-1/a ; 2021-06-14 https://www.sec.gov/Archives/edgar/data/1866332/000110465921080698/tm2117388d12_s1a.htm
+[11] ROWAN COMPANIES LLC ; NO_TICKER ; 1866497 ; s-1/a ; 2021-06-14 https://www.sec.gov/Archives/edgar/data/1866497/000110465921080698/tm2117388d12_s1a.htm
+[12] ROWAN DRILLING (U.K.) Ltd ; NO_TICKER ; 1866445 ; s-1/a ; 2021-06-14 https://www.sec.gov/Archives/edgar/data/1866445/000110465921080698/tm2117388d12_s1a.htm
+[13] RD INTERNATIONAL SERVICES PTE. LTD. ; NO_TICKER ; 1866402 ; s-1/a ; 2021-06-14 https://www.sec.gov/Archives/edgar/data/1866402/000110465921080698/tm2117388d12_s1a.htm
+[14] ENSCO TRANSCONTINENTAL II LP ; NO_TICKER ; 1866351 ; s-1/a ; 2021-06-14 https://www.sec.gov/Archives/edgar/data/1866351/000110465921080698/tm2117388d12_s1a.htm

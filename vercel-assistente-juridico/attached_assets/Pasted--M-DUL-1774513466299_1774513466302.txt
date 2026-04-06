@@ -1,0 +1,541 @@
+"""
+╔══════════════════════════════════════════════════════════════════════╗
+║             📡  MÓDULO DE CONSULTA À API DO DJEN / CNJ              ║
+║  Endpoint: /comunicacao  (DJEN v1.0.3)                              ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+A API do DJEN exige um Bearer Token JWT (RS256). O módulo tenta:
+  1. Usar DJEN_TOKEN do .env (se configurado)
+  2. Gerar automaticamente via PDPJ_PEM_PRIVATE_KEY + ADVOGADO_CPF do .env
+
+Configure pelo menos PDPJ_PEM_PRIVATE_KEY e ADVOGADO_CPF no .env.
+"""
+
+import json
+import time
+import requests
+from typing import List, Dict
+from config import DJEN_API_URL, DJEN_TOKEN, PDPJ_PEM_PRIVATE_KEY, ADVOGADO_CPF
+
+# Número de páginas a consultar por execução (ajuste conforme volume)
+MAX_PAGINAS = 5
+ITENS_POR_PAGINA = 20
+
+
+def _gerar_token_pem() -> str:
+    """Gera JWT RS256 automaticamente usando a chave PEM do .env."""
+    if not PDPJ_PEM_PRIVATE_KEY or not ADVOGADO_CPF:
+        return ""
+    try:
+        import jwt as pyjwt  # PyJWT
+        pem = PDPJ_PEM_PRIVATE_KEY.replace("\\n", "\n").strip()
+        cpf_limpo = "".join(c for c in ADVOGADO_CPF if c.isdigit())
+        if len(cpf_limpo) != 11:
+            print("⚠️  ADVOGADO_CPF inválido no .env — deve ter 11 dígitos.")
+            return ""
+        now = int(time.time())
+        payload = {
+            "sub": cpf_limpo,
+            "iss": "pdpj-br",
+            "aud": "https://comunicaapi.pje.jus.br",
+            "iat": now,
+            "exp": now + 3600,
+            "jti": f"djen-{now}",
+        }
+        token = pyjwt.encode(payload, pem, algorithm="RS256")
+        # PyJWT >= 2.x retorna str, < 2.x retorna bytes
+        return token if isinstance(token, str) else token.decode("utf-8")
+    except ImportError:
+        print("⚠️  PyJWT não instalado. Execute: pip install PyJWT cryptography")
+        return ""
+    except Exception as exc:
+        print(f"⚠️  Erro ao gerar JWT automático: {exc}")
+        return ""
+
+
+def _obter_token() -> str:
+    """Retorna token: primeiro do .env, depois tenta gerar via PEM."""
+    if DJEN_TOKEN:
+        return DJEN_TOKEN
+    token = _gerar_token_pem()
+    if token:
+        print("   🔑 Token JWT gerado automaticamente via PDPJ_PEM_PRIVATE_KEY.")
+    return token
+
+
+def buscar_publicacoes() -> List[Dict]:
+    """
+    Consulta a API do DJEN e retorna a lista de publicações.
+    Tenta DJEN_TOKEN do .env primeiro; se ausente, gera JWT via PEM automaticamente.
+    Retorna lista vazia em caso de erro ou sem resultados.
+    """
+    token = _obter_token()
+    if not token:
+        print("⚠️  Sem token disponível (DJEN_TOKEN vazio e PEM não configurado).")
+        print("   → Rodando em modo SIMULADO com dados de exemplo.\n")
+        return _dados_simulados()
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+    }
+
+    todas_publicacoes: list[dict] = []
+
+    for pagina in range(1, MAX_PAGINAS + 1):
+        params = {
+            "pagina": pagina,
+            "itensPorPagina": ITENS_POR_PAGINA,
+        }
+        try:
+            print(f"   📡 Consultando DJEN — página {pagina}...")
+            resp = requests.get(DJEN_API_URL, headers=headers, params=params, timeout=15)
+
+            if resp.status_code == 401:
+                print("   ❌ 401 Unauthorized — Token inválido ou expirado.")
+                print("      → Configure PDPJ_PEM_PRIVATE_KEY e ADVOGADO_CPF no .env para auto-geração.")
+                break
+
+            if resp.status_code == 403:
+                print("   ❌ 403 Forbidden — IP bloqueado ou chave não registrada no PDPJ.")
+                break
+
+            if resp.status_code != 200:
+                print(f"   ❌ Erro HTTP {resp.status_code}: {resp.text[:200]}")
+                break
+
+            dados = resp.json()
+
+            # A API pode retornar { "comunicacoes": [...] } ou diretamente uma lista
+            itens = dados.get("comunicacoes") or dados.get("data") or dados
+            if isinstance(itens, dict):
+                itens = list(itens.values())
+
+            if not itens:
+                print(f"   ℹ️  Página {pagina} vazia. Encerrando paginação.")
+                break
+
+            todas_publicacoes.extend(itens)
+            print(f"   ✅ {len(itens)} item(ns) recebido(s) na página {pagina}.")
+
+            # Verifica se há mais páginas
+            total = dados.get("total") or dados.get("totalItens") or 0
+            if total and len(todas_publicacoes) >= int(total):
+                break
+
+        except requests.exceptions.Timeout:
+            print("   ❌ Timeout ao conectar na API do DJEN.")
+            break
+        except requests.exceptions.ConnectionError as exc:
+            print(f"   ❌ Erro de conexão: {exc}")
+            break
+        except json.JSONDecodeError:
+            print("   ❌ Resposta da API não é JSON válido.")
+            break
+
+    return todas_publicacoes
+
+
+# ── Dados simulados para testes sem token ───────────────────────────────────
+def _dados_simulados() -> list[dict]:
+    return [
+        {
+            "numeroProcesso": "6002755-35.2024.4.06.3819",
+            "texto": (
+                "JULGAMENTO VIRTUAL. Processo nº 6002755-35.2024.4.06.3819. "
+                "O julgamento ocorrerá de forma virtual entre os dias "
+                "26/11/2025 e 02/12/2025. Partes: Maikon da Rocha Caldeira. "
+                "Assunto: Aposentadoria por Tempo de Contribuição."
+            ),
+            "linkDocumento": "",
+        },
+        {
+            "numeroProcesso": "0001234-56.2023.8.21.0001",
+            "texto": (
+                "PAUTA VIRTUAL. Processo nº 0001234-56.2023.8.21.0001. "
+                "Sessão virtual de julgamento designada para o período de "
+                "10/12/2025 a 17/12/2025. Recurso de apelação."
+            ),
+            "linkDocumento": "",
+        },
+    ]
+
+"""
+╔══════════════════════════════════════════════════════════════════════╗
+║            📊  MÓDULO DE GESTÃO DA PLANILHA DE CLIENTES             ║
+║  Lê clientes.xlsx e fornece busca por número de processo.           ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Estrutura esperada da planilha (cabeçalho na linha 1):
+
+  | processo | nome_completo | email | tratamento | nome_caso |
+  |----------|---------------|-------|------------|-----------|
+
+  ⚠️  Formate a coluna "processo" como TEXTO no Excel para evitar
+     truncamento de zeros e perda de pontuação.
+"""
+
+import re
+from typing import Optional
+import pandas as pd
+from config import ARQUIVO_CLIENTES
+
+# Colunas obrigatórias
+_COLUNAS_OBRIGATORIAS = {"processo", "nome_completo", "email"}
+
+
+def carregar_clientes() -> Optional[dict[str, dict]]:
+    """
+    Lê a planilha de clientes e retorna um dicionário indexado por número
+    de processo (normalizado: apenas dígitos e hifens/pontos).
+
+    Retorna None em caso de erro crítico.
+    """
+    try:
+        df = pd.read_excel(ARQUIVO_CLIENTES, dtype=str)
+    except FileNotFoundError:
+        print(f"❌ Planilha não encontrada: '{ARQUIVO_CLIENTES}'")
+        print("   → Crie o arquivo conforme o modelo no README.")
+        return None
+    except Exception as exc:
+        print(f"❌ Erro ao ler a planilha: {exc}")
+        return None
+
+    # Normaliza nomes de colunas
+    df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
+
+    # Valida colunas obrigatórias
+    faltando = _COLUNAS_OBRIGATORIAS - set(df.columns)
+    if faltando:
+        print(f"❌ Colunas ausentes na planilha: {faltando}")
+        print(f"   Colunas encontradas: {list(df.columns)}")
+        return None
+
+    # Preenche colunas opcionais com valor padrão
+    if "tratamento"  not in df.columns: df["tratamento"]  = ""
+    if "nome_caso"   not in df.columns: df["nome_caso"]   = ""
+
+    clientes: dict[str, dict] = {}
+    for _, row in df.iterrows():
+        proc_raw = str(row.get("processo", "")).strip()
+        if not proc_raw or proc_raw == "nan":
+            continue
+
+        # Normaliza o número do processo para comparação (remove espaços extras)
+        proc_norm = _normalizar_processo(proc_raw)
+
+        clientes[proc_norm] = {
+            "processo"      : proc_raw,
+            "nome_completo" : str(row.get("nome_completo", "")).strip(),
+            "email"         : str(row.get("email",         "")).strip(),
+            "tratamento"    : str(row.get("tratamento",    "")).strip(),
+            "nome_caso"     : str(row.get("nome_caso",     "")).strip(),
+        }
+
+    return clientes
+
+
+def buscar_cliente(clientes: dict[str, dict], numero_processo: str) -> Optional[dict]:
+    """
+    Busca o cliente pelo número do processo.
+    Faz comparação normalizada para tolerar diferenças de formatação.
+    """
+    chave = _normalizar_processo(numero_processo)
+    return clientes.get(chave)
+
+
+def _normalizar_processo(numero: str) -> str:
+    """
+    Remove espaços e converte para minúsculas.
+    Mantém pontos, hífens e dígitos (padrão CNJ: NNNNNNN-DD.AAAA.J.TT.OOOO).
+    """
+    return re.sub(r"\s+", "", numero).lower()
+
+"""
+Script de teste para o robô jurídico.
+Demonstra como executar o robô programaticamente.
+"""
+
+import sys
+import os
+import json
+from datetime import datetime
+
+# Adiciona o caminho do projeto ao sys.path
+sys.path.append(os.path.join(os.path.dirname(__file__), "../robo-juridico"))
+
+def main():
+    """
+    Função principal para executar o teste do robô jurídico.
+    """
+    print("🤖 Iniciando teste do Robô Jurídico")
+    print(f"📅 Data e hora: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+    print("─" * 50)
+    
+    try:
+        # Importa a classe do robô jurídico
+        from robo_juridico_api import RoboJuridico
+        
+        # Cria uma instância do robô
+        robo = RoboJuridico()
+        
+        # Executa o robô
+        print("🚀 Executando robô jurídico...")
+        resultado = robo.executar()
+        
+        # Exibe os resultados
+        print("\n📊 Resultados:")
+        print("─" * 50)
+        
+        if resultado["sucesso"]:
+            print(f"✅ Sucesso: {resultado['mensagem']}")
+            
+            # Estatísticas
+            estatisticas = resultado['estatisticas']
+            print(f"\n📈 Estatísticas:")
+            print(f"  Total de publicações: {estatisticas['total_publicacoes']}")
+            print(f"  Processadas com sucesso: {estatisticas['processadas']}")
+            print(f"  Com erro: {estatisticas['com_erro']}")
+            print(f"  Ignoradas: {estatisticas['ignoradas']}")
+            
+            # Resultados detalhados
+            if resultado['resultados']:
+                print(f"\n📝 Detalhes das publicações:")
+                for r in resultado['resultados']:
+                    status_emoji = "✅" if r["status"] == "concluído" else "⚠️" if "erro" in r["status"] else "ℹ️"
+                    print(f"  {status_emoji} {r['processo']}: {r['status']}")
+                    
+                    if r['erros']:
+                        for erro in r['erros']:
+                            print(f"    ❌ {erro}")
+        else:
+            print(f"❌ Erro: {resultado.get('erro', 'Erro desconhecido')}")
+            
+        # Salva os resultados em um arquivo JSON
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"resultado_robo_{timestamp}.json"
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(resultado, f, ensure_ascii=False, indent=2)
+        
+        print(f"\n💾 Resultados salvos em: {filename}")
+        
+    except ImportError as e:
+        print(f"❌ Erro de importação: {e}")
+        print("Verifique se o caminho do robô jurídico está correto e todos os módulos estão instalados.")
+        sys.exit(1)
+        
+    except Exception as e:
+        print(f"❌ Erro inesperado: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+    
+    import sys
+import json
+from datetime import datetime
+from typing import Dict, List, Optional
+
+# Adaptação do robô jurídico para integração com a API
+
+class RoboJuridico:
+    """
+    Classe que encapsula a lógica do robô jurídico para integração com a API.
+    Permite execução programática e retorno de resultados estruturados.
+    """
+    
+    def __init__(self):
+        self.resultados = []
+        self.erros = []
+        
+    def processar_publicacao(self, publicacao: Dict, clientes: Dict) -> Dict:
+        """
+        Processa uma única publicação jurídica e retorna resultados estruturados.
+        """
+        numero_proc = publicacao.get("numeroProcesso", "")
+        texto = publicacao.get("texto", "")
+        link_pdf = publicacao.get("linkDocumento", "")
+
+        resultado = {
+            "processo": numero_proc,
+            "texto_preview": texto[:300] + ("..." if len(texto) > 300 else ""),
+            "status": "processando",
+            "acoes_realizadas": [],
+            "erros": []
+        }
+
+        try:
+            # Extrai datas e prazos via Regex
+            from modules.regex_parser import extrair_dados_sessao
+            dados_sessao = extrair_dados_sessao(texto)
+
+            if not dados_sessao:
+                resultado["status"] = "ignorado"
+                resultado["motivo"] = "Nenhuma sessão de julgamento identificada"
+                return resultado
+
+            resultado["dados_sessao"] = dados_sessao
+            resultado["acoes_realizadas"].append("extração de dados da sessão")
+
+            # Identifica o cliente
+            from modules.excel_manager import buscar_cliente
+            cliente = buscar_cliente(clientes, numero_proc)
+            
+            if cliente:
+                resultado["cliente"] = {
+                    "nome": cliente["nome_completo"],
+                    "email": cliente["email"]
+                }
+                
+                # Cria rascunho de e-mail
+                from modules.email_draft import criar_rascunho_cliente
+                dados_proc = {
+                    "numero": numero_proc,
+                    "inicio": dados_sessao["inicio"],
+                    "fim": dados_sessao["fim"],
+                    "prazo": dados_sessao["prazo_oral"],
+                    "texto": texto[:300] + ("..." if len(texto) > 300 else ""),
+                }
+                
+                try:
+                    criar_rascunho_cliente(dados_proc, cliente)
+                    resultado["acoes_realizadas"].append("criação de rascunho de e-mail")
+                except Exception as e:
+                    erro_msg = f"Erro ao criar rascunho de e-mail: {str(e)}"
+                    resultado["erros"].append(erro_msg)
+                    
+                # Salva PDF no Google Drive (opcional)
+                from config import SALVAR_NO_DRIVE, PASTA_DRIVE_ID
+                if SALVAR_NO_DRIVE and link_pdf and PASTA_DRIVE_ID:
+                    try:
+                        from modules.drive_manager import salvar_link_no_drive
+                        data_hoje = datetime.now().strftime("%Y-%m-%d")
+                        nome_limpo = cliente["nome_completo"].replace(" ", "_")
+                        nome_arquivo = f"{data_hoje}_Intimacao_{nome_limpo}_{numero_proc}.pdf"
+                        salvar_link_no_drive(link_pdf, nome_arquivo, pasta_id=PASTA_DRIVE_ID)
+                        resultado["acoes_realizadas"].append("salvar PDF no Google Drive")
+                    except Exception as e:
+                        erro_msg = f"Erro ao salvar PDF no Google Drive: {str(e)}"
+                        resultado["erros"].append(erro_msg)
+            else:
+                resultado["status"] = "cliente_nao_encontrado"
+                resultado["motivo"] = "Cliente não encontrado na planilha"
+                
+            resultado["status"] = "concluído" if not resultado["erros"] else "concluído_com_erros"
+            
+        except Exception as e:
+            resultado["status"] = "erro"
+            resultado["erros"].append(f"Erro inesperado: {str(e)}")
+
+        return resultado
+    
+    def executar(self) -> Dict:
+        """
+        Executa o fluxo completo do robô jurídico e retorna resultados estruturados.
+        """
+        try:
+            # Carrega planilha de clientes
+            from modules.excel_manager import carregar_clientes
+            clientes = carregar_clientes()
+            
+            if clientes is None:
+                return {
+                    "sucesso": False,
+                    "erro": "Não foi possível carregar a planilha de clientes",
+                    "resultados": [],
+                    "estatisticas": {
+                        "total_publicacoes": 0,
+                        "processadas": 0,
+                        "com_erro": 0,
+                        "ignoradas": 0
+                    }
+                }
+            
+            # Consulta API do DJEN
+            from modules.api_djen import buscar_publicacoes
+            publicacoes = buscar_publicacoes()
+            
+            if not publicacoes:
+                return {
+                    "sucesso": True,
+                    "mensagem": "Nenhuma publicação nova encontrada",
+                    "resultados": [],
+                    "estatisticas": {
+                        "total_publicacoes": 0,
+                        "processadas": 0,
+                        "com_erro": 0,
+                        "ignoradas": 0
+                    }
+                }
+            
+            # Processa cada publicação
+            resultados = []
+            estatisticas = {
+                "total_publicacoes": len(publicacoes),
+                "processadas": 0,
+                "com_erro": 0,
+                "ignoradas": 0
+            }
+            
+            for pub in publicacoes:
+                try:
+                    resultado = self.processar_publicacao(pub, clientes)
+                    resultados.append(resultado)
+                    
+                    if resultado["status"] == "concluído_com_erros":
+                        estatisticas["com_erro"] += 1
+                    elif resultado["status"] in ["ignorado", "cliente_nao_encontrado"]:
+                        estatisticas["ignoradas"] += 1
+                    else:
+                        estatisticas["processadas"] += 1
+                        
+                except Exception as exc:
+                    erro_msg = f"Erro inesperado ao processar publicação: {exc}"
+                    resultados.append({
+                        "processo": pub.get("numeroProcesso", "desconhecido"),
+                        "status": "erro",
+                        "erros": [erro_msg]
+                    })
+                    estatisticas["com_erro"] += 1
+
+            return {
+                "sucesso": True,
+                "mensagem": f"Processamento concluído: {estatisticas['processadas']} processadas, {estatisticas['com_erro']} com erro, {estatisticas['ignoradas']} ignoradas",
+                "resultados": resultados,
+                "estatisticas": estatisticas,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            return {
+                "sucesso": False,
+                "erro": f"Erro ao executar robô jurídico: {str(e)}",
+                "resultados": [],
+                "estatisticas": {
+                    "total_publicacoes": 0,
+                    "processadas": 0,
+                    "com_erro": 0,
+                    "ignoradas": 0
+                }
+            }
+
+# Função para execução direta (mantém compatibilidade com o script original)
+def main():
+    robo = RoboJuridico()
+    resultado = robo.executar()
+    
+    if resultado["sucesso"]:
+        print(f"✅ Processamento concluído com sucesso!")
+        print(f"📊 Estatísticas: {resultado['estatisticas']['processadas']} processadas, {resultado['estatisticas']['com_erro']} com erro, {resultado['estatisticas']['ignoradas']} ignoradas")
+    else:
+        print(f"❌ Erro no processamento: {resultado.get('erro', 'Erro desconhecido')}")
+    
+    # Exibe resultados detalhados
+    for r in resultado.get('resultados', []):
+        status_emoji = "✅" if r["status"] == "concluído" else "⚠️" if "erro" in r["status"] else "ℹ️"
+        print(f"{status_emoji} Processo {r['processo']}: {r['status']}")
+        
+    return resultado
+
+if __name__ == "__main__":
+    main2 
