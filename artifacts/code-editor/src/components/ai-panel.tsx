@@ -559,8 +559,11 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
   const voiceChatRecRef = useRef<any>(null);
   const voiceChatScrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsAbortRef = useRef<AbortController | null>(null);
 
   const stopAudio = useCallback(() => {
+    ttsAbortRef.current?.abort();
+    ttsAbortRef.current = null;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.onended = null;
@@ -572,6 +575,16 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
   }, []);
 
   const autoRestartMicRef = useRef(false);
+
+  const onTtsFinished = useCallback(() => {
+    setIsSpeaking(false);
+    if (autoRestartMicRef.current) {
+      setTimeout(() => {
+        autoRestartMicRef.current = false;
+        voiceChatToggleMicRef.current?.();
+      }, 400);
+    }
+  }, []);
 
   const playBrowserTts = useCallback((text: string) => {
     if (!window.speechSynthesis) { setIsSpeaking(false); return; }
@@ -585,55 +598,75 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
     const anyPt = voices.find(v => v.lang.startsWith("pt-BR") || v.lang.startsWith("pt_BR"));
     if (googlePt) utterance.voice = googlePt;
     else if (anyPt) utterance.voice = anyPt;
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      if (autoRestartMicRef.current) {
-        setTimeout(() => {
-          autoRestartMicRef.current = false;
-          voiceChatToggleMicRef.current?.();
-        }, 400);
-      }
-    };
+    utterance.onend = () => onTtsFinished();
     utterance.onerror = () => setIsSpeaking(false);
     setIsSpeaking(true);
     window.speechSynthesis.speak(utterance);
-  }, []);
+  }, [onTtsFinished]);
 
   const playTts = useCallback(async (text: string) => {
+    stopAudio();
+
+    const controller = new AbortController();
+    ttsAbortRef.current = controller;
     setIsSpeaking(true);
+
     try {
-      const res = await fetch("/api/ai/tts", {
+      const resp = await fetch("/api/ai/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
+        signal: controller.signal,
       });
-      if (!res.ok) throw new Error("TTS server error");
-      const blob = await res.blob();
-      if (blob.size < 100) throw new Error("TTS empty");
+
+      if (controller.signal.aborted) return;
+
+      if (!resp.ok) {
+        playBrowserTts(text);
+        return;
+      }
+
+      const contentType = resp.headers.get("content-type") || "";
+      if (!contentType.includes("audio")) {
+        playBrowserTts(text);
+        return;
+      }
+
+      const blob = await resp.blob();
+      if (controller.signal.aborted) return;
+
+      if (!blob || blob.size < 100) {
+        playBrowserTts(text);
+        return;
+      }
+
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioRef.current = audio;
+      let audioEnded = false;
+
       audio.onended = () => {
-        setIsSpeaking(false);
-        URL.revokeObjectURL(url);
+        if (audioEnded) return;
+        audioEnded = true;
         audioRef.current = null;
-        if (autoRestartMicRef.current) {
-          setTimeout(() => {
-            autoRestartMicRef.current = false;
-            voiceChatToggleMicRef.current?.();
-          }, 400);
-        }
+        URL.revokeObjectURL(url);
+        onTtsFinished();
       };
       audio.onerror = () => {
-        setIsSpeaking(false);
-        URL.revokeObjectURL(url);
+        if (audioEnded) return;
+        audioEnded = true;
         audioRef.current = null;
+        URL.revokeObjectURL(url);
+        playBrowserTts(text);
       };
-      audio.play();
-    } catch {
+
+      await audio.play();
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setIsSpeaking(false);
       playBrowserTts(text);
     }
-  }, [playBrowserTts]);
+  }, [stopAudio, playBrowserTts, onTtsFinished]);
 
   const voiceChatMutation = useAiChat({ mutation: {} });
   const voiceSendingRef = useRef(false);

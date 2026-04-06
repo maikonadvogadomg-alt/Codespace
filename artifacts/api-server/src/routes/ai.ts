@@ -496,39 +496,47 @@ router.post("/ai/tts", async (req, res): Promise<void> => {
     return;
   }
 
-  const cleanText = text.slice(0, 3000);
+  const cleanText = text
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 4096);
+
+  const stamp = Date.now();
+  const txtFile = `/tmp/tts_in_${stamp}.txt`;
+  const mp3File = `/tmp/tts_out_${stamp}.mp3`;
 
   try {
     const { execFile } = await import("child_process");
     const { promisify } = await import("util");
-    const { tmpdir } = await import("os");
     const execFileAsync = promisify(execFile);
-    const tmpPath = path.join(tmpdir(), `tts-${Date.now()}.mp3`);
+
+    await fs.writeFile(txtFile, cleanText, "utf8");
 
     await execFileAsync(
       "python3",
       [
         "-m", "edge_tts",
+        "--file", txtFile,
         "--voice", "pt-BR-FranciscaNeural",
-        "--rate", "+18%",
-        "--text", cleanText,
-        "--write-media", tmpPath,
+        "--write-media", mp3File,
       ],
-      { timeout: 30000 }
+      { timeout: 45000 }
     );
 
-    const audioBuffer = await fs.readFile(tmpPath);
-    fs.unlink(tmpPath).catch(() => {});
+    const audioBuffer = await fs.readFile(mp3File);
 
     res.set({
       "Content-Type": "audio/mpeg",
       "Content-Length": String(audioBuffer.length),
-      "Cache-Control": "no-cache",
     });
     res.send(audioBuffer);
   } catch (err: unknown) {
     req.log.error({ err }, "TTS failed");
     res.status(500).json({ error: "Falha ao gerar áudio" });
+  } finally {
+    fs.unlink(txtFile).catch(() => {});
+    fs.unlink(mp3File).catch(() => {});
   }
 });
 
