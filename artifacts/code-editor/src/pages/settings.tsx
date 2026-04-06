@@ -454,6 +454,24 @@ export default function SettingsPage() {
                       )}
                       {activeSlot === editSlot ? "Perfil ativo — salvar alterações" : "Ativar este perfil"}
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                      disabled={updateMutation.isPending}
+                      onClick={() => {
+                        updateMutation.mutate(
+                          { data: { aiApiKey: "", aiBaseUrl: "", aiModel: "" } },
+                          { onSuccess: () => {
+                            toast({ title: "Usando Gemini gratuita", description: "IA padrão ativada" });
+                          }}
+                        );
+                      }}
+                      title="Voltar para a Gemini 2.5 Flash gratuita"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Usar Gemini
+                    </Button>
                   </div>
                 </div>
 
@@ -478,10 +496,17 @@ export default function SettingsPage() {
                   ))}
                 </div>
 
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-500/20 bg-blue-500/5 text-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span className="text-blue-300">
+                    <strong>Gemini 2.5 Flash</strong> disponível gratuitamente como padrão — funciona mesmo sem nenhum perfil configurado
+                  </span>
+                </div>
+
                 <p className="text-[11px] text-muted-foreground">
-                  Configure até 4 perfis — por exemplo: principal (Claude), rápido (Groq), 
-                  especializado (GPT-4o) e teste (chave gratuita). Clique em{" "}
-                  <strong>Ativar</strong> para usar um perfil na IA do chat.
+                  A Gemini gratuita nunca some — ela é sua IA base. Os perfis são opcionais: use para
+                  adicionar outra IA para revisão de código (ex: Claude, GPT-4o), análise rápida (Groq),
+                  ou teste. Você pode trocar entre perfis sem perder a Gemini.
                 </p>
               </div>
 
