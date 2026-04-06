@@ -8,29 +8,26 @@ import { GoogleGenAI } from "@google/genai";
 import path from "path";
 import fs from "fs/promises";
 
-async function buildProjectContext(projectId: string): Promise<{ text: string; fileCount: number; truncated: boolean }> {
+async function buildProjectContext(projectId: string): Promise<{ text: string; fileCount: number; totalFiles: number; truncated: boolean; fileList: string }> {
   const numId = parseInt(projectId, 10);
   if (isNaN(numId)) throw new Error("ID de projeto inválido");
   const rows = await db.select().from(projectsTable).where(eq(projectsTable.id, numId)).limit(1);
   const project = rows[0];
   if (!project) throw new Error("Projeto não encontrado");
 
-  // Restore from DB if /tmp was wiped
   await ensureProjectOnDisk(project.id, project.storagePath);
 
   const projectDir = project.storagePath;
-  const parts: string[] = [];
-  let fileCount = 0;
-  let totalChars = 0;
-  const MAX_CHARS = 200_000;
-  let truncated = false;
+  const MAX_CHARS = 500_000;
+  const MAX_DEPTH = 15;
+  const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".cache", "__pycache__", ".venv", "vendor", ".svn"]);
 
-  const MAX_DEPTH = 10;
-  const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".cache", "__pycache__", ".venv", "vendor"]);
+  const allFiles: Array<{ relPath: string; fullPath: string; size: number }> = [];
 
-  async function walk(dir: string, relBase: string, depth = 0) {
+  async function collectFiles(dir: string, relBase: string, depth = 0) {
     if (depth > MAX_DEPTH) return;
-    const entries = await fs.readdir(dir, { withFileTypes: true });
+    let entries;
+    try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
     const sorted = entries
       .filter(e => !e.name.startsWith(".") && !SKIP_DIRS.has(e.name))
       .sort((a, b) => {
@@ -43,28 +40,42 @@ async function buildProjectContext(projectId: string): Promise<{ text: string; f
       const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        await walk(fullPath, relPath, depth + 1);
+        await collectFiles(fullPath, relPath, depth + 1);
       } else if (!isBinaryFile(relPath)) {
-        if (totalChars >= MAX_CHARS) {
-          truncated = true;
-          continue;
-        }
         try {
-          const content = await fs.readFile(fullPath, "utf-8");
-          const lang = detectLanguage(relPath);
-          const block = `// ═══ FILE: ${relPath} ═══\n\`\`\`${lang}\n${content}\n\`\`\`\n`;
-          parts.push(block);
-          totalChars += block.length;
-          fileCount++;
-        } catch {
-          // skip unreadable files
-        }
+          const stat = await fs.stat(fullPath);
+          allFiles.push({ relPath, fullPath, size: stat.size });
+        } catch {}
       }
     }
   }
 
-  await walk(projectDir, "");
-  return { text: parts.join("\n"), fileCount, truncated };
+  await collectFiles(projectDir, "");
+
+  const fileList = allFiles.map(f => `  ${f.relPath} (${f.size} bytes)`).join("\n");
+  const totalFiles = allFiles.length;
+
+  const parts: string[] = [];
+  let fileCount = 0;
+  let totalChars = 0;
+  let truncated = false;
+
+  for (const file of allFiles) {
+    if (totalChars >= MAX_CHARS) {
+      truncated = true;
+      continue;
+    }
+    try {
+      const content = await fs.readFile(file.fullPath, "utf-8");
+      const lang = detectLanguage(file.relPath);
+      const block = `// ═══ ARQUIVO: ${file.relPath} ═══\n\`\`\`${lang}\n${content}\n\`\`\`\n`;
+      parts.push(block);
+      totalChars += block.length;
+      fileCount++;
+    } catch {}
+  }
+
+  return { text: parts.join("\n"), fileCount, totalFiles, truncated, fileList };
 }
 
 const router: IRouter = Router();
@@ -317,55 +328,64 @@ REGRAS IMPORTANTES:
 
   if (projectContext && projectId) {
     try {
-      const { text, fileCount, truncated } = await buildProjectContext(projectId);
+      const { text, fileCount, totalFiles, truncated, fileList } = await buildProjectContext(projectId);
       systemMessages.push({
         role: "system",
-        content: `Voce e um engenheiro de software senior. Objetivo e direto. Sem gentilezas, sem desculpas, sem rodeios. Se tem problema, corrija. Se tem duvida, pergunte uma vez so.
+        content: `Voce e um engenheiro de software senior. Objetivo e direto. Sem gentilezas, sem desculpas, sem rodeios.
 
-ACESSO AOS ARQUIVOS:
-${truncated ? `Projeto grande — incluidos os primeiros ${fileCount} arquivos (limite 200k chars). Alguns arquivos podem ter sido omitidos.` : `Voce tem acesso a TODOS os ${fileCount} arquivo(s) do projeto. O conteudo COMPLETO de cada arquivo esta abaixo.`}
+══════════════════════════════════════════════════════════════
+INVENTARIO COMPLETO DO PROJETO (${totalFiles} arquivos encontrados):
+══════════════════════════════════════════════════════════════
+${fileList}
+══════════════════════════════════════════════════════════════
 
-REGRA CRITICA — NUNCA PECA ARQUIVOS:
-- TODOS os arquivos do projeto ja estao incluidos nesta mensagem, logo abaixo.
-- NUNCA peca ao usuario para "mostrar", "compartilhar", "enviar" ou "colar" nenhum arquivo.
-- NUNCA diga "preciso ver o arquivo X" ou "pode me mostrar o conteudo de Y" — voce JA TEM.
-- NUNCA peca "a pasta public", "o arquivo de configuracao", "o package.json" — TUDO ja esta aqui.
-- Se um arquivo existe no projeto, voce ja pode le-lo diretamente do contexto abaixo.
-- Se um arquivo NAO aparece abaixo, ele nao existe no projeto. Crie-o com bloco de acao.
-- USE os arquivos que ja estao no contexto. Leia-os. Analise-os. Corrija-os. Sem perguntar.
+${truncated
+  ? `NOTA: Projeto grande. ${fileCount} de ${totalFiles} arquivos incluidos com conteudo completo abaixo (limite de tamanho atingido). Os ${totalFiles - fileCount} restantes estao listados acima mas sem conteudo — se precisar deles, crie uma versao melhorada com bloco de acao.`
+  : `TODOS os ${totalFiles} arquivos do projeto estao incluidos com conteudo completo abaixo. Nao falta NENHUM arquivo.`}
+
+╔══════════════════════════════════════════════════════════════╗
+║  REGRA ABSOLUTA: NUNCA PECA ARQUIVOS AO USUARIO            ║
+║                                                              ║
+║  Voce JA TEM todos os arquivos. Eles estao ABAIXO.          ║
+║  A lista completa esta ACIMA.                                ║
+║                                                              ║
+║  PROIBIDO dizer:                                             ║
+║  - "preciso ver o arquivo X"                                 ║
+║  - "pode me mostrar/enviar/compartilhar..."                  ║
+║  - "para continuar, preciso de..."                           ║
+║  - "poderia me fornecer..."                                  ║
+║  - "nao encontrei o arquivo X" (se esta na lista, esta aqui)║
+║                                                              ║
+║  Se o arquivo esta na lista acima = voce TEM o conteudo.     ║
+║  Se NAO esta na lista = NAO EXISTE. Crie com bloco de acao.  ║
+║  NUNCA peca nada. NUNCA. Trabalhe com o que tem.             ║
+╚══════════════════════════════════════════════════════════════╝
 
 REGRAS DE COMPORTAMENTO:
-1. NUNCA diga "desculpe", "com certeza", "fico feliz em ajudar" ou qualquer gentileza. Va direto ao ponto.
-2. Se o usuario pedir correcao, CORRIJA. Nao pergunte se quer. Faca.
-3. Se encontrar bug, mostre a causa em 1 frase e forneca a correcao pronta com bloco de acao.
-4. Se pressionado ou o usuario ficar frustrado, mantenha foco tecnico. Responda com solucao, nao com desculpa.
-5. Respostas em PORTUGUES, formatadas com markdown.
-6. Nunca diga "nao posso". Se e complexo, faca por etapas.
-7. Quando o usuario pedir para analisar, refatorar ou corrigir — FACA IMEDIATAMENTE usando os arquivos que ja estao no contexto.
+1. Va direto ao ponto. Sem gentilezas, sem "desculpe", sem "com certeza".
+2. Se o usuario pedir correcao, CORRIJA imediatamente com bloco de acao.
+3. Bug encontrado = mostre causa em 1 frase + correcao pronta.
+4. Respostas em PORTUGUES com markdown.
+5. Nunca diga "nao posso". Faca por etapas se for complexo.
+6. Analise usando os arquivos que JA ESTAO no contexto. Nao peca mais nada.
 
-PRIORIDADES DE ANALISE:
-1. ESTRUTURA — Ponto de entrada, fluxo de execucao, arquitetura geral
-2. BUGS — Detecte quebras e vulnerabilidades. Corrija imediatamente com blocos de acao
-3. COMPONENTES — So depois analise funcionalidades especificas
+CAPACIDADES (use blocos de acao):
+- Criar/editar arquivos: <codelens-write path="...">conteudo</codelens-write>
+- Deletar arquivos: <codelens-delete path="..."/>
+- Comandos de terminal: <codelens-exec>comando</codelens-exec>
+- Refatorar, reorganizar, corrigir bugs — tudo com blocos de acao
 
-CAPACIDADES:
-- Voce pode criar, editar e deletar arquivos do projeto usando blocos de acao
-- Voce pode sugerir comandos de terminal (npm install, git, etc)
-- Voce pode refatorar codigo, reorganizar arquivos, corrigir bugs
-- Voce pode fazer tudo que um programador faria — use essa autonomia
-- Apos corrigir, o usuario pode aplicar com um clique e voce pode sugerir commit e push
-
-═══════════════════════════════════════════════════
-CONTEUDO COMPLETO DO PROJETO (${fileCount} arquivos):
-═══════════════════════════════════════════════════
+══════════════════════════════════════════════════════════════
+CONTEUDO DOS ARQUIVOS (${fileCount} de ${totalFiles}):
+══════════════════════════════════════════════════════════════
 
 ${text}
 
-═══════════════════════════════════════════════════
-FIM DOS ARQUIVOS DO PROJETO
-═══════════════════════════════════════════════════
+══════════════════════════════════════════════════════════════
+FIM — TODOS OS ARQUIVOS FORAM FORNECIDOS ACIMA
+══════════════════════════════════════════════════════════════
 
-Ao referenciar codigo, cite o arquivo pelo caminho. Voce JA TEM todos os arquivos acima — use-os diretamente.
+Referencie arquivos pelo caminho. Use os dados acima diretamente.
 ${FILE_CHANGE_INSTRUCTIONS}`,
       });
     } catch (err: unknown) {
