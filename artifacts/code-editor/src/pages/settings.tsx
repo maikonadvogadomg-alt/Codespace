@@ -464,21 +464,21 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
+                  {/* Reset button - always visible */}
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleClearProfile}
+                    className="w-full gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Resetar / Limpar este perfil
+                  </Button>
+
                   {/* API Key */}
                   <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs">Chave de API</Label>
-                      {currentProfile.apiKey.trim() && (
-                        <button
-                          type="button"
-                          onClick={handleClearProfile}
-                          className="flex items-center gap-1 text-[10px] text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded hover:bg-red-500/10"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          Limpar chave
-                        </button>
-                      )}
-                    </div>
+                    <Label className="text-xs">Chave de API</Label>
                     {detectedProvider && (
                       <div className={cn(
                         "flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium",

@@ -251,27 +251,42 @@ function getDefaultModel(provider: string): string {
   }
 }
 
+async function callWithProvider(
+  provider: string,
+  apiKey: string,
+  baseUrl: string | null,
+  model: string,
+  messages: Array<{ role: string; content: string }>
+): Promise<string> {
+  if (provider === "anthropic") {
+    return callAnthropic(apiKey, model, messages);
+  }
+  return callOpenAiCompatible(
+    baseUrl ?? getDefaultBaseUrl(provider),
+    apiKey,
+    model,
+    messages
+  );
+}
+
 async function callAi(
   settings: { aiApiKey: string | null; aiBaseUrl: string | null; aiModel: string | null },
   messages: Array<{ role: string; content: string }>
 ): Promise<string> {
   if (settings.aiApiKey) {
     const provider = detectProviderFromKey(settings.aiApiKey);
+    const model = settings.aiModel ?? getDefaultModel(provider);
+    const defaultModel = getDefaultModel(provider);
 
-    if (provider === "anthropic") {
-      return callAnthropic(
-        settings.aiApiKey,
-        settings.aiModel ?? getDefaultModel("anthropic"),
-        messages
-      );
+    try {
+      return await callWithProvider(provider, settings.aiApiKey, settings.aiBaseUrl, model, messages);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("404") && model !== defaultModel) {
+        return await callWithProvider(provider, settings.aiApiKey, settings.aiBaseUrl, defaultModel, messages);
+      }
+      throw err;
     }
-
-    return callOpenAiCompatible(
-      settings.aiBaseUrl ?? getDefaultBaseUrl(provider),
-      settings.aiApiKey,
-      settings.aiModel ?? getDefaultModel(provider),
-      messages
-    );
   }
 
   const fallback = getGeminiFallback();
