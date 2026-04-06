@@ -4,6 +4,7 @@ import { db, projectsTable, settingsTable } from "@workspace/db";
 import { AnalyzeFileBody, AnalyzeFolderBody, AiChatBody } from "@workspace/api-zod";
 import { isBinaryFile, detectLanguage } from "../lib/storage.js";
 import { ensureProjectOnDisk } from "../lib/persistFiles.js";
+import { GoogleGenAI } from "@google/genai";
 import path from "path";
 import fs from "fs/promises";
 
@@ -69,30 +70,59 @@ async function getAiSettings() {
   return rows[0] ?? null;
 }
 
-async function callAi(
-  settings: { aiApiKey: string | null; aiBaseUrl: string | null; aiModel: string | null },
+function getGeminiFallback(): { apiKey: string; baseUrl: string; model: string } | null {
+  const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+  const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  if (baseUrl && apiKey) {
+    return { apiKey, baseUrl: baseUrl.replace(/\/$/, ""), model: "gemini-2.5-flash" };
+  }
+  return null;
+}
+
+async function callGemini(
+  baseUrl: string,
+  apiKey: string,
+  model: string,
   messages: Array<{ role: string; content: string }>
 ): Promise<string> {
-  if (!settings.aiApiKey) {
-    throw new Error("AI API key not configured. Please go to Settings and add your API key.");
+  const client = new GoogleGenAI({
+    apiKey,
+    httpOptions: { apiVersion: "", baseUrl },
+  });
+
+  const contents = messages.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+
+  const response = await client.models.generateContent({
+    model,
+    contents,
+    config: { maxOutputTokens: 8192 },
+  });
+
+  const text = response.text;
+  if (!text) {
+    throw new Error("Gemini returned empty response");
   }
+  return text;
+}
 
-  const baseUrl = settings.aiBaseUrl ?? "https://api.openai.com/v1";
-  const model = settings.aiModel ?? "gpt-4o";
-
+async function callOpenAiCompatible(
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  messages: Array<{ role: string; content: string }>
+): Promise<string> {
   const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
 
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${settings.aiApiKey}`,
+      "Authorization": `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      max_tokens: 8000,
-    }),
+    body: JSON.stringify({ model, messages, max_tokens: 8000 }),
   });
 
   if (!response.ok) {
@@ -102,15 +132,33 @@ async function callAi(
 
   const data = await response.json() as {
     choices: Array<{ message: { content: string } }>;
-    model: string;
   };
 
   const content = data.choices?.[0]?.message?.content;
   if (!content) {
     throw new Error("AI returned empty response");
   }
-
   return content;
+}
+
+async function callAi(
+  settings: { aiApiKey: string | null; aiBaseUrl: string | null; aiModel: string | null },
+  messages: Array<{ role: string; content: string }>
+): Promise<string> {
+  if (settings.aiApiKey) {
+    return callOpenAiCompatible(
+      settings.aiBaseUrl ?? "https://api.openai.com/v1",
+      settings.aiApiKey,
+      settings.aiModel ?? "gpt-4o",
+      messages
+    );
+  }
+
+  const fallback = getGeminiFallback();
+  if (!fallback) {
+    throw new Error("AI API key not configured. Please go to Settings and add your API key.");
+  }
+  return callGemini(fallback.baseUrl, fallback.apiKey, fallback.model, messages);
 }
 
 router.post("/ai/chat", async (req, res): Promise<void> => {
@@ -123,7 +171,12 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
   const { messages, fileContext, filePath, projectId, projectContext, terminalContext } = parsed.data;
 
   const settings = await getAiSettings();
-  if (!settings?.aiApiKey) {
+  const effectiveSettings = {
+    aiApiKey: settings?.aiApiKey ?? null,
+    aiBaseUrl: settings?.aiBaseUrl ?? null,
+    aiModel: settings?.aiModel ?? null,
+  };
+  if (!effectiveSettings.aiApiKey && !getGeminiFallback()) {
     res.status(400).json({ error: "Chave de API da IA não configurada. Vá em Configurações." });
     return;
   }
@@ -213,8 +266,8 @@ Use esse contexto para entender erros recentes e ajudar o usuário a corrigir os
   ];
 
   try {
-    const reply = await callAi(settings, allMessages);
-    res.json({ reply, model: settings.aiModel ?? "gpt-4o" });
+    const reply = await callAi(effectiveSettings, allMessages);
+    res.json({ reply, model: effectiveSettings.aiModel ?? (getGeminiFallback()?.model ?? "gpt-4o") });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erro na IA";
     req.log.error({ err }, "AI chat failed");
@@ -233,7 +286,7 @@ router.post("/ai/analyze-file", async (req, res): Promise<void> => {
   const { projectId, filePath, content } = parsed.data;
 
   const settings = await getAiSettings();
-  if (!settings?.aiApiKey) {
+  if (!settings?.aiApiKey && !getGeminiFallback()) {
     res.status(400).json({ error: "AI API key not configured. Please go to Settings." });
     return;
   }
@@ -257,13 +310,18 @@ ${content.slice(0, 8000)}
 Provide a clear, structured analysis. Be concise but thorough.`;
 
   try {
-    const analysis = await callAi(settings, [
+    const effectiveSettings = {
+      aiApiKey: settings?.aiApiKey ?? null,
+      aiBaseUrl: settings?.aiBaseUrl ?? null,
+      aiModel: settings?.aiModel ?? null,
+    };
+    const analysis = await callAi(effectiveSettings, [
       { role: "user", content: prompt }
     ]);
 
     res.json({
       analysis,
-      model: settings.aiModel ?? "gpt-4o",
+      model: effectiveSettings.aiModel ?? (getGeminiFallback()?.model ?? "gpt-4o"),
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown AI error";
@@ -295,7 +353,7 @@ router.post("/ai/analyze-folder", async (req, res): Promise<void> => {
   }
 
   const settings = await getAiSettings();
-  if (!settings?.aiApiKey) {
+  if (!settings?.aiApiKey && !getGeminiFallback()) {
     res.status(400).json({ error: "AI API key not configured. Please go to Settings." });
     return;
   }
@@ -372,13 +430,18 @@ ${filesOverview}
 Provide a clear, structured analysis of what this folder's role is in the project.`;
 
   try {
-    const analysis = await callAi(settings, [
+    const effectiveSettings = {
+      aiApiKey: settings?.aiApiKey ?? null,
+      aiBaseUrl: settings?.aiBaseUrl ?? null,
+      aiModel: settings?.aiModel ?? null,
+    };
+    const analysis = await callAi(effectiveSettings, [
       { role: "user", content: prompt }
     ]);
 
     res.json({
       analysis,
-      model: settings.aiModel ?? "gpt-4o",
+      model: effectiveSettings.aiModel ?? (getGeminiFallback()?.model ?? "gpt-4o"),
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown AI error";
