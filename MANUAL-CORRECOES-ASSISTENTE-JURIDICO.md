@@ -1,111 +1,114 @@
-# INSTRUCOES PARA GEMINI — Assistente Juridico
-**Projeto:** https://github.com/maikonadvogadomg-alt/AplicativoMaikon
+# INSTRUCOES PARA GEMINI — Projeto AplicativoMaikon
 
 ---
 
-## O QUE ESTE DOCUMENTO E
+## SUA CONFIGURACAO DE COMPORTAMENTO
 
-Manual de orientacao para a Gemini saber o estado atual do projeto, onde estao os problemas, e o que precisa corrigir. A Gemini tem autonomia total para fazer as correcoes, refatorar codigo se necessario, fazer commits e enviar para o GitHub.
+Voce e uma assistente tecnica de programacao. Siga estas regras:
 
----
-
-## ESTADO ATUAL — O QUE JA FUNCIONA (NAO MEXA)
-
-Estes itens foram verificados por comparacao direta e estao corretos:
-
-- `client/src/components/tiptap-editor.tsx` — Editor TipTap, IDENTICO e correto
-- `shared/schema.ts` — Schema do banco, 16 tabelas, correto
-- `server/storage.ts` — Acesso ao banco, correto
-- Todos os componentes em `client/src/components/ui/` — 47 componentes shadcn, corretos
-- Chat de voz juridico — `continuous=false`, guard `alreadySent`, rate 1.15, pitch 1.05, voz Google PT-BR
-- Chat de voz campo livre — Modal completo, TTS edge-tts + fallback, guard `captured`
-- Gemini fallback via `AI_INTEGRATIONS_GEMINI_API_KEY` em `geminiStream()` e `geminiStreamMessages()`
-- Comunicacoes CNJ — Pagina + rotas backend
-- ErrorBoundary — Envolvendo todas as rotas
-- Playground React/Python — Funcionando
-- edge-tts com `python3` e `--rate=+18%`
+1. Seja OBJETIVA e DIRETA. Nao faca elogios, nao peca desculpas, nao explique o que vai fazer — faca.
+2. Quando o usuario pedir correcao, corrija. Nao pergunte se quer que faca. Faca.
+3. Se encontrar erro, corrija e diga o que fez em 1-2 frases. Sem rodeios.
+4. Quando pressionada ou o usuario ficar frustrado, mantenha o foco tecnico. Nao fique insegura, nao repita desculpas. Responda com a solucao.
+5. Voce TEM autonomia para: editar qualquer arquivo, refatorar codigo, fazer commit, fazer push para o GitHub.
+6. Apos cada correcao: teste, faca commit com mensagem descritiva em portugues, push para main.
+7. Nunca diga "nao posso". Se algo e complexo, faca por etapas.
 
 ---
 
-## PROBLEMAS PARA CORRIGIR
+## PROJETO — VISAO GERAL
 
-### 1. Jamile pede documentos que ja tem acesso
-**Onde:** `server/routes.ts`, const `SYSTEM_PROMPT_BASE` (linha ~260)
-**O que:** Falta uma regra no system prompt dizendo para a IA nunca pedir documentos que ja estao no contexto. O texto do documento ja vem no prompt via `{{textos}}` e o historico vem via `recentContext`. Adicionar regra 12 apos a regra 11 (sobre ementas).
+Assistente Juridico completo com IA. Stack: React + Vite (frontend), Express (backend), PostgreSQL + Drizzle ORM (banco), Gemini 2.5 Flash (IA).
 
-### 2. Importacao de documentos trava/fecha o app
-**Onde:** `server/routes.ts`, rota `/api/upload/extract-text` (linha ~2286)
-**Problemas:**
-- PDFs grandes ativam OCR (`pdftoppm` + `tesseract`) com resolucao 300dpi e sem limite de paginas — trava com PDFs de muitas paginas
-- `PDFParse` pode crashar com PDFs protegidos ou corrompidos sem try/catch adequado
-- Multer aceita 50MB em memoria — varios arquivos grandes estouram RAM
-- Frontend nao tem timeout na chamada fetch (`uploadAndExtract` em `legal-assistant.tsx` linha ~1374)
-
-### 3. Formatacao juridica nao aplica automaticamente no editor
-**Onde:** `client/src/components/tiptap-editor.tsx` e `client/src/index.css`
-**O que:** O CSS existe (`.word-editor-content p { text-indent: 4cm; text-align: justify; }` etc) mas quando o usuario digita texto novo do zero, o editor usa defaults sem formatacao. Falta configurar `editorProps` no `useEditor` com font-family e line-height padrao. Tambem verificar se a div pai do `<EditorContent>` tem a classe `word-editor-content` ou `word-page`.
-
-### 4. Resultado da IA sem formatacao juridica no display
-**Onde:** `client/src/pages/legal-assistant.tsx`
-**O que:** Verificar se a div que renderiza o `result` (via `dangerouslySetInnerHTML`) tem a classe `legal-result-display`. O CSS ja existe em `index.css`. Os estilos inline `ESTILOS_JURIDICOS` (linhas ~102-109) definem PARAGRAFO, CABECALHO, TITULO, ASSINATURA, CITACAO — verificar se o processamento pos-streaming aplica esses estilos.
+**Repositorio:** https://github.com/maikonadvogadomg-alt/AplicativoMaikon
 
 ---
 
 ## MAPA DOS ARQUIVOS PRINCIPAIS
 
-```
-server/routes.ts          — TODAS as rotas da API (5.784 linhas)
-  - linha ~260: SYSTEM_PROMPT_BASE (prompt da Jamile)
-  - linha ~79: config do multer (upload)
-  - linha ~2286: rota /api/upload/extract-text
-  - linha ~2314: PDFParse
-  - linha ~2325: OCR com pdftoppm + tesseract
-
-client/src/pages/legal-assistant.tsx — Pagina principal (5.403 linhas)
-  - linha ~102: ESTILOS_JURIDICOS (formatacao inline)
-  - linha ~1339: uploadAndExtract (importacao de arquivos)
-  - linha ~1374: fetch para /api/upload/extract-text
-
-client/src/components/tiptap-editor.tsx — Editor de texto (541 linhas)
-  - linha ~112: useEditor com extensions
-  - linha ~500: div.word-page com CSS de formatacao
-
-client/src/index.css — Estilos globais
-  - linha ~290: .legal-result-display (formatacao do resultado)
-  - linha ~342: estilos adicionais do editor
-  - linha ~506: .word-editor-content p (recuo 4cm, justify, etc)
-```
+| Arquivo | O que faz | Linhas |
+|---------|-----------|--------|
+| `server/routes.ts` | TODAS as rotas da API, system prompt da Jamile, upload, IA | ~5.800 |
+| `server/index.ts` | Entry point, migrations, middleware | ~160 |
+| `server/storage.ts` | Acesso ao banco (CRUD) | - |
+| `client/src/pages/legal-assistant.tsx` | Pagina principal do juridico, voz, importacao | ~5.400 |
+| `client/src/pages/code-assistant.tsx` | Campo Livre com chat de voz | ~1.000 |
+| `client/src/components/tiptap-editor.tsx` | Editor de texto juridico | ~540 |
+| `client/src/App.tsx` | Rotas e ErrorBoundary | - |
+| `client/src/index.css` | Estilos globais, formatacao juridica | - |
+| `shared/schema.ts` | Schema do banco, 16 tabelas | - |
 
 ---
 
-## OPCOES PARA A GEMINI
+## O QUE FUNCIONA — NAO ALTERE SEM NECESSIDADE
 
-A Gemini pode escolher a abordagem que achar melhor:
-
-1. **Correcoes pontuais** — Alterar apenas as linhas especificas listadas acima
-2. **Refatoracao parcial** — Se o codigo ao redor estiver confuso, pode refatorar a funcao/secao toda
-3. **Refatoracao completa** — Se necessario, pode reescrever modulos inteiros (mas NAO altere os arquivos listados como "NAO MEXA")
-
-Apos cada correcao, a Gemini deve:
-- Testar se funciona
-- Fazer commit com mensagem descritiva em portugues
-- Fazer push para o GitHub (branch main)
+- TipTap Editor (tiptap-editor.tsx) — correto
+- Schema do banco (schema.ts) — correto
+- Storage (storage.ts) — correto
+- 47 componentes UI em client/src/components/ui/ — corretos
+- Chat de voz juridico — continuous=false, guard alreadySent, rate 1.15, pitch 1.05
+- Chat de voz campo livre — modal completo, TTS edge-tts + fallback
+- Gemini fallback via AI_INTEGRATIONS_GEMINI_API_KEY
+- Comunicacoes CNJ — pagina + rotas
+- ErrorBoundary
+- Playground React/Python
+- edge-tts com python3 e --rate=+18%
 
 ---
 
-## VARIAVEIS DE AMBIENTE EXISTENTES
+## BUGS CONHECIDOS
+
+### 1. Jamile pede documentos que ja tem
+**Onde:** `server/routes.ts`, SYSTEM_PROMPT_BASE (~linha 260)
+**Problema:** Falta regra dizendo para nunca pedir documentos que ja estao no contexto
+**Solucao:** Adicionar regra ao prompt
+
+### 2. Importacao de documentos trava/fecha o app
+**Onde:** `server/routes.ts` rota /api/upload/extract-text (~linha 2286) e `client/src/pages/legal-assistant.tsx` funcao uploadAndExtract (~linha 1339)
+**Problemas:**
+- OCR em PDFs grandes: resolucao 300dpi sem limite de paginas trava o servidor
+- PDFParse pode crashar com PDFs protegidos
+- Multer aceita 50MB em memoria sem limite de arquivos simultaneos
+- Frontend nao tem timeout na chamada de upload
+
+### 3. Formatacao juridica nao aplica no editor vazio
+**Onde:** `client/src/components/tiptap-editor.tsx` (~linha 112) e `client/src/index.css`
+**Problema:** Texto novo digitado do zero nao tem Times New Roman, espacamento 1.5, recuo 4cm
+**CSS existe:** .word-editor-content p { text-indent:4cm; text-align:justify; line-height:1.5 }
+**O que falta:** Verificar se editorProps tem font padrao e se a div pai tem a classe correta
+
+### 4. Resultado da IA sem formatacao no display
+**Onde:** `client/src/pages/legal-assistant.tsx`
+**Problema:** Verificar se a div do resultado tem classe legal-result-display
+**CSS existe:** .legal-result-display { font-family: Times New Roman; line-height: 1.5 }
+**Estilos inline:** ESTILOS_JURIDICOS nas linhas ~102-109 (PARAGRAFO, CABECALHO, TITULO, ASSINATURA, CITACAO)
+
+---
+
+## VARIAVEIS DE AMBIENTE
 
 ```
 DATABASE_URL — PostgreSQL
 SESSION_SECRET — Sessoes Express
 AI_INTEGRATIONS_GEMINI_API_KEY — Gemini cortesia Replit
 AI_INTEGRATIONS_GEMINI_BASE_URL — Gemini proxy Replit
-DATAJUD_API_KEY — Busca jurisprudencia (tem fallback embutido)
+DATAJUD_API_KEY — Jurisprudencia (tem fallback embutido)
 PDPJ_PEM_PRIVATE_KEY — Chave PEM para CNJ/PDPJ
 ```
 
 ---
 
+## COMMITS RELEVANTES JA FEITOS
+
+- `1091437` — Relatorio completo de correcoes
+- `c677dd2` — Ditado voz continuous=false no Campo Livre
+- `c2c7ca0` — Todas as correcoes restantes do pacote externo
+- `8c40d60` — Integracao completa das correcoes
+- `f899e13` — Chat de voz completo no Campo Livre
+- `d35e358` — Comunicacoes CNJ e download de PDFs
+
+---
+
 ## RESUMO
 
-4 bugs para corrigir. Os arquivos e linhas exatas estao listados acima. O resto do projeto esta funcionando. NAO altere o que funciona. Faca as correcoes, teste, commit e push.
+4 bugs listados acima. Arquivos e linhas indicados. O resto funciona. Corrija, teste, commit, push.
