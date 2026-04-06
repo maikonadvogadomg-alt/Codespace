@@ -573,21 +573,23 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
 
   const autoRestartMicRef = useRef(false);
 
-  const playTts = useCallback((text: string) => {
-    if (!window.speechSynthesis) { setIsSpeaking(false); return; }
-    window.speechSynthesis.cancel();
-    setTimeout(() => {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "pt-BR";
-      utterance.rate = 1.15;
-      utterance.pitch = 1.05;
-      const voices = window.speechSynthesis.getVoices();
-      const googlePt = voices.find(v => v.name.includes("Google") && v.lang.startsWith("pt"));
-      const anyPt = voices.find(v => v.lang.startsWith("pt-BR") || v.lang.startsWith("pt_BR"));
-      if (googlePt) utterance.voice = googlePt;
-      else if (anyPt) utterance.voice = anyPt;
-      utterance.onend = () => {
+  const playTts = useCallback(async (text: string) => {
+    setIsSpeaking(true);
+    try {
+      const res = await fetch("/api/ai/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error("TTS failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => {
         setIsSpeaking(false);
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
         if (autoRestartMicRef.current) {
           setTimeout(() => {
             autoRestartMicRef.current = false;
@@ -595,10 +597,15 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
           }, 400);
         }
       };
-      utterance.onerror = () => setIsSpeaking(false);
-      setIsSpeaking(true);
-      window.speechSynthesis.speak(utterance);
-    }, 100);
+      audio.onerror = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+      };
+      audio.play();
+    } catch {
+      setIsSpeaking(false);
+    }
   }, []);
 
   const voiceChatMutation = useAiChat({ mutation: {} });

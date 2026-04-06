@@ -489,4 +489,47 @@ Seja direto e objetivo. Sem rodeios.`;
   }
 });
 
+router.post("/ai/tts", async (req, res): Promise<void> => {
+  const { text } = req.body;
+  if (!text || typeof text !== "string") {
+    res.status(400).json({ error: "Texto é obrigatório" });
+    return;
+  }
+
+  const cleanText = text.slice(0, 3000);
+
+  try {
+    const { execFile } = await import("child_process");
+    const { promisify } = await import("util");
+    const { tmpdir } = await import("os");
+    const execFileAsync = promisify(execFile);
+    const tmpPath = path.join(tmpdir(), `tts-${Date.now()}.mp3`);
+
+    await execFileAsync(
+      "python3",
+      [
+        "-m", "edge_tts",
+        "--voice", "pt-BR-FranciscaNeural",
+        "--rate", "+18%",
+        "--text", cleanText,
+        "--write-media", tmpPath,
+      ],
+      { timeout: 30000 }
+    );
+
+    const audioBuffer = await fs.readFile(tmpPath);
+    fs.unlink(tmpPath).catch(() => {});
+
+    res.set({
+      "Content-Type": "audio/mpeg",
+      "Content-Length": String(audioBuffer.length),
+      "Cache-Control": "no-cache",
+    });
+    res.send(audioBuffer);
+  } catch (err: unknown) {
+    req.log.error({ err }, "TTS failed");
+    res.status(500).json({ error: "Falha ao gerar áudio" });
+  }
+});
+
 export default router;
