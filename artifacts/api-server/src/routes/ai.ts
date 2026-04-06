@@ -108,7 +108,7 @@ async function callGemini(
     parts: [{ text: m.content }],
   }));
 
-  const config: Record<string, any> = { maxOutputTokens: 8192 };
+  const config: { maxOutputTokens: number; systemInstruction?: string } = { maxOutputTokens: 8192 };
   if (systemParts.length > 0) {
     config.systemInstruction = systemParts.join("\n\n");
   }

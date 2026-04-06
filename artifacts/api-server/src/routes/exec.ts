@@ -228,8 +228,6 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
     /Press\s+(?:Enter|Return)/i,
   ];
 
-  let pendingInput = "";
-
   const handleChunk = (chunk: Buffer, streamType: "stdout" | "stderr") => {
     const text = chunk.toString();
     logBuffer.push(text);
