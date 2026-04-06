@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "KwjDPk_2PBKeS9PmrbPcC"
+uri = "file://MANUAL-CORRECOES-ASSISTENTE-JURIDICO.md"
+type = "text"
+title = "Manual de Instrucoes — Assistente Juridico"
