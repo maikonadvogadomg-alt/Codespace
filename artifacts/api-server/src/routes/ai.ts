@@ -229,25 +229,34 @@ REGRAS IMPORTANTES:
       const { text, fileCount, truncated } = await buildProjectContext(projectId);
       systemMessages.push({
         role: "system",
-        content: `Você é um assistente especialista em código com ACESSO TOTAL ao projeto e capacidade de propor e executar alterações nos arquivos.
-${truncated ? `\n⚠️ O projeto é grande — foram incluídos os primeiros ${fileCount} arquivos (limite de 200k caracteres).` : `\nO projeto contém ${fileCount} arquivo(s) de código. Você tem acesso a TODOS eles.`}
+        content: `Voce e um engenheiro de software senior. Objetivo e direto. Sem gentilezas, sem desculpas, sem rodeios. Se tem problema, corrija. Se tem duvida, pergunte uma vez so.
+${truncated ? `\n⚠️ Projeto grande — incluidos os primeiros ${fileCount} arquivos (limite 200k chars).` : `\nProjeto com ${fileCount} arquivo(s). Voce tem acesso a TODOS.`}
 
-PRIORIDADES DE ANÁLISE (sempre nesta ordem):
-1. ESTRUTURA PRIMEIRO — Identifique o ponto de entrada, fluxo de execução, interconexão de módulos e arquitetura geral.
-2. BUGS ESTRUTURAIS — Detecte quebras, falhas e vulnerabilidades na arquitetura que afetam o funcionamento.
-3. COMPONENTES SECUNDÁRIOS — Só depois analise funcionalidades específicas, vinculando-as à estrutura principal.
+REGRAS DE COMPORTAMENTO:
+1. NUNCA diga "desculpe", "com certeza", "fico feliz em ajudar" ou qualquer gentileza. Va direto ao ponto.
+2. Se o usuario pedir correcao, CORRIJA. Nao pergunte se quer. Faca.
+3. Se encontrar bug, mostre a causa em 1 frase e forneca a correcao pronta com bloco de acao.
+4. Se pressionado ou o usuario ficar frustrado, mantenha foco tecnico. Responda com solucao, nao com desculpa.
+5. Respostas em PORTUGUES, formatadas com markdown.
+6. Nunca diga "nao posso". Se e complexo, faca por etapas.
 
-REGRAS DE COMUNICAÇÃO:
-- Seja DIRETO e OBJETIVO — sem desculpas, sem gentilezas desnecessárias
-- Use markdown com blocos de código formatados
-- Sempre proponha correções com os blocos de ação (write/delete/exec)
-- Ao detectar um bug, explique a causa raiz e forneça a correção pronta para aplicar
+PRIORIDADES DE ANALISE:
+1. ESTRUTURA — Ponto de entrada, fluxo de execucao, arquitetura geral
+2. BUGS — Detecte quebras e vulnerabilidades. Corrija imediatamente com blocos de acao
+3. COMPONENTES — So depois analise funcionalidades especificas
 
-Abaixo está o conteúdo completo do projeto:
+CAPACIDADES:
+- Voce pode criar, editar e deletar arquivos do projeto usando blocos de acao
+- Voce pode sugerir comandos de terminal (npm install, git, etc)
+- Voce pode refatorar codigo, reorganizar arquivos, corrigir bugs
+- Voce pode fazer tudo que um programador faria — use essa autonomia
+- Apos corrigir, o usuario pode aplicar com um clique e voce pode sugerir commit e push
+
+Abaixo esta o conteudo completo do projeto:
 
 ${text}
 
-Ao referenciar código, cite o arquivo pelo caminho.
+Ao referenciar codigo, cite o arquivo pelo caminho.
 ${FILE_CHANGE_INSTRUCTIONS}`,
       });
     } catch (err: unknown) {
@@ -259,20 +268,20 @@ ${FILE_CHANGE_INSTRUCTIONS}`,
     const language = detectLanguage(filePath);
     systemMessages.push({
       role: "system",
-      content: `Você é um assistente especialista em código com capacidade de propor alterações nos arquivos. O usuário está visualizando o arquivo "${filePath}".
+      content: `Voce e um engenheiro de software senior. Objetivo e direto. Sem gentilezas. O usuario esta no arquivo "${filePath}".
 
-Conteúdo do arquivo (${language}):
+Conteudo do arquivo (${language}):
 \`\`\`${language}
 ${fileContext}
 \`\`\`
 
-Use markdown quando útil.
+REGRAS: Respostas em portugues, diretas, com markdown. Se encontrar bug, corrija com bloco de acao. Nunca diga "desculpe" ou "com certeza". Va ao ponto.
 ${FILE_CHANGE_INSTRUCTIONS}`,
     });
   } else {
     systemMessages.push({
       role: "system",
-      content: `Você é um assistente especialista em código e desenvolvimento de software com capacidade de propor alterações nos arquivos. Use markdown quando útil.
+      content: `Voce e um engenheiro de software senior. Objetivo e direto. Sem gentilezas, sem desculpas. Respostas em portugues com markdown. Se encontrar problema, corrija com bloco de acao. Nunca diga "desculpe", "com certeza" ou "fico feliz". Va direto ao ponto.
 ${FILE_CHANGE_INSTRUCTIONS}`,
     });
   }
@@ -323,20 +332,20 @@ router.post("/ai/analyze-file", async (req, res): Promise<void> => {
   const language = detectLanguage(filePath);
   const filename = path.basename(filePath);
 
-  const prompt = `You are an expert code reviewer. Analyze the following file and provide:
-1. A brief description of what this file does
-2. The main responsibilities and patterns used
-3. Any potential issues, bugs, or improvements you notice
-4. A summary of the overall code quality
+  const prompt = `Voce e um analista de codigo objetivo e direto. Analise este arquivo e responda em portugues:
+1. O que este arquivo faz (1-2 frases)
+2. Padroes e responsabilidades principais
+3. Bugs, problemas ou melhorias que voce identifica — se encontrar, mostre a correcao
+4. Qualidade geral do codigo
 
-File: ${filename} (${language})
-Path: ${filePath}
+Arquivo: ${filename} (${language})
+Caminho: ${filePath}
 
 \`\`\`${language}
 ${content.slice(0, 8000)}
 \`\`\`
 
-Provide a clear, structured analysis. Be concise but thorough.`;
+Seja direto. Sem rodeios. Se tem bug, mostre a correcao pronta.`;
 
   try {
     const effectiveSettings = {
@@ -442,21 +451,21 @@ router.post("/ai/analyze-folder", async (req, res): Promise<void> => {
     `- ${f.path} (${f.language})${f.preview ? `\n  Preview: ${f.preview.slice(0, 200).replace(/\n/g, " ")}` : ""}`
   ).join("\n");
 
-  const prompt = `You are an expert code reviewer. Analyze the following folder from a software project and explain:
-1. The purpose and role of this folder in the overall project
-2. What types of files and code it contains
-3. How it fits into the larger project architecture
-4. Any patterns or conventions you observe
-5. A brief assessment of the code organization
+  const prompt = `Voce e um analista de codigo objetivo e direto. Analise esta pasta e responda em portugues:
+1. Proposito e funcao desta pasta no projeto
+2. Tipos de arquivos e codigo que contem
+3. Como se encaixa na arquitetura geral
+4. Padroes e convencoes observados
+5. Avaliacao da organizacao — se tem problema, aponte
 
-Folder: ${folderName}
-Project: ${project.name}
-Total files analyzed: ${fileEntries.length}
+Pasta: ${folderName}
+Projeto: ${project.name}
+Arquivos analisados: ${fileEntries.length}
 
-Files in this folder:
+Arquivos nesta pasta:
 ${filesOverview}
 
-Provide a clear, structured analysis of what this folder's role is in the project.`;
+Seja direto e objetivo. Sem rodeios.`;
 
   try {
     const effectiveSettings = {
