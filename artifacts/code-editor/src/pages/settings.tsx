@@ -241,7 +241,7 @@ export default function SettingsPage() {
   // AI profiles state
   const [profiles, setProfiles] = useState<AiProfile[]>(loadProfiles);
   const [activeSlot, setActiveSlot] = useState<number>(loadActiveSlot);
-  const [editSlot, setEditSlot] = useState<number>(0);
+  const [editSlot, setEditSlot] = useState<number>(loadActiveSlot);
   const [detectedProvider, setDetectedProvider] = useState<Provider | null>(null);
 
   // GitHub token state (separate, goes to backend)
@@ -305,15 +305,16 @@ export default function SettingsPage() {
   const handleClearProfile = () => {
     updateCurrentProfile({ apiKey: "", baseUrl: "", model: "", provider: "gemini" });
     setDetectedProvider(null);
+
     if (activeSlot === editSlot) {
       updateMutation.mutate(
         { data: { aiApiKey: "", aiBaseUrl: "", aiModel: "" } },
         { onSuccess: () => {
-          toast({ title: "Chave removida", description: "Voltando para Gemini gratuita" });
+          toast({ title: "Perfil resetado", description: "Usando Gemini gratuita agora" });
         }}
       );
     } else {
-      toast({ title: "Perfil limpo" });
+      toast({ title: "Perfil limpo", description: "Ative este perfil ou outro para aplicar" });
     }
   };
 
