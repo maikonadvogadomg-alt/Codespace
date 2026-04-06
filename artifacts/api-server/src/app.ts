@@ -47,7 +47,7 @@ if (
   fs.existsSync(frontendDist)
 ) {
   app.use(express.static(frontendDist));
-  app.get("/{*splat}", (_req, res) => {
+  app.use((_req, res) => {
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
