@@ -243,7 +243,7 @@ function getDefaultBaseUrl(provider: string): string {
 
 function getDefaultModel(provider: string): string {
   switch (provider) {
-    case "anthropic": return "claude-sonnet-4-5-20250514";
+    case "anthropic": return "claude-3-5-haiku-20241022";
     case "groq": return "llama-3.3-70b-versatile";
     case "perplexity": return "sonar-pro";
     case "gemini": return "gemini-2.5-flash";

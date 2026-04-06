@@ -43,8 +43,8 @@ const PROVIDERS: { match: (key: string) => boolean; provider: Provider }[] = [
       name: "Anthropic",
       color: "text-orange-400 bg-orange-400/10 border-orange-400/30",
       baseUrl: "https://api.anthropic.com/v1",
-      model: "claude-sonnet-4-5-20250514",
-      hint: "Claude Sonnet 4.5",
+      model: "claude-3-5-haiku-20241022",
+      hint: "Claude 3.5 Haiku",
     },
   },
   {
@@ -133,7 +133,7 @@ type ProviderOption = "gemini" | "anthropic" | "openai" | "other";
 
 const PROVIDER_OPTIONS: { value: ProviderOption; label: string; color: string; defaultBaseUrl: string; defaultModel: string }[] = [
   { value: "gemini", label: "Google Gemini", color: "text-blue-400", defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/", defaultModel: "gemini-2.5-flash" },
-  { value: "anthropic", label: "Anthropic Claude", color: "text-orange-400", defaultBaseUrl: "https://api.anthropic.com/v1", defaultModel: "claude-sonnet-4-5-20250514" },
+  { value: "anthropic", label: "Anthropic Claude", color: "text-orange-400", defaultBaseUrl: "https://api.anthropic.com/v1", defaultModel: "claude-3-5-haiku-20241022" },
   { value: "openai", label: "OpenAI", color: "text-emerald-400", defaultBaseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4o" },
   { value: "other", label: "Outro", color: "text-gray-400", defaultBaseUrl: "", defaultModel: "" },
 ];
@@ -482,7 +482,7 @@ export default function SettingsPage() {
                       value={currentProfile.model}
                       onChange={(e) => updateCurrentProfile({ model: e.target.value })}
                       placeholder={
-                        currentProfile.provider === "anthropic" ? "claude-sonnet-4-5-20250514" :
+                        currentProfile.provider === "anthropic" ? "claude-3-5-haiku-20241022" :
                         currentProfile.provider === "gemini" ? "gemini-2.5-flash" :
                         currentProfile.provider === "openai" ? "gpt-4o" :
                         "nome-do-modelo"
