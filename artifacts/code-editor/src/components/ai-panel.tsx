@@ -29,6 +29,11 @@ import {
   Search,
   GitBranch,
   Shield,
+  Copy,
+  CheckCheck,
+  Layers,
+  VolumeX,
+  AudioLines,
 } from "lucide-react";
 import {
   useAiChat,
@@ -46,6 +51,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 // ─── Voice hook (shared pattern) ─────────────────────────────────────────────
 function useVoice(onResult: (text: string) => void) {
@@ -293,6 +305,32 @@ function ExecCommandCard({
   );
 }
 
+// ─── Copy Button ──────────────────────────────────────────────────────────────
+
+function CopyButton({ text, className = "" }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className={cn(
+        "p-1 rounded hover:bg-white/10 transition-colors",
+        copied ? "text-green-400" : "text-muted-foreground hover:text-foreground",
+        className
+      )}
+      title={copied ? "Copiado!" : "Copiar"}
+    >
+      {copied ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
 // ─── Markdown component overrides ─────────────────────────────────────────────
 
 const mdComponents: Components = {
@@ -307,11 +345,27 @@ const mdComponents: Components = {
       />
     </a>
   ),
-  pre: ({ children, node: _, ...rest }) => (
-    <pre className="rounded-md overflow-x-auto my-2 text-[11px] !bg-[#0d1117] p-3" {...rest}>
-      {children}
-    </pre>
-  ),
+  pre: ({ children, node: _, ...rest }) => {
+    const extractText = (node: React.ReactNode): string => {
+      if (typeof node === "string") return node;
+      if (Array.isArray(node)) return node.map(extractText).join("");
+      if (React.isValidElement(node) && node.props) {
+        return extractText((node.props as { children?: React.ReactNode }).children ?? "");
+      }
+      return "";
+    };
+    const codeText = extractText(children);
+    return (
+      <div className="relative group my-2">
+        <div className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          <CopyButton text={codeText} />
+        </div>
+        <pre className="rounded-md overflow-x-auto text-[11px] !bg-[#0d1117] p-3" {...rest}>
+          {children}
+        </pre>
+      </div>
+    );
+  },
   code: ({ className, children, node: _, ...rest }) => {
     const hasLang = typeof className === "string" && className.startsWith("language-");
     if (!hasLang) {
@@ -369,13 +423,17 @@ function AssistantMessage({
   onRunCommand?: (cmd: string) => void;
 }) {
   const segments = parseAiMessage(content);
+  const plainText = segments.filter((s) => s.type === "text").map((s) => s.content).join("\n");
 
   return (
-    <div className="flex gap-2 justify-start">
+    <div className="flex gap-2 justify-start group/msg">
       <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
         <Bot className="w-3.5 h-3.5 text-primary" />
       </div>
-      <div className="max-w-[90%] flex flex-col gap-1">
+      <div className="max-w-[90%] flex flex-col gap-1 relative">
+        <div className="absolute -right-1 -top-1 opacity-0 group-hover/msg:opacity-100 transition-opacity z-10">
+          <CopyButton text={plainText} />
+        </div>
         {segments.map((seg, i) => {
           if (seg.type === "text") {
             return (
@@ -478,6 +536,166 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
     setTimeout(() => textareaRef.current?.focus(), 50);
   });
 
+  const buildTerminalContext = (): string | null => {
+    if (!terminalLog || terminalLog.length === 0) return null;
+    const last5 = terminalLog.slice(-5);
+    const hasContent = last5.some(e => e.stdout || e.stderr);
+    if (!hasContent) return null;
+    return last5.map(e => {
+      const lines: string[] = [`$ ${e.command}`];
+      if (e.stdout) lines.push(e.stdout.trim());
+      if (e.stderr) lines.push(`[stderr] ${e.stderr.trim()}`);
+      lines.push(`[exit: ${e.exitCode}]`);
+      return lines.join("\n");
+    }).join("\n\n---\n\n");
+  };
+
+  const [showVoiceChat, setShowVoiceChat] = useState(false);
+  const [voiceChatMessages, setVoiceChatMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const [voiceChatInput, setVoiceChatInput] = useState("");
+  const [voiceChatListening, setVoiceChatListening] = useState(false);
+  const [voiceChatProcessing, setVoiceChatProcessing] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const voiceChatRecRef = useRef<any>(null);
+  const voiceChatScrollRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current = null;
+    }
+    window.speechSynthesis?.cancel();
+    setIsSpeaking(false);
+  }, []);
+
+  const autoRestartMicRef = useRef(false);
+
+  const playTts = useCallback((text: string) => {
+    if (!window.speechSynthesis) { setIsSpeaking(false); return; }
+    window.speechSynthesis.cancel();
+    setTimeout(() => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "pt-BR";
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
+      const voices = window.speechSynthesis.getVoices();
+      const ptVoice = voices.find(v => v.lang.startsWith("pt-BR") || v.lang.startsWith("pt_BR"));
+      if (ptVoice) utterance.voice = ptVoice;
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        if (autoRestartMicRef.current) {
+          setTimeout(() => {
+            autoRestartMicRef.current = false;
+            voiceChatToggleMicRef.current?.();
+          }, 400);
+        }
+      };
+      utterance.onerror = () => setIsSpeaking(false);
+      setIsSpeaking(true);
+      window.speechSynthesis.speak(utterance);
+    }, 100);
+  }, []);
+
+  const voiceChatMutation = useAiChat({ mutation: {} });
+
+  const voiceChatSend = useCallback(async (userText: string) => {
+    if (!userText.trim() || voiceChatProcessing) return;
+    const newMsgs = [...voiceChatMessages, { role: "user" as const, text: userText.trim() }];
+    setVoiceChatMessages(newMsgs);
+    setVoiceChatProcessing(true);
+    try {
+      const history = newMsgs.map(m => ({ role: m.role, content: m.text }));
+      const tc = buildTerminalContext();
+      const result = await voiceChatMutation.mutateAsync({
+        data: {
+          messages: history,
+          projectContext: true,
+          projectId,
+          terminalContext: tc ?? undefined,
+        },
+      });
+      const reply = result.reply || "Sem resposta.";
+      setVoiceChatMessages(prev => [...prev, { role: "assistant", text: reply }]);
+      const cleanReply = reply
+        .replace(/<codelens-write[\s\S]*?<\/codelens-write>/g, "")
+        .replace(/<codelens-delete[^/]*\/>/g, "")
+        .replace(/<codelens-exec>[\s\S]*?<\/codelens-exec>/g, "")
+        .replace(/```[\s\S]*?```/g, "")
+        .replace(/[#*_`~>\[\]]/g, "")
+        .trim();
+      if (cleanReply) {
+        autoRestartMicRef.current = true;
+        playTts(cleanReply);
+      }
+    } catch {
+      setVoiceChatMessages(prev => [...prev, { role: "assistant", text: "Erro de conexão. Tente novamente." }]);
+    } finally {
+      setVoiceChatProcessing(false);
+    }
+  }, [voiceChatMessages, voiceChatProcessing, projectId, playTts, voiceChatMutation]);
+
+  const voiceChatToggleMicRef = useRef<(() => void) | null>(null);
+
+  const voiceChatToggleMic = useCallback(() => {
+    if (voiceChatListening) {
+      voiceChatRecRef.current?.stop();
+      return;
+    }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    const startMic = () => {
+      const rec = new SR();
+      rec.lang = "pt-BR";
+      rec.continuous = true;
+      rec.interimResults = true;
+      let finalTranscript = "";
+      let alreadySent = false;
+      rec.onresult = (e: any) => {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) {
+            finalTranscript += (finalTranscript ? " " : "") + e.results[i][0].transcript;
+          }
+        }
+      };
+      rec.onerror = () => setVoiceChatListening(false);
+      rec.onend = () => {
+        setVoiceChatListening(false);
+        if (alreadySent) return;
+        const text = finalTranscript.trim();
+        if (text) {
+          alreadySent = true;
+          setTimeout(() => voiceChatSend(text), 300);
+        }
+      };
+      voiceChatRecRef.current = rec;
+      try {
+        rec.start();
+        setVoiceChatListening(true);
+      } catch {
+        setVoiceChatListening(false);
+      }
+    };
+    if (isSpeaking) {
+      stopAudio();
+      setTimeout(startMic, 600);
+    } else {
+      startMic();
+    }
+  }, [voiceChatListening, voiceChatSend, isSpeaking, stopAudio]);
+
+  useEffect(() => {
+    voiceChatToggleMicRef.current = voiceChatToggleMic;
+  }, [voiceChatToggleMic]);
+
+  useEffect(() => {
+    if (voiceChatScrollRef.current) {
+      voiceChatScrollRef.current.scrollTop = voiceChatScrollRef.current.scrollHeight;
+    }
+  }, [voiceChatMessages, voiceChatProcessing]);
+
   const chatMutation = useAiChat({
     mutation: {
       onSuccess: (data) => {
@@ -517,20 +735,6 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
     if (contextMode === "file" && !fileContext) changeContextMode("project");
   }, [fileContext, contextMode]);
 
-  // Build terminal context string from last N entries (only if there's any output)
-  const buildTerminalContext = (): string | null => {
-    if (!terminalLog || terminalLog.length === 0) return null;
-    const last5 = terminalLog.slice(-5);
-    const hasContent = last5.some(e => e.stdout || e.stderr);
-    if (!hasContent) return null;
-    return last5.map(e => {
-      const lines: string[] = [`$ ${e.command}`];
-      if (e.stdout) lines.push(e.stdout.trim());
-      if (e.stderr) lines.push(`[stderr] ${e.stderr.trim()}`);
-      lines.push(`[exit: ${e.exitCode}]`);
-      return lines.join("\n");
-    }).join("\n\n---\n\n");
-  };
 
   const sendMessage = (text: string, mode: ContextMode = contextMode) => {
     if (!text.trim() || chatMutation.isPending) return;
@@ -602,9 +806,24 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
               <Bot className="w-6 h-6 text-primary" />
             </div>
             <p className="text-sm font-medium text-foreground mb-1">Chat com sua IA</p>
-            <p className="text-xs leading-relaxed max-w-[240px] mb-4">
-              Pergunte, peça análises ou use as ações rápidas abaixo.
+            <p className="text-xs leading-relaxed max-w-[240px] mb-3">
+              Use áudio ou texto. Botões de copiar em todas as respostas.
             </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                changeContextMode("project");
+                sendMessage(
+                  "Analise a ESTRUTURA COMPLETA deste projeto. Primeiro: identifique o ponto de entrada, o fluxo de execução e a interconexão entre módulos. Segundo: detecte quebras, falhas ou vulnerabilidades na arquitetura. Terceiro: liste bugs estruturais explicando como afetam o funcionamento. Quarto: proponha correções com blocos <codelens-write> prontos para aplicar. Seja direto e objetivo.",
+                  "project"
+                );
+              }}
+              className="w-full max-w-[280px] mb-3 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-primary bg-primary/10 hover:bg-primary/20 transition-colors text-primary font-semibold text-sm"
+            >
+              <Layers className="w-5 h-5" />
+              Analisar Estrutura do Projeto
+            </button>
 
             <div className="grid grid-cols-2 gap-1.5 w-full max-w-[280px]">
               {[
@@ -630,11 +849,11 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
               ))}
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-1 w-full max-w-[240px] text-[10px] text-left text-muted-foreground">
+            <div className="mt-3 grid grid-cols-1 gap-1 w-full max-w-[240px] text-[10px] text-left text-muted-foreground">
               <div className="flex items-center gap-1.5"><FilePlus className="w-3 h-3 shrink-0 text-blue-400" /> Criar novos arquivos</div>
               <div className="flex items-center gap-1.5"><FilePen className="w-3 h-3 shrink-0 text-blue-400" /> Editar arquivos existentes</div>
               <div className="flex items-center gap-1.5"><Trash2 className="w-3 h-3 shrink-0 text-red-400" /> Deletar arquivos</div>
-              <div className="flex items-center gap-1.5"><FolderOpen className="w-3 h-3 shrink-0 text-primary" /> Analisar projeto inteiro</div>
+              <div className="flex items-center gap-1.5"><Copy className="w-3 h-3 shrink-0 text-green-400" /> Copiar código e respostas</div>
             </div>
           </div>
         ) : (
@@ -747,6 +966,16 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
               {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </Button>
             <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+              onClick={() => setShowVoiceChat(true)}
+              title="Chat por voz interativo"
+            >
+              <AudioLines className="w-4 h-4" />
+            </Button>
+            <Button
               type="submit"
               size="icon"
               className="h-8 w-8"
@@ -761,6 +990,97 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
           </div>
         </form>
       </div>
+
+      <Dialog open={showVoiceChat} onOpenChange={(v) => { setShowVoiceChat(v); if (!v) { stopAudio(); voiceChatRecRef.current?.stop(); setVoiceChatListening(false); } }}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AudioLines className="w-5 h-5 text-blue-500" />
+              Conversa por Voz
+            </DialogTitle>
+            <DialogDescription>Fale com a IA — ela ouve, entende e responde falando. Acesso total ao projeto.</DialogDescription>
+          </DialogHeader>
+          <div ref={voiceChatScrollRef} className="flex-1 overflow-y-auto space-y-3 min-h-[200px] max-h-[400px] p-2">
+            {voiceChatMessages.length === 0 && (
+              <div className="text-center text-muted-foreground text-sm py-8">
+                Clique no microfone e comece a falar.<br/>Ou digite abaixo. A IA vai ouvir e responder por voz.
+              </div>
+            )}
+            {voiceChatMessages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} group/vcmsg`}>
+                <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm relative ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                  {m.text}
+                  <div className="absolute -right-1 -top-1 opacity-0 group-hover/vcmsg:opacity-100 transition-opacity">
+                    <CopyButton text={m.text} />
+                  </div>
+                </div>
+              </div>
+            ))}
+            {voiceChatProcessing && (
+              <div className="flex justify-start">
+                <div className="bg-muted rounded-xl px-3 py-2 text-sm flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Pensando...
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="space-y-2 pt-2 border-t">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                className="flex-1 h-10 rounded-md border border-input bg-background px-3 text-sm"
+                placeholder="Ou digite aqui..."
+                value={voiceChatInput}
+                onChange={(e) => setVoiceChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && voiceChatInput.trim() && !voiceChatProcessing) {
+                    voiceChatSend(voiceChatInput.trim());
+                    setVoiceChatInput("");
+                  }
+                }}
+                disabled={voiceChatProcessing}
+              />
+              <Button
+                size="icon"
+                className="h-10 w-10"
+                onClick={() => { if (voiceChatInput.trim()) { voiceChatSend(voiceChatInput.trim()); setVoiceChatInput(""); } }}
+                disabled={voiceChatProcessing || !voiceChatInput.trim()}
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={voiceChatListening ? "destructive" : "default"}
+                className={`flex-1 gap-2 h-12 text-base ${voiceChatListening ? "animate-pulse" : ""}`}
+                onClick={voiceChatToggleMic}
+                disabled={voiceChatProcessing}
+              >
+                {voiceChatListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                {voiceChatListening ? "Ouvindo..." : voiceChatProcessing ? "Aguarde..." : "Falar"}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-12 w-12"
+                onClick={() => stopAudio()}
+                title="Parar áudio"
+              >
+                <VolumeX className="w-5 h-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-12 w-12"
+                onClick={() => setVoiceChatMessages([])}
+                title="Limpar conversa"
+              >
+                <Trash2 className="w-5 h-5" />
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

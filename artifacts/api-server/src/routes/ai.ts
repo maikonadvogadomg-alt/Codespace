@@ -90,15 +90,29 @@ async function callGemini(
     httpOptions: { apiVersion: "", baseUrl },
   });
 
-  const contents = messages.map((m) => ({
+  const systemParts: string[] = [];
+  const nonSystemMessages = messages.filter((m) => {
+    if (m.role === "system") {
+      systemParts.push(m.content);
+      return false;
+    }
+    return true;
+  });
+
+  const contents = nonSystemMessages.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }],
   }));
 
+  const config: Record<string, any> = { maxOutputTokens: 8192 };
+  if (systemParts.length > 0) {
+    config.systemInstruction = systemParts.join("\n\n");
+  }
+
   const response = await client.models.generateContent({
     model,
     contents,
-    config: { maxOutputTokens: 8192 },
+    config,
   });
 
   const text = response.text;
@@ -211,14 +225,25 @@ REGRAS IMPORTANTES:
       const { text, fileCount, truncated } = await buildProjectContext(projectId);
       systemMessages.push({
         role: "system",
-        content: `Você é um assistente especialista em código com acesso ao projeto completo e capacidade de propor alterações nos arquivos.
-${truncated ? `\n⚠️ O projeto é grande — foram incluídos os primeiros ${fileCount} arquivos (limite de 200k caracteres).` : `\nO projeto contém ${fileCount} arquivo(s) de código.`}
+        content: `Você é um assistente especialista em código com ACESSO TOTAL ao projeto e capacidade de propor e executar alterações nos arquivos.
+${truncated ? `\n⚠️ O projeto é grande — foram incluídos os primeiros ${fileCount} arquivos (limite de 200k caracteres).` : `\nO projeto contém ${fileCount} arquivo(s) de código. Você tem acesso a TODOS eles.`}
+
+PRIORIDADES DE ANÁLISE (sempre nesta ordem):
+1. ESTRUTURA PRIMEIRO — Identifique o ponto de entrada, fluxo de execução, interconexão de módulos e arquitetura geral.
+2. BUGS ESTRUTURAIS — Detecte quebras, falhas e vulnerabilidades na arquitetura que afetam o funcionamento.
+3. COMPONENTES SECUNDÁRIOS — Só depois analise funcionalidades específicas, vinculando-as à estrutura principal.
+
+REGRAS DE COMUNICAÇÃO:
+- Seja DIRETO e OBJETIVO — sem desculpas, sem gentilezas desnecessárias
+- Use markdown com blocos de código formatados
+- Sempre proponha correções com os blocos de ação (write/delete/exec)
+- Ao detectar um bug, explique a causa raiz e forneça a correção pronta para aplicar
 
 Abaixo está o conteúdo completo do projeto:
 
 ${text}
 
-Use markdown quando útil. Ao referenciar código, cite o arquivo pelo caminho.
+Ao referenciar código, cite o arquivo pelo caminho.
 ${FILE_CHANGE_INSTRUCTIONS}`,
       });
     } catch (err: unknown) {
