@@ -19,6 +19,12 @@ import {
   Play,
   Mic,
   MicOff,
+  Lightbulb,
+  Bug,
+  BookOpen,
+  Search,
+  GitBranch,
+  Shield,
 } from "lucide-react";
 import {
   useAiChat,
@@ -517,15 +523,40 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
       {/* Messages */}
       <div className="flex-1 overflow-auto p-3 space-y-3 min-h-0">
         {isEmpty ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-4 text-muted-foreground">
+          <div className="h-full flex flex-col items-center justify-center text-center p-4 text-muted-foreground overflow-auto">
             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
               <Bot className="w-6 h-6 text-primary" />
             </div>
             <p className="text-sm font-medium text-foreground mb-1">Chat com sua IA</p>
-            <p className="text-xs leading-relaxed max-w-[210px]">
-              Pergunte, peça análises ou diga para a IA modificar, criar e deletar arquivos do projeto. As alterações aparecem como cards com botão Aplicar.
+            <p className="text-xs leading-relaxed max-w-[240px] mb-4">
+              Pergunte, peça análises ou use as ações rápidas abaixo.
             </p>
-            <div className="mt-4 grid grid-cols-1 gap-1 w-full max-w-[210px] text-[10px] text-left text-muted-foreground">
+
+            <div className="grid grid-cols-2 gap-1.5 w-full max-w-[280px]">
+              {[
+                { icon: <Lightbulb className="w-3.5 h-3.5" />, label: "Sugestões", color: "text-yellow-400", prompt: "Analise o código e dê sugestões de melhorias, boas práticas e otimizações." },
+                { icon: <Bug className="w-3.5 h-3.5" />, label: "Bugs", color: "text-red-400", prompt: "Procure bugs, erros potenciais e problemas no código. Liste cada um com explicação e solução." },
+                { icon: <BookOpen className="w-3.5 h-3.5" />, label: "Explicação", color: "text-blue-400", prompt: "Explique o que este código faz de forma clara e detalhada, em português." },
+                { icon: <Search className="w-3.5 h-3.5" />, label: "Análise", color: "text-green-400", prompt: "Faça uma análise completa do código: estrutura, qualidade, performance e segurança." },
+                { icon: <Shield className="w-3.5 h-3.5" />, label: "Segurança", color: "text-orange-400", prompt: "Analise o código em busca de vulnerabilidades de segurança e sugira correções." },
+                { icon: <GitBranch className="w-3.5 h-3.5" />, label: "Refatorar", color: "text-purple-400", prompt: "Sugira refatorações para melhorar a legibilidade, manutenção e organização do código." },
+              ].map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  onClick={() => {
+                    changeContextMode(fileContext ? "file" : "project");
+                    sendMessage(action.prompt, fileContext ? "file" : "project");
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background/50 hover:bg-accent hover:border-primary/30 transition-colors text-left"
+                >
+                  <span className={action.color}>{action.icon}</span>
+                  <span className="text-xs font-medium text-foreground">{action.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-1 w-full max-w-[240px] text-[10px] text-left text-muted-foreground">
               <div className="flex items-center gap-1.5"><FilePlus className="w-3 h-3 shrink-0 text-blue-400" /> Criar novos arquivos</div>
               <div className="flex items-center gap-1.5"><FilePen className="w-3 h-3 shrink-0 text-blue-400" /> Editar arquivos existentes</div>
               <div className="flex items-center gap-1.5"><Trash2 className="w-3 h-3 shrink-0 text-red-400" /> Deletar arquivos</div>
