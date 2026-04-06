@@ -1,0 +1,25 @@
+Olá! Analisei os 15 arquivos que você me deu.
+
+Encontrei uma estrutura de projeto React bem organizada, com componentes reutilizáveis, gerenciamento de tema, notificações e um editor de texto rico. As páginas estão focadas em funcionalidades específicas, muitas delas interagindo com APIs.
+
+Aqui estão os pontos que observei na estrutura geral e algumas coisas que ainda precisamos verificar:
+
+1.  **Ponto de Entrada:** Não encontrei os arquivos `client/src/main.tsx` ou `client/src/App.tsx`. Eles são importantes para entender como a aplicação React inicia e como as rotas são definidas (onde `wouter` é configurado).
+2.  **Servidor (Backend):** Muitas páginas (como `code-assistant`, `comunicacoes-cnj`, `consulta-corporativo`, `consulta-pdpj`, `consulta-processual`) chamam endereços `/api/...`. Isso mostra que existe um servidor nos bastidores. Para que eu possa analisar o sistema de ponta a ponta e verificar como essas APIs funcionam, preciso dos arquivos da pasta `server/`.
+3.  **Arquivos HTML Estáticos:** As páginas `auditoria-financeira.tsx` e `comparador-juridico.tsx` carregam outros arquivos HTML (`/auditoria.html` e `/comparador.html`) dentro de iframes. Preciso desses arquivos para entender essas funcionalidades.
+
+**Primeiras observações e possíveis melhorias:**
+
+*   O `TiptapEditor` está bem robusto, mas a extensão de `TextIndent` está definida sem botões para usá-la. Além disso, o `onBlur` que esconde listas de fontes e tamanhos usa um `setTimeout`, o que geralmente funciona, mas pode ser otimizado para evitar problemas.
+*   O sistema de notificações (`useToast`) tem um tempo de duração para `TOAST_REMOVE_DELAY` muito longo (quase 17 minutos). Isso provavelmente não é o que você quer para mensagens que desaparecem automaticamente.
+*   A forma como as chaves de API (`apiKey`) são salvas no `localStorage` no `code-assistant` é comum para aplicações que chamam APIs diretamente do navegador. No entanto, se o seu servidor for usado como intermediário para essas chamadas, a chave não deveria estar no frontend.
+*   A página de `comunicacoes-cnj` tenta uma conexão direta (do navegador) com uma API de produção e depois recorre ao seu servidor se não conseguir. O `consulta-pdpj` sugere que APIs do governo podem ter restrições de IP (só aceitam IPs brasileiros), o que pode fazer a busca direta falhar.
+
+Para continuar a análise de forma completa, preciso dos arquivos que mencionei. Poderia me fornecer o seguinte?
+
+1.  **`client/src/main.tsx`** (ou `App.tsx` se for o caso)
+2.  **Todos os arquivos da pasta `server/`**
+3.  **`client/public/auditoria.html`**
+4.  **`client/public/comparador.html`**
+
+Com isso, consigo ter uma visão completa do projeto e identificar mais precisamente qualquer bug ou oportunidade de melhoria.
