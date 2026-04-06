@@ -159,15 +159,106 @@ async function callOpenAiCompatible(
   return content;
 }
 
+async function callAnthropic(
+  apiKey: string,
+  model: string,
+  messages: Array<{ role: string; content: string }>
+): Promise<string> {
+  const systemParts: string[] = [];
+  const chatMessages = messages.filter((m) => {
+    if (m.role === "system") {
+      systemParts.push(m.content);
+      return false;
+    }
+    return true;
+  });
+
+  const anthropicMessages = chatMessages.map((m) => ({
+    role: m.role === "assistant" ? "assistant" as const : "user" as const,
+    content: m.content,
+  }));
+
+  const body: Record<string, unknown> = {
+    model,
+    max_tokens: 8192,
+    messages: anthropicMessages,
+  };
+  if (systemParts.length > 0) {
+    body.system = systemParts.join("\n\n");
+  }
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Anthropic API error (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json() as {
+    content: Array<{ type: string; text: string }>;
+  };
+
+  const textBlock = data.content?.find((b) => b.type === "text");
+  if (!textBlock?.text) {
+    throw new Error("Anthropic returned empty response");
+  }
+  return textBlock.text;
+}
+
+function detectProviderFromKey(apiKey: string): "anthropic" | "gemini" | "groq" | "perplexity" | "openai" {
+  if (apiKey.startsWith("sk-ant-")) return "anthropic";
+  if (apiKey.startsWith("AIza")) return "gemini";
+  if (apiKey.startsWith("gsk_")) return "groq";
+  if (apiKey.startsWith("pplx-")) return "perplexity";
+  return "openai";
+}
+
+function getDefaultBaseUrl(provider: string): string {
+  switch (provider) {
+    case "groq": return "https://api.groq.com/openai/v1";
+    case "perplexity": return "https://api.perplexity.ai";
+    case "gemini": return "https://generativelanguage.googleapis.com/v1beta/openai";
+    default: return "https://api.openai.com/v1";
+  }
+}
+
+function getDefaultModel(provider: string): string {
+  switch (provider) {
+    case "anthropic": return "claude-sonnet-4-20250514";
+    case "groq": return "llama-3.3-70b-versatile";
+    case "perplexity": return "sonar-pro";
+    case "gemini": return "gemini-2.5-flash";
+    default: return "gpt-4o";
+  }
+}
+
 async function callAi(
   settings: { aiApiKey: string | null; aiBaseUrl: string | null; aiModel: string | null },
   messages: Array<{ role: string; content: string }>
 ): Promise<string> {
   if (settings.aiApiKey) {
+    const provider = detectProviderFromKey(settings.aiApiKey);
+
+    if (provider === "anthropic") {
+      return callAnthropic(
+        settings.aiApiKey,
+        settings.aiModel ?? getDefaultModel("anthropic"),
+        messages
+      );
+    }
+
     return callOpenAiCompatible(
-      settings.aiBaseUrl ?? "https://api.openai.com/v1",
+      settings.aiBaseUrl ?? getDefaultBaseUrl(provider),
       settings.aiApiKey,
-      settings.aiModel ?? "gpt-4o",
+      settings.aiModel ?? getDefaultModel(provider),
       messages
     );
   }
