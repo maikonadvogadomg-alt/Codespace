@@ -43,8 +43,8 @@ const PROVIDERS: { match: (key: string) => boolean; provider: Provider }[] = [
       name: "Anthropic",
       color: "text-orange-400 bg-orange-400/10 border-orange-400/30",
       baseUrl: "https://api.anthropic.com/v1",
-      model: "claude-3-5-sonnet-20241022",
-      hint: "Claude 3.5 Sonnet",
+      model: "claude-sonnet-4-5-20250514",
+      hint: "Claude Sonnet 4.5",
     },
   },
   {
@@ -127,6 +127,25 @@ function detectProvider(key: string): Provider | null {
   return null;
 }
 
+// ─── Provider selector config ────────────────────────────────────────────────
+
+type ProviderOption = "gemini" | "anthropic" | "openai" | "other";
+
+const PROVIDER_OPTIONS: { value: ProviderOption; label: string; color: string; defaultBaseUrl: string; defaultModel: string }[] = [
+  { value: "gemini", label: "Google Gemini", color: "text-blue-400", defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/", defaultModel: "gemini-2.5-flash" },
+  { value: "anthropic", label: "Anthropic Claude", color: "text-orange-400", defaultBaseUrl: "https://api.anthropic.com/v1", defaultModel: "claude-sonnet-4-5-20250514" },
+  { value: "openai", label: "OpenAI", color: "text-emerald-400", defaultBaseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4o" },
+  { value: "other", label: "Outro", color: "text-gray-400", defaultBaseUrl: "", defaultModel: "" },
+];
+
+function detectProviderOption(key: string): ProviderOption {
+  if (key.startsWith("sk-ant-")) return "anthropic";
+  if (key.startsWith("AIza")) return "gemini";
+  if (key.startsWith("sk-") && !key.startsWith("sk-ant-") && !key.startsWith("sk-or-")) return "openai";
+  if (key.length > 10) return "other";
+  return "gemini";
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface AiProfile {
@@ -134,9 +153,10 @@ interface AiProfile {
   apiKey: string;
   baseUrl: string;
   model: string;
+  provider: ProviderOption;
 }
 
-const DEFAULT_PROFILE: AiProfile = { name: "", apiKey: "", baseUrl: "", model: "" };
+const DEFAULT_PROFILE: AiProfile = { name: "", apiKey: "", baseUrl: "", model: "", provider: "gemini" };
 
 const SLOT_ICONS = [
   <Star className="w-3.5 h-3.5" />,
@@ -155,7 +175,13 @@ function loadProfiles(): AiProfile[] {
     const raw = localStorage.getItem(LS_PROFILES_KEY);
     if (!raw) return Array(4).fill(null).map(() => ({ ...DEFAULT_PROFILE }));
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length === 4) return parsed;
+    if (Array.isArray(parsed) && parsed.length === 4) {
+      return parsed.map((p: Partial<AiProfile>) => ({
+        ...DEFAULT_PROFILE,
+        ...p,
+        provider: p.provider ?? (p.apiKey ? detectProviderOption(p.apiKey) : "gemini"),
+      }));
+    }
   } catch {}
   return Array(4).fill(null).map(() => ({ ...DEFAULT_PROFILE }));
 }
@@ -264,8 +290,15 @@ export default function SettingsPage() {
     const provider = detectProvider(value.trim());
     setDetectedProvider(provider);
     if (provider) {
-      updateCurrentProfile({ apiKey: value, baseUrl: provider.baseUrl, model: provider.model });
+      const provOpt = detectProviderOption(value.trim());
+      updateCurrentProfile({ apiKey: value, baseUrl: provider.baseUrl, model: provider.model, provider: provOpt });
     }
+  };
+
+  const handleProviderChange = (prov: ProviderOption) => {
+    const opt = PROVIDER_OPTIONS.find(o => o.value === prov)!;
+    updateCurrentProfile({ provider: prov, baseUrl: opt.defaultBaseUrl, model: opt.defaultModel });
+    setDetectedProvider(null);
   };
 
   const handleActivate = () => {
@@ -393,6 +426,28 @@ export default function SettingsPage() {
                     />
                   </div>
 
+                  {/* Provider selector */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Provedor de IA</Label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {PROVIDER_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => handleProviderChange(opt.value)}
+                          className={cn(
+                            "py-2 px-3 rounded-lg border text-xs font-medium transition-all text-center",
+                            currentProfile.provider === opt.value
+                              ? `border-primary bg-primary/10 ${opt.color}`
+                              : "border-border hover:border-border/80 hover:bg-accent/30 text-muted-foreground"
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* API Key */}
                   <div className="space-y-1.5">
                     <Label className="text-xs">Chave de API</Label>
@@ -403,7 +458,7 @@ export default function SettingsPage() {
                       )}>
                         <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                         <span>
-                          <strong>{detectedProvider.name}</strong> — URL e modelo preenchidos
+                          <strong>{detectedProvider.name}</strong> detectado automaticamente
                           ({detectedProvider.hint})
                         </span>
                       </div>
@@ -411,31 +466,44 @@ export default function SettingsPage() {
                     <PasswordInput
                       value={currentProfile.apiKey}
                       onChange={handleKeyChange}
-                      placeholder="sk-..., AIzaSy..., gsk_..., xai-..."
+                      placeholder={
+                        currentProfile.provider === "anthropic" ? "sk-ant-..." :
+                        currentProfile.provider === "gemini" ? "AIzaSy..." :
+                        currentProfile.provider === "openai" ? "sk-..." :
+                        "Cole sua chave de API"
+                      }
                     />
                   </div>
 
-                  {/* URL + Model */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Model */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Modelo</Label>
+                    <Input
+                      value={currentProfile.model}
+                      onChange={(e) => updateCurrentProfile({ model: e.target.value })}
+                      placeholder={
+                        currentProfile.provider === "anthropic" ? "claude-sonnet-4-5-20250514" :
+                        currentProfile.provider === "gemini" ? "gemini-2.5-flash" :
+                        currentProfile.provider === "openai" ? "gpt-4o" :
+                        "nome-do-modelo"
+                      }
+                      className="bg-background font-mono text-xs"
+                    />
+                  </div>
+
+                  {/* URL Base - only for "Outro" or always editable */}
+                  {(currentProfile.provider === "other" || currentProfile.baseUrl) && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs">URL Base</Label>
+                      <Label className="text-xs">URL Base {currentProfile.provider !== "other" && <span className="text-muted-foreground">(preenchido automaticamente)</span>}</Label>
                       <Input
                         value={currentProfile.baseUrl}
                         onChange={(e) => updateCurrentProfile({ baseUrl: e.target.value })}
-                        placeholder="https://api.openai.com/v1"
+                        placeholder="https://api.exemplo.com/v1"
                         className="bg-background font-mono text-xs"
+                        readOnly={currentProfile.provider !== "other"}
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Modelo</Label>
-                      <Input
-                        value={currentProfile.model}
-                        onChange={(e) => updateCurrentProfile({ model: e.target.value })}
-                        placeholder="gpt-4o"
-                        className="bg-background font-mono text-xs"
-                      />
-                    </div>
-                  </div>
+                  )}
 
                   {/* Activate button */}
                   <div className="flex items-center gap-2">
