@@ -11,20 +11,11 @@ version = "1.0.0"
 
 [[services]]
 name = "web"
-paths = [ "/" ]
+paths = [ "/dev-preview" ]
 localPort = 22595
 
 [services.development]
 run = "pnpm --filter @workspace/code-editor run dev"
-
-[services.production]
-build = [ "pnpm", "--filter", "@workspace/code-editor", "run", "build" ]
-publicDir = "artifacts/code-editor/dist/public"
-serve = "static"
-
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
 
 [services.env]
 PORT = "22595"
