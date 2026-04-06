@@ -17,20 +17,6 @@ localPort = 22595
 [services.development]
 run = "pnpm --filter @workspace/code-editor run dev"
 
-[services.production]
-serve = "static"
-buildDir = "artifacts/code-editor/dist"
-
-[services.production.build]
-args = ["sh", "-c", "BASE_PATH=/ pnpm --filter @workspace/code-editor run build"]
-
-[services.production.build.env]
-NODE_ENV = "production"
-
-[[services.production.rewrites]]
-source = "/(.*)"
-destination = "/index.html"
-
 [services.env]
 PORT = "22595"
 BASE_PATH = "/"
