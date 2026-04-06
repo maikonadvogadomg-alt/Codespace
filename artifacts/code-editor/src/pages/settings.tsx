@@ -44,7 +44,7 @@ const PROVIDERS: { match: (key: string) => boolean; provider: Provider }[] = [
       name: "Anthropic",
       color: "text-orange-400 bg-orange-400/10 border-orange-400/30",
       baseUrl: "https://api.anthropic.com/v1",
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-sonnet-4-20250514",
       hint: "Claude 3.5 Haiku",
     },
   },
@@ -134,7 +134,7 @@ type ProviderOption = "gemini" | "anthropic" | "openai" | "other";
 
 const PROVIDER_OPTIONS: { value: ProviderOption; label: string; color: string; defaultBaseUrl: string; defaultModel: string }[] = [
   { value: "gemini", label: "Google Gemini", color: "text-blue-400", defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/", defaultModel: "gemini-2.5-flash" },
-  { value: "anthropic", label: "Anthropic Claude", color: "text-orange-400", defaultBaseUrl: "https://api.anthropic.com/v1", defaultModel: "claude-3-5-haiku-20241022" },
+  { value: "anthropic", label: "Anthropic Claude", color: "text-orange-400", defaultBaseUrl: "https://api.anthropic.com/v1", defaultModel: "claude-sonnet-4-20250514" },
   { value: "openai", label: "OpenAI", color: "text-emerald-400", defaultBaseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4o" },
   { value: "other", label: "Outro", color: "text-gray-400", defaultBaseUrl: "", defaultModel: "" },
 ];
@@ -292,13 +292,13 @@ export default function SettingsPage() {
     setDetectedProvider(provider);
     if (provider) {
       const provOpt = detectProviderOption(value.trim());
-      updateCurrentProfile({ apiKey: value, baseUrl: provider.baseUrl, model: provider.model, provider: provOpt });
+      updateCurrentProfile({ apiKey: value, baseUrl: provider.baseUrl, model: "", provider: provOpt });
     }
   };
 
   const handleProviderChange = (prov: ProviderOption) => {
     const opt = PROVIDER_OPTIONS.find(o => o.value === prov)!;
-    updateCurrentProfile({ provider: prov, baseUrl: opt.defaultBaseUrl, model: opt.defaultModel });
+    updateCurrentProfile({ provider: prov, baseUrl: opt.defaultBaseUrl, model: "" });
     setDetectedProvider(null);
   };
 
@@ -511,12 +511,7 @@ export default function SettingsPage() {
                     <Input
                       value={currentProfile.model}
                       onChange={(e) => updateCurrentProfile({ model: e.target.value })}
-                      placeholder={
-                        currentProfile.provider === "anthropic" ? "ex: claude-3-5-haiku, claude-sonnet-4-5, etc" :
-                        currentProfile.provider === "gemini" ? "ex: gemini-2.5-flash, gemini-2.5-pro, etc" :
-                        currentProfile.provider === "openai" ? "ex: gpt-4o, gpt-4o-mini, o1, etc" :
-                        "nome-do-modelo"
-                      }
+                      placeholder="Automático (deixe vazio)"
                       className="bg-background font-mono text-xs"
                     />
                   </div>

@@ -243,7 +243,7 @@ function getDefaultBaseUrl(provider: string): string {
 
 function getDefaultModel(provider: string): string {
   switch (provider) {
-    case "anthropic": return "claude-3-5-haiku-20241022";
+    case "anthropic": return "claude-sonnet-4-20250514";
     case "groq": return "llama-3.3-70b-versatile";
     case "perplexity": return "sonar-pro";
     case "gemini": return "gemini-2.5-flash";
@@ -269,24 +269,48 @@ async function callWithProvider(
   );
 }
 
+const FALLBACK_MODELS: Record<string, string[]> = {
+  anthropic: [
+    "claude-sonnet-4-20250514",
+    "claude-3-7-sonnet-20250219",
+    "claude-3-5-sonnet-20241022",
+    "claude-3-5-haiku-20241022",
+    "claude-3-haiku-20240307",
+  ],
+  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+  groq: ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"],
+  perplexity: ["sonar-pro", "sonar"],
+};
+
 async function callAi(
   settings: { aiApiKey: string | null; aiBaseUrl: string | null; aiModel: string | null },
   messages: Array<{ role: string; content: string }>
 ): Promise<string> {
   if (settings.aiApiKey) {
     const provider = detectProviderFromKey(settings.aiApiKey);
-    const model = settings.aiModel ?? getDefaultModel(provider);
-    const defaultModel = getDefaultModel(provider);
+    const model = settings.aiModel?.trim() || null;
 
-    try {
-      return await callWithProvider(provider, settings.aiApiKey, settings.aiBaseUrl, model, messages);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("404") && model !== defaultModel) {
-        return await callWithProvider(provider, settings.aiApiKey, settings.aiBaseUrl, defaultModel, messages);
+    if (model) {
+      try {
+        return await callWithProvider(provider, settings.aiApiKey, settings.aiBaseUrl, model, messages);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "";
+        if (!msg.includes("404")) throw err;
       }
-      throw err;
     }
+
+    const candidates = FALLBACK_MODELS[provider] ?? [getDefaultModel(provider)];
+    for (const candidate of candidates) {
+      if (candidate === model) continue;
+      try {
+        return await callWithProvider(provider, settings.aiApiKey, settings.aiBaseUrl, candidate, messages);
+      } catch (e: unknown) {
+        const m = e instanceof Error ? e.message : "";
+        if (!m.includes("404")) throw e;
+      }
+    }
+
+    throw new Error(`Nenhum modelo disponível para ${provider}. Verifique sua chave de API.`);
   }
 
   const fallback = getGeminiFallback();
