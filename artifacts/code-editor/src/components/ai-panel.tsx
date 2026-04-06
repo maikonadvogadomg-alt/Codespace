@@ -579,11 +579,13 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
     setTimeout(() => {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "pt-BR";
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
+      utterance.rate = 1.15;
+      utterance.pitch = 1.05;
       const voices = window.speechSynthesis.getVoices();
-      const ptVoice = voices.find(v => v.lang.startsWith("pt-BR") || v.lang.startsWith("pt_BR"));
-      if (ptVoice) utterance.voice = ptVoice;
+      const googlePt = voices.find(v => v.name.includes("Google") && v.lang.startsWith("pt"));
+      const anyPt = voices.find(v => v.lang.startsWith("pt-BR") || v.lang.startsWith("pt_BR"));
+      if (googlePt) utterance.voice = googlePt;
+      else if (anyPt) utterance.voice = anyPt;
       utterance.onend = () => {
         setIsSpeaking(false);
         if (autoRestartMicRef.current) {
@@ -607,7 +609,11 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
     setVoiceChatMessages(newMsgs);
     setVoiceChatProcessing(true);
     try {
-      const history = newMsgs.map(m => ({ role: m.role, content: m.text }));
+      const voiceSystemMsg = {
+        role: "user" as const,
+        content: `[MODO VOZ ATIVO] O usuario esta falando por voz. Responda de forma CONVERSACIONAL e CLARA — como se estivesse explicando para alguem que nao e programador. Use frases curtas e diretas. Voce pode sugerir ideias, melhorias e alternativas livremente. Quando precisar mostrar codigo, use os blocos de acao (codelens-write/delete/exec) normalmente — eles serao exibidos como botoes. Na parte falada, explique O QUE vai fazer e POR QUE, sem citar syntax. Se o usuario pedir para corrigir algo, corrija E explique o que mudou em linguagem simples.`,
+      };
+      const history = [voiceSystemMsg, ...newMsgs.map(m => ({ role: m.role, content: m.text }))];
       const tc = buildTerminalContext();
       const result = await voiceChatMutation.mutateAsync({
         data: {
@@ -620,11 +626,12 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
       const reply = result.reply || "Sem resposta.";
       setVoiceChatMessages(prev => [...prev, { role: "assistant", text: reply }]);
       const cleanReply = reply
-        .replace(/<codelens-write[\s\S]*?<\/codelens-write>/g, "")
-        .replace(/<codelens-delete[^/]*\/>/g, "")
-        .replace(/<codelens-exec>[\s\S]*?<\/codelens-exec>/g, "")
+        .replace(/<codelens-write[\s\S]*?<\/codelens-write>/g, " arquivo atualizado ")
+        .replace(/<codelens-delete[^/]*\/>/g, " arquivo removido ")
+        .replace(/<codelens-exec>[\s\S]*?<\/codelens-exec>/g, " comando sugerido ")
         .replace(/```[\s\S]*?```/g, "")
         .replace(/[#*_`~>\[\]]/g, "")
+        .replace(/\s+/g, " ")
         .trim();
       if (cleanReply) {
         autoRestartMicRef.current = true;
@@ -1008,8 +1015,26 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
             )}
             {voiceChatMessages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} group/vcmsg`}>
-                <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm relative ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                  {m.text}
+                <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm relative ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                  {m.role === "assistant" ? (() => {
+                    const segments = parseAiMessage(m.text);
+                    const hasActions = segments.some(s => s.type !== "text");
+                    if (!hasActions) return <span className="whitespace-pre-wrap">{m.text}</span>;
+                    return (
+                      <div className="space-y-2">
+                        {segments.map((seg, si) => {
+                          if (seg.type === "text") return <span key={si} className="whitespace-pre-wrap">{seg.content}</span>;
+                          if (seg.type === "write" || seg.type === "delete") return (
+                            <FileChangeCard key={si} segment={seg} projectId={projectId} onApplied={() => {}} />
+                          );
+                          if (seg.type === "exec") return (
+                            <ExecCommandCard key={si} command={seg.command} onRun={onRunCommand} />
+                          );
+                          return null;
+                        })}
+                      </div>
+                    );
+                  })() : <span className="whitespace-pre-wrap">{m.text}</span>}
                   <div className="absolute -right-1 -top-1 opacity-0 group-hover/vcmsg:opacity-100 transition-opacity">
                     <CopyButton text={m.text} />
                   </div>
