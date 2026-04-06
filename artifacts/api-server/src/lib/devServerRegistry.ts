@@ -130,7 +130,7 @@ function spawnInProject(cmd: string, cwd: string, env: Record<string, string>): 
     cwd,
     env,
     detached: true,
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["pipe", "pipe", "pipe"],
     shell: false,
   });
   proc.unref();
@@ -196,11 +196,26 @@ export async function startDevServer(projectId: number, cwd: string, command?: s
 
   registry.set(projectId, server);
 
+  const PORT_QUESTION_PATTERNS = [
+    /port.*(?:in use|already|busy|taken).*(?:use|try|switch|another)/i,
+    /is in use.*would you like/i,
+    /already in use.*use.*instead/i,
+    /EADDRINUSE/i,
+    /\?\s*(?:›|>)?\s*(?:y\/n|yes\/no|\(Y\/n\))/i,
+  ];
+
   const attachListeners = (proc: ChildProcess, isServerProc: boolean) => {
     const handleOutput = (data: Buffer) => {
       const text = data.toString();
       server.log = [...server.log.slice(-199), text];
-      if (isServerProc && !server.port) {
+
+      if (isServerProc) {
+        const isPortQuestion = PORT_QUESTION_PATTERNS.some((p) => p.test(text));
+        if (isPortQuestion) {
+          server.log.push("[auto] Porta ocupada — aceitando automaticamente.\n");
+          try { proc.stdin?.write("y\n"); } catch {}
+        }
+
         const detected = detectPort(text);
         if (detected) {
           server.port = detected;

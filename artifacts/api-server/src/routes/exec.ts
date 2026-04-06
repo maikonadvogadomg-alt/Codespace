@@ -200,7 +200,7 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
   const proc = spawn("sh", ["-c", normalized], {
     cwd,
     env: buildEnv(),
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["pipe", "pipe", "pipe"],
   });
 
   let stderrBuffer = "";
@@ -208,19 +208,33 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
   let logBuffer: string[] = [];
   let clientDisconnected = false;
 
+  const PORT_QUESTION_RE = [
+    /port.*(?:in use|already|busy|taken).*(?:use|try|switch|another)/i,
+    /is in use.*would you like/i,
+    /already in use.*use.*instead/i,
+    /EADDRINUSE/i,
+    /\?\s*(?:›|>)?\s*(?:y\/n|yes\/no|\(Y\/n\))/i,
+  ];
+
   const handleChunk = (chunk: Buffer, streamType: "stdout" | "stderr") => {
     const text = chunk.toString();
     logBuffer.push(text);
     send(streamType, { data: text });
 
-    // Detect server port from output
-    if (detectedPort === null) {
-      const port = detectPort(text);
-      if (port !== null) {
+    if (PORT_QUESTION_RE.some((p) => p.test(text))) {
+      try { proc.stdin?.write("y\n"); } catch {}
+      send("stdout", { data: "\n[auto] Porta ocupada — aceitando automaticamente.\n" });
+    }
+
+    const port = detectPort(text);
+    if (port !== null) {
+      if (detectedPort === null) {
         detectedPort = port;
-        // Hand off process to devServerRegistry — it will keep running after SSE closes
         registerTerminalProcess(id, proc, port, normalized, [...logBuffer]);
-        // Tell the client a server was detected on this port
+        send("server_detected", { port });
+      } else if (port !== detectedPort) {
+        detectedPort = port;
+        registerTerminalProcess(id, proc, port, normalized, [...logBuffer]);
         send("server_detected", { port });
       }
     }
