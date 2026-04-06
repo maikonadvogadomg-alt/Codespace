@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.min.css";
@@ -293,6 +293,70 @@ function ExecCommandCard({
   );
 }
 
+// ─── Markdown component overrides ─────────────────────────────────────────────
+
+const mdComponents: Components = {
+  img: ({ src, alt, node: _, ...rest }) => (
+    <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
+      <img
+        src={src}
+        alt={alt ?? ""}
+        className="max-w-full rounded-md border border-border"
+        loading="lazy"
+        {...rest}
+      />
+    </a>
+  ),
+  pre: ({ children, node: _, ...rest }) => (
+    <pre className="rounded-md overflow-x-auto my-2 text-[11px] !bg-[#0d1117] p-3" {...rest}>
+      {children}
+    </pre>
+  ),
+  code: ({ className, children, node: _, ...rest }) => {
+    const hasLang = typeof className === "string" && className.startsWith("language-");
+    if (!hasLang) {
+      return (
+        <code className="bg-primary/15 text-primary px-1 py-0.5 rounded text-[11px] font-mono" {...rest}>
+          {children}
+        </code>
+      );
+    }
+    return (
+      <code className={className} {...rest}>
+        {children}
+      </code>
+    );
+  },
+  table: ({ children, node: _, ...rest }) => (
+    <div className="overflow-x-auto my-2">
+      <table className="min-w-full border-collapse text-[11px]" {...rest}>
+        {children}
+      </table>
+    </div>
+  ),
+  th: ({ children, node: _, ...rest }) => (
+    <th className="border border-border px-2 py-1 bg-muted font-semibold text-left" {...rest}>
+      {children}
+    </th>
+  ),
+  td: ({ children, node: _, ...rest }) => (
+    <td className="border border-border px-2 py-1" {...rest}>
+      {children}
+    </td>
+  ),
+  a: ({ href, children, node: _, ...rest }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-primary hover:underline"
+      {...rest}
+    >
+      {children}
+    </a>
+  ),
+};
+
 // ─── Message Renderer ─────────────────────────────────────────────────────────
 
 function AssistantMessage({
@@ -322,67 +386,7 @@ function AssistantMessage({
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeHighlight]}
-                  components={{
-                    img: ({ node: _n, src, alt, ...rest }: any) => (
-                      <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
-                        <img
-                          src={src}
-                          alt={alt ?? ""}
-                          className="max-w-full rounded-md border border-border"
-                          loading="lazy"
-                          {...rest}
-                        />
-                      </a>
-                    ),
-                    pre: ({ node: _n, children, ...rest }: any) => (
-                      <pre className="rounded-md overflow-x-auto my-2 text-[11px] !bg-[#0d1117] p-3" {...rest}>
-                        {children}
-                      </pre>
-                    ),
-                    code: ({ node: _n, className, children, inline, ...rest }: any) => {
-                      const isBlock = !inline && (className || (typeof children === "string" && children.includes("\n")));
-                      if (!isBlock) {
-                        return (
-                          <code className="bg-primary/15 text-primary px-1 py-0.5 rounded text-[11px] font-mono" {...rest}>
-                            {children}
-                          </code>
-                        );
-                      }
-                      return (
-                        <code className={className} {...rest}>
-                          {children}
-                        </code>
-                      );
-                    },
-                    table: ({ node: _n, children, ...rest }: any) => (
-                      <div className="overflow-x-auto my-2">
-                        <table className="min-w-full border-collapse text-[11px]" {...rest}>
-                          {children}
-                        </table>
-                      </div>
-                    ),
-                    th: ({ node: _n, children, ...rest }: any) => (
-                      <th className="border border-border px-2 py-1 bg-muted font-semibold text-left" {...rest}>
-                        {children}
-                      </th>
-                    ),
-                    td: ({ node: _n, children, ...rest }: any) => (
-                      <td className="border border-border px-2 py-1" {...rest}>
-                        {children}
-                      </td>
-                    ),
-                    a: ({ node: _n, href, children, ...rest }: any) => (
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                        {...rest}
-                      >
-                        {children}
-                      </a>
-                    ),
-                  }}
+                  components={mdComponents}
                 >
                   {seg.content}
                 </ReactMarkdown>
