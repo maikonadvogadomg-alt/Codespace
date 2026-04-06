@@ -216,6 +216,20 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
     /\?\s*(?:›|>)?\s*(?:y\/n|yes\/no|\(Y\/n\))/i,
   ];
 
+  const INTERACTIVE_QUESTION_RE = [
+    /\?\s*(?:›|>)\s*(?:Use|Router|TypeScript|CSS|Tailwind|ESLint|App Router|Pages)/i,
+    /Would you like to use/i,
+    /Do you want to/i,
+    /\?\s*»\s/,
+    /\(Y\/n\)/i,
+    /\[y\/N\]/i,
+    /\[Y\/n\]/i,
+    /Yes\s*\/\s*No/i,
+    /Press\s+(?:Enter|Return)/i,
+  ];
+
+  let pendingInput = "";
+
   const handleChunk = (chunk: Buffer, streamType: "stdout" | "stderr") => {
     const text = chunk.toString();
     logBuffer.push(text);
@@ -224,6 +238,11 @@ router.post("/projects/:projectId/exec-stream", async (req, res): Promise<void> 
     if (PORT_QUESTION_RE.some((p) => p.test(text))) {
       try { proc.stdin?.write("y\n"); } catch {}
       send("stdout", { data: "\n[auto] Porta ocupada — aceitando automaticamente.\n" });
+    }
+
+    if (INTERACTIVE_QUESTION_RE.some((p) => p.test(text))) {
+      try { proc.stdin?.write("\n"); } catch {}
+      send("stdout", { data: "\n[auto] Pergunta interativa — aceitando padrão.\n" });
     }
 
     const port = detectPort(text);

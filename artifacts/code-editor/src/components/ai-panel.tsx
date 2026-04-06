@@ -573,6 +573,32 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
 
   const autoRestartMicRef = useRef(false);
 
+  const playBrowserTts = useCallback((text: string) => {
+    if (!window.speechSynthesis) { setIsSpeaking(false); return; }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "pt-BR";
+    utterance.rate = 1.15;
+    utterance.pitch = 1.05;
+    const voices = window.speechSynthesis.getVoices();
+    const googlePt = voices.find(v => v.name.includes("Google") && v.lang.startsWith("pt"));
+    const anyPt = voices.find(v => v.lang.startsWith("pt-BR") || v.lang.startsWith("pt_BR"));
+    if (googlePt) utterance.voice = googlePt;
+    else if (anyPt) utterance.voice = anyPt;
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      if (autoRestartMicRef.current) {
+        setTimeout(() => {
+          autoRestartMicRef.current = false;
+          voiceChatToggleMicRef.current?.();
+        }, 400);
+      }
+    };
+    utterance.onerror = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
   const playTts = useCallback(async (text: string) => {
     setIsSpeaking(true);
     try {
@@ -581,8 +607,9 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
-      if (!res.ok) throw new Error("TTS failed");
+      if (!res.ok) throw new Error("TTS server error");
       const blob = await res.blob();
+      if (blob.size < 100) throw new Error("TTS empty");
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioRef.current = audio;
@@ -604,9 +631,9 @@ export function AiPanel({ projectId, fileContext, externalMessage, onRunCommand,
       };
       audio.play();
     } catch {
-      setIsSpeaking(false);
+      playBrowserTts(text);
     }
-  }, []);
+  }, [playBrowserTts]);
 
   const voiceChatMutation = useAiChat({ mutation: {} });
   const voiceSendingRef = useRef(false);
