@@ -25,10 +25,14 @@ async function buildProjectContext(projectId: string): Promise<{ text: string; f
   const MAX_CHARS = 200_000;
   let truncated = false;
 
-  async function walk(dir: string, relBase: string) {
+  const MAX_DEPTH = 10;
+  const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".cache", "__pycache__", ".venv", "vendor"]);
+
+  async function walk(dir: string, relBase: string, depth = 0) {
+    if (depth > MAX_DEPTH) return;
     const entries = await fs.readdir(dir, { withFileTypes: true });
     const sorted = entries
-      .filter(e => !e.name.startsWith("."))
+      .filter(e => !e.name.startsWith(".") && !SKIP_DIRS.has(e.name))
       .sort((a, b) => {
         if (a.isDirectory() && !b.isDirectory()) return -1;
         if (!a.isDirectory() && b.isDirectory()) return 1;
@@ -39,7 +43,7 @@ async function buildProjectContext(projectId: string): Promise<{ text: string; f
       const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        await walk(fullPath, relPath);
+        await walk(fullPath, relPath, depth + 1);
       } else if (!isBinaryFile(relPath)) {
         if (totalChars >= MAX_CHARS) {
           truncated = true;

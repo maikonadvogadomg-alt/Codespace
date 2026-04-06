@@ -61,7 +61,7 @@ function proxyRequest(
   }
 
   const proxyReq = http.request(
-    { hostname: "localhost", port, path: targetPath, method: req.method, headers: proxyHeaders },
+    { hostname: "localhost", port, path: targetPath, method: req.method, headers: proxyHeaders, timeout: 30000 },
     (proxyRes) => {
       const headers: Record<string, string | string[]> = {};
       for (const [key, val] of Object.entries(proxyRes.headers)) {
@@ -73,6 +73,13 @@ function proxyRequest(
       proxyRes.pipe(res, { end: true });
     }
   );
+
+  proxyReq.on("timeout", () => {
+    proxyReq.destroy();
+    if (!res.headersSent) {
+      res.status(504).send(errorHtml ?? "Tempo limite de conexão excedido");
+    }
+  });
 
   proxyReq.on("error", () => {
     if (!res.headersSent) {

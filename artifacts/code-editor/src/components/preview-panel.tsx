@@ -96,6 +96,8 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath, terminalPort 
     init();
   }, [fetchStaticStatus, fetchDevStatus]);
 
+  const [autoInstalling, setAutoInstalling] = useState(false);
+
   useEffect(() => {
     if (!startingServer) return;
     const interval = setInterval(async () => {
@@ -113,16 +115,12 @@ export function PreviewPanel({ projectId, onRunBuild, previewPath, terminalPort 
 
   useEffect(() => { setIframeKey((k) => k + 1); }, [previewPath]);
 
-  // Auto-switch to live mode and refresh when terminal detects a server
   useEffect(() => {
     if (terminalPort) {
       setMode("live");
       setIframeKey((k) => k + 1);
     }
   }, [terminalPort]);
-
-  // ── Actions ──────────────────────────────────────────────────────────────
-  const [autoInstalling, setAutoInstalling] = useState(false);
 
   const startServer = async () => {
     setStartingServer(true);
