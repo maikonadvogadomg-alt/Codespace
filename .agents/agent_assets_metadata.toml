@@ -6,3 +6,9 @@ id = "KwjDPk_2PBKeS9PmrbPcC"
 uri = "file://MANUAL-CORRECOES-ASSISTENTE-JURIDICO.md"
 type = "text"
 title = "Manual de Instrucoes para Gemini — Assistente Juridico"
+
+[[outputs]]
+id = "765riTaBpCMZ0VE6rd1DG"
+uri = "file://MANUAL_BACKUP.md"
+type = "text"
+title = "Manual de Backup - Como usar seus apps na Vercel"
