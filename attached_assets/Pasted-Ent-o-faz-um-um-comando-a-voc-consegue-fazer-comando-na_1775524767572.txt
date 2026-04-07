@@ -1,0 +1,31 @@
+Então faz um um comando aí você consegue fazer comando na caixinha que eu posso copiar mais fácil não meu celular tá todo bugado aí você aí nós não coloca o nome e veste code não tá coloca o nome certo dele né anbsd que eu esqueci o nome kk
+
+Segue o texto prontinho para você **copiar e colar** lá, só trocando o nome onde eu coloquei `NOME_DO_PROJETO_ANBSD` se quiser:
+
+***
+
+Quero que você faça uma documentação COMPLETA deste projeto (NOME_DO_PROJETO_ANBSD), em português simples, como se eu não fosse programador.
+
+1. Crie um arquivo chamado `DOC_PROJETO.md` na raiz, em formato Markdown, com:
+   - uma visão geral explicando o que o sistema faz, como se eu estivesse usando ele no dia a dia;
+   - explicação das PASTAS e ARQUIVOS principais (para que serve cada um);
+   - explicação das ROTAS ou TELAS mais importantes (por exemplo: tela de login, tela de gerar minuta, etc.), com links internos (títulos Markdown) para eu poder clicar e ir para cada seção.
+
+2. No mesmo `DOC_PROJETO.md`, crie um índice no começo (tipo sumário) com links clicáveis para cada seção, usando Markdown (por exemplo, `[Login](#login)`, `[Geracao-de-minuta](#geracao-de-minuta)`).
+
+3. Crie também um arquivo `INSTALACAO_LOCAL.md` explicando, passo a passo, como rodar este projeto em outro lugar (como VS Code no meu computador), incluindo:
+   - o que eu preciso instalar (ex.: Node, npm);
+   - quais comandos eu devo rodar (ex.: `npm install`, `npm run dev` ou outro que você achar correto);
+   - em qual ENDEREÇO o sistema vai abrir no navegador (por exemplo, `http://localhost:3000`), explicando o número da porta;
+   - quais variáveis de ambiente (`.env`) eu preciso criar e um exemplo de arquivo `.env` (sem colocar nenhuma chave secreta real, só nomes e exemplos).
+
+4. Use linguagem bem simples, em português, sempre que possível, explicando termos técnicos (por exemplo: “porta é o número depois de localhost, tipo 3000”).
+
+5. Se você perceber algum problema importante de configuração (por exemplo, scripts de start estranhos, coisas quebradas), descreva isso em uma seção “Problemas conhecidos” no `DOC_PROJETO.md`, mas NÃO mude o código agora, só avise e explique.
+
+Gere esses arquivos direto dentro do projeto para eu poder baixá-los depois.
+
+***
+
+É só colar esse texto na IA da Replit, mandar executar e depois baixar os dois arquivos que ela criar.
+
